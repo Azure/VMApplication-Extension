@@ -1,0 +1,14 @@
+[
+	{
+		"version": 1,
+		"timestampUTC": "2020-02-04T19:17:09Z",
+		"status": {
+			"operation": "flip",
+			"status": "success",
+			"formattedMessage": {
+				"lang": "en",
+				"message": "flop"
+			}
+		}
+	}
+]

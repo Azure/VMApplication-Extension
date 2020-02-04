@@ -1,0 +1,14 @@
+[
+	{
+		"version": 1,
+		"timestampUTC": "2020-02-04T19:17:09Z",
+		"status": {
+			"operation": "Install",
+			"status": "success",
+			"formattedMessage": {
+				"lang": "en",
+				"message": "Install succeeded: msg"
+			}
+		}
+	}
+]
