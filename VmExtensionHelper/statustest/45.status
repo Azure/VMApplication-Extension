@@ -1,7 +1,7 @@
 [
 	{
-		"version": 1,
-		"timestampUTC": "2020-02-04T19:17:09Z",
+		"version": "1.0",
+		"timestampUTC": "2020-02-05T01:07:01Z",
 		"status": {
 			"operation": "Install",
 			"status": "success",

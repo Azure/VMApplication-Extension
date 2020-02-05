@@ -8,7 +8,7 @@ import (
 )
 
 var (
-	installDependency installDependencies = installDependencyImpl{}
+	installDependency installDependencies = &installDependencyImpl{}
 )
 
 type installDependencies interface {
@@ -19,15 +19,15 @@ type installDependencies interface {
 
 type installDependencyImpl struct{}
 
-func (installDependencyImpl) mkdirAll(path string, perm os.FileMode) error {
+func (*installDependencyImpl) mkdirAll(path string, perm os.FileMode) error {
 	return os.MkdirAll(path, perm)
 }
 
-func (installDependencyImpl) removeAll(path string) error {
+func (*installDependencyImpl) removeAll(path string) error {
 	return os.RemoveAll(path)
 }
 
-func (installDependencyImpl) stat(name string) (os.FileInfo, error) {
+func (*installDependencyImpl) stat(name string) (os.FileInfo, error) {
 	return os.Stat(name)
 }
 

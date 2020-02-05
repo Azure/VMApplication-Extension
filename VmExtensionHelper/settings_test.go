@@ -101,7 +101,7 @@ func Test_settingsTooManyRuntimeSettings(t *testing.T) {
 	require.Equal(t, ErrInvalidSettingsRuntimeSettingsCount, err)
 }
 
-func validateHandlerSettings(t *testing.T, hs HandlerSettings) {
+func validateHandlerSettings(t *testing.T, hs *HandlerSettings) {
 	require.NotNil(t, hs)
 	flopperRaw := hs.PublicSettings["Flopper"]
 	require.NotNil(t, flopperRaw)
@@ -110,12 +110,12 @@ func validateHandlerSettings(t *testing.T, hs HandlerSettings) {
 	require.Equal(t, "flop", flopper)
 }
 
-func getTestSettingsFileName(he HandlerEnvironment) string {
+func getTestSettingsFileName(he *HandlerEnvironment) string {
 	return filepath.Join(he.ConfigFolder, fmt.Sprintf("%d%s", testSeqNo, settingsFileSuffix))
 }
 
-func getTestHandlerEnvironment() HandlerEnvironment {
-	return HandlerEnvironment{
+func getTestHandlerEnvironment() *HandlerEnvironment {
+	return &HandlerEnvironment{
 		HeartbeatFile: "./heartbeat.txt",
 		StatusFolder:  "./status/",
 		ConfigFolder:  "./config/",

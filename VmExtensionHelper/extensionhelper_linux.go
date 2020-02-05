@@ -12,6 +12,7 @@ import (
 	"path"
 	"path/filepath"
 	"strconv"
+	"strings"
 )
 
 // agentDir is where the agent is located, a subdirectory of which we use as the data directory
@@ -52,7 +53,8 @@ func getSequenceNumberInternal(name string, version string) (sn uint, _ error) {
 		return nil, err
 	}
 
-	contents := string(b)
+	// TODO: add test for spaces when Linux unit tests are added
+	contents := strings.TrimSpace(string(b))
 	sequenceNumber, err := strconv.ParseUint(contents, 10, 64)
 	if err != nil {
 		return 0, fmt.Errorf("vmextension: cannot read sequence number")
@@ -77,7 +79,7 @@ func setSequenceNumberInternal(ve *VMExtension, seqNo uint) error {
 // GetHandlerEnv locates the HandlerEnvironment.json file by assuming it lives
 // next to or one level above the extension handler (read: this) executable,
 // reads, parses and returns it.
-func getHandlerEnvironment(name string, version string) (he HandlerEnvironment, _ error) {
+func getHandlerEnvironment(name string, version string) (he *HandlerEnvironment, _ error) {
 	b, err := findAndReadFile(handlerEnvFileName)
 	if err != nil {
 		return nil, err
@@ -91,7 +93,7 @@ func getHandlerEnvironment(name string, version string) (he HandlerEnvironment, 
 	// The data directory is a subdirectory of waagent, with the extension name
 	dataFolder := path.Join(agentDir, name)
 
-	return HandlerEnvironment{
+	return &HandlerEnvironment{
 		HeartbeatFile: handlerEnvLinux.HandlerEnvironment.HeartbeatFile,
 		StatusFolder:  handlerEnvLinux.HandlerEnvironment.StatusFolder,
 		ConfigFolder:  handlerEnvLinux.HandlerEnvironment.ConfigFolder,
@@ -126,7 +128,7 @@ func findAndReadFile(fileName string) (b []byte, fileLoc string, _ error) {
 	}
 
 	if b == nil {
-		return nil, _, errNotFound
+		return nil, "", errNotFound
 	}
 
 	return b, fileLoc, nil
@@ -143,20 +145,20 @@ func scriptDir() (string, error) {
 
 // ParseHandlerEnv parses the
 // /var/lib/waagent/[extension]/HandlerEnvironment.json format.
-func parseHandlerEnv(b []byte) (he HandlerEnvironmentLinux, _ error) {
+func parseHandlerEnv(b []byte) (*HandlerEnvironmentLinux, _ error) {
 	var hf []HandlerEnvironmentLinux
 
 	if err := json.Unmarshal(b, &hf); err != nil {
-		return he, fmt.Errorf("vmextension: failed to parse handler env: %v", err)
+		return nil, fmt.Errorf("vmextension: failed to parse handler env: %v", err)
 	}
 	if len(hf) != 1 {
-		return he, fmt.Errorf("vmextension: expected 1 config in parsed HandlerEnvironment, found: %v", len(hf))
+		return nil, fmt.Errorf("vmextension: expected 1 config in parsed HandlerEnvironment, found: %v", len(hf))
 	}
 	return hf[0], nil
 }
 
 // decryptProtectedSettings decrypts the read protected settigns using certificates
-func decryptProtectedSettings(configFolder string, thumbprint string, decoded []byte, v interface{}) error {
+func decryptProtectedSettings(configFolder string, thumbprint string, decoded []byte) (map[string]interface{}, error) {
 	// go two levels up where certs are placed (/var/lib/waagent)
 	crt := filepath.Join(configFolder, "..", "..", fmt.Sprintf("%s.crt", thumbprint))
 	prv := filepath.Join(configFolder, "..", "..", fmt.Sprintf("%s.prv", thumbprint))
@@ -171,12 +173,14 @@ func decryptProtectedSettings(configFolder string, thumbprint string, decoded []
 	cmd.Stderr = &bErr
 
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("decrypting protected settings failed: error=%v stderr=%s", err, string(bErr.Bytes()))
+		return nil, fmt.Errorf("decrypting protected settings failed: error=%v stderr=%s", err, string(bErr.Bytes()))
 	}
 
 	// decrypted: json object for protected settings
+	var v map[string]interface{}
 	if err := json.Unmarshal(bOut.Bytes(), &v); err != nil {
-		return fmt.Errorf("failed to unmarshal decrypted settings json: %v", err)
+		return nil, fmt.Errorf("failed to unmarshal decrypted settings json: %v", err)
 	}
-	return nil
+
+	return v, nil
 }

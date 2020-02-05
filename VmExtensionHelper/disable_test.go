@@ -141,14 +141,14 @@ func createTestVMExtensionForDisable() *VMExtension {
 		Version:                 "5.0",
 		RequestedSequenceNumber: 2,
 		CurrentSequenceNumber:   1,
-		HandlerEnv: HandlerEnvironment{
+		HandlerEnv: &HandlerEnvironment{
 			HeartbeatFile: "./heartbeat.txt",
 			StatusFolder:  "./status/",
 			ConfigFolder:  "./config/",
 			LogFolder:     "./log/",
 			DataFolder:    "./data/",
 		},
-		Settings: HandlerSettings{},
+		Settings: &HandlerSettings{},
 		exec: executionInfo{
 			requiresSeqNoChange: true,
 			supportsDisable:     true,

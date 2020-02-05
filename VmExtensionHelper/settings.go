@@ -32,7 +32,7 @@ type handlerSettingsContainer struct {
 }
 
 // getHandlerSettings reads and parses the handler's settings in an OS independent manner
-func getHandlerSettings(ctx log.Logger, he HandlerEnvironment, seqNo uint) (hs HandlerSettings, _ error) {
+func getHandlerSettings(ctx log.Logger, he *HandlerEnvironment, seqNo uint) (hs *HandlerSettings, _ error) {
 	// The file will be under the config folder with the path {seqNo}.settings
 	settingsFileName := filepath.Join(he.ConfigFolder, fmt.Sprintf("%d%s", seqNo, settingsFileSuffix))
 	parsedHs, err := parseHandlerSettingsFile(ctx, settingsFileName)
@@ -45,7 +45,7 @@ func getHandlerSettings(ctx log.Logger, he HandlerEnvironment, seqNo uint) (hs H
 		return hs, err
 	}
 
-	hs = HandlerSettings{
+	hs = &HandlerSettings{
 		PublicSettings:    parsedHs.PublicSettings,
 		ProtectedSettings: protectedSettings,
 	}

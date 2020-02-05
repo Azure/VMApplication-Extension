@@ -87,7 +87,7 @@ func setSequenceNumberInternal(ve *VMExtension, seqNo uint) error {
 }
 
 // GetHandlerEnv reads the directory information from the registry
-func getHandlerEnvironment(name string, version string) (he HandlerEnvironment, _ error) {
+func getHandlerEnvironment(name string, version string) (he *HandlerEnvironment, _ error) {
 	extensionKeyName := getExtensionKeyName(name, version)
 	k, err := registry.OpenKey(registry.LOCAL_MACHINE, extensionKeyName, registry.QUERY_VALUE)
 	if err != nil {
@@ -118,7 +118,7 @@ func getHandlerEnvironment(name string, version string) (he HandlerEnvironment, 
 	// Logs folder is at %SYSTEMDRIVE%\WindowsAzure\Logs\Plugins\{extension name}\{extension version}
 	logFolder := path.Join(systemDriveFolder, "WindowsAzure\\Logs\\Plugins", name, version)
 
-	he = HandlerEnvironment{
+	he = &HandlerEnvironment{
 		HeartbeatFile: heartBeatFile,
 		StatusFolder:  statusFolder,
 		ConfigFolder:  configFolder,

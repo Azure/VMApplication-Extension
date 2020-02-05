@@ -13,8 +13,8 @@ import (
 type mockGetVMExtensionEnvironmentManager struct {
 	seqNo                         uint
 	currentSeqNo                  uint
-	he                            HandlerEnvironment
-	hs                            HandlerSettings
+	he                            *HandlerEnvironment
+	hs                            *HandlerSettings
 	getHandlerEnvironmentError    error
 	findSeqNumError               error
 	getCurrentSequenceNumberError error
@@ -22,7 +22,7 @@ type mockGetVMExtensionEnvironmentManager struct {
 	setSequenceNumberError        error
 }
 
-func (mm mockGetVMExtensionEnvironmentManager) getHandlerEnvironment(name string, version string) (he HandlerEnvironment, _ error) {
+func (mm *mockGetVMExtensionEnvironmentManager) getHandlerEnvironment(name string, version string) (he *HandlerEnvironment, _ error) {
 	if mm.getHandlerEnvironmentError != nil {
 		return he, mm.getHandlerEnvironmentError
 	}
@@ -30,7 +30,7 @@ func (mm mockGetVMExtensionEnvironmentManager) getHandlerEnvironment(name string
 	return mm.he, nil
 }
 
-func (mm mockGetVMExtensionEnvironmentManager) findSeqNum(ctx log.Logger, configFolder string) (uint, error) {
+func (mm *mockGetVMExtensionEnvironmentManager) findSeqNum(ctx log.Logger, configFolder string) (uint, error) {
 	if mm.findSeqNumError != nil {
 		return 0, mm.findSeqNumError
 	}
@@ -38,7 +38,7 @@ func (mm mockGetVMExtensionEnvironmentManager) findSeqNum(ctx log.Logger, config
 	return mm.seqNo, nil
 }
 
-func (mm mockGetVMExtensionEnvironmentManager) getCurrentSequenceNumber(ctx log.Logger, retriever sequenceNumberRetriever, name string, version string) (uint, error) {
+func (mm *mockGetVMExtensionEnvironmentManager) getCurrentSequenceNumber(ctx log.Logger, retriever sequenceNumberRetriever, name string, version string) (uint, error) {
 	if mm.getCurrentSequenceNumberError != nil {
 		return 0, mm.getCurrentSequenceNumberError
 	}
@@ -46,7 +46,7 @@ func (mm mockGetVMExtensionEnvironmentManager) getCurrentSequenceNumber(ctx log.
 	return mm.currentSeqNo, nil
 }
 
-func (mm mockGetVMExtensionEnvironmentManager) getHandlerSettings(ctx log.Logger, he HandlerEnvironment, seqNo uint) (hs HandlerSettings, _ error) {
+func (mm *mockGetVMExtensionEnvironmentManager) getHandlerSettings(ctx log.Logger, he *HandlerEnvironment, seqNo uint) (hs *HandlerSettings, _ error) {
 	if mm.getHandlerSettingsError != nil {
 		return hs, mm.getHandlerSettingsError
 	}
@@ -54,7 +54,7 @@ func (mm mockGetVMExtensionEnvironmentManager) getHandlerSettings(ctx log.Logger
 	return mm.hs, nil
 }
 
-func (mm mockGetVMExtensionEnvironmentManager) setSequenceNumberInternal(ve *VMExtension, seqNo uint) error {
+func (mm *mockGetVMExtensionEnvironmentManager) setSequenceNumberInternal(ve *VMExtension, seqNo uint) error {
 	if mm.setSequenceNumberError != nil {
 		return mm.setSequenceNumberError
 	}
@@ -85,7 +85,7 @@ func Test_getVMExtensionGetHandlerEnvironmentError(t *testing.T) {
 	myerr := errors.New("cannot handle the environment")
 
 	ii, _ := GetInitializationInfo("yaba", "5.0", true, testEnableCallback)
-	mm := mockGetVMExtensionEnvironmentManager{getHandlerEnvironmentError: myerr}
+	mm := &mockGetVMExtensionEnvironmentManager{getHandlerEnvironmentError: myerr}
 	_, err := getVMExtensionInternal(ctx, ii, mm)
 	require.Equal(t, myerr, err)
 }
@@ -395,14 +395,14 @@ func testFailEnableCallback(ctx log.Logger, ext *VMExtension) (string, error) {
 	return "", ErrMustRunAsAdmin
 }
 
-func createMockVMExtensionEnvironmentManager() mockGetVMExtensionEnvironmentManager {
+func createMockVMExtensionEnvironmentManager() *mockGetVMExtensionEnvironmentManager {
 	publicSettings := make(map[string]interface{})
 	publicSettings["Flipper"] = "flip"
 	publicSettings["Flopper"] = "flop"
-	hs := HandlerSettings{PublicSettings: publicSettings, ProtectedSettings: nil}
+	hs := &HandlerSettings{PublicSettings: publicSettings, ProtectedSettings: nil}
 	he := getTestHandlerEnvironment()
 
-	return mockGetVMExtensionEnvironmentManager{
+	return &mockGetVMExtensionEnvironmentManager{
 		seqNo:        5,
 		currentSeqNo: 4,
 		hs:           hs,

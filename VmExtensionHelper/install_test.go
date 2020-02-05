@@ -13,26 +13,27 @@ import (
 var (
 	updateNormalCallbackCalled bool
 	updateErrorCallbackCalled  bool
-	mkdirCalled                bool
-	removeAllCalled            bool
-	statErrorToReturn          error = os.ErrNotExist
-	installErrorToReturn       error = os.ErrNotExist
 )
 
-type evilInstallDependencies struct{}
-
-func (evilInstallDependencies) mkdirAll(path string, perm os.FileMode) error {
-	mkdirCalled = true
-	return installErrorToReturn
+type evilInstallDependencies struct {
+	mkdirCalled          bool
+	removeAllCalled      bool
+	statErrorToReturn    error
+	installErrorToReturn error
 }
 
-func (evilInstallDependencies) removeAll(path string) error {
-	removeAllCalled = true
-	return installErrorToReturn
+func (eid *evilInstallDependencies) mkdirAll(path string, perm os.FileMode) error {
+	eid.mkdirCalled = true
+	return eid.installErrorToReturn
 }
 
-func (evilInstallDependencies) stat(name string) (os.FileInfo, error) {
-	return nil, statErrorToReturn
+func (eid *evilInstallDependencies) removeAll(path string) error {
+	eid.removeAllCalled = true
+	return eid.installErrorToReturn
+}
+
+func (eid *evilInstallDependencies) stat(name string) (os.FileInfo, error) {
+	return nil, eid.statErrorToReturn
 }
 
 func Test_updateCallback(t *testing.T) {
@@ -58,134 +59,112 @@ func Test_installAlreadyExists(t *testing.T) {
 	ctx := log.NewSyncLogger(log.NewLogfmtLogger(os.Stdout))
 	ext := createTestVMExtensionForDisable()
 
-	mkdirCalled = false
-	statErrorToReturn = nil
-	installDependency = evilInstallDependencies{}
+	installDependency = &evilInstallDependencies{mkdirCalled: false, statErrorToReturn: nil}
 	defer resetDependencies()
 
 	_, err := install(ctx, ext)
 	require.NoError(t, err, "install failed")
-	require.False(t, mkdirCalled)
+	require.False(t, installDependency.(*evilInstallDependencies).mkdirCalled)
 }
 
 func Test_installSuccess(t *testing.T) {
 	ctx := log.NewSyncLogger(log.NewLogfmtLogger(os.Stdout))
 	ext := createTestVMExtensionForDisable()
 
-	mkdirCalled = false
-	statErrorToReturn = os.ErrNotExist
-	installErrorToReturn = nil
-	installDependency = evilInstallDependencies{}
+	installDependency = &evilInstallDependencies{mkdirCalled: false, statErrorToReturn: os.ErrNotExist, installErrorToReturn: nil}
 	defer resetDependencies()
 
 	_, err := install(ctx, ext)
 	require.NoError(t, err, "install failed")
-	require.True(t, mkdirCalled)
+	require.True(t, installDependency.(*evilInstallDependencies).mkdirCalled)
 }
 
 func Test_installFailToMakeDir(t *testing.T) {
 	ctx := log.NewSyncLogger(log.NewLogfmtLogger(os.Stdout))
 	ext := createTestVMExtensionForDisable()
 
-	installDependency = evilInstallDependencies{}
+	installDependency = &evilInstallDependencies{}
 	defer resetDependencies()
 
-	mkdirCalled = false
-	statErrorToReturn = os.ErrNotExist
-	installErrorToReturn = errors.New("something happened")
-	installDependency = evilInstallDependencies{}
+	installDependency = &evilInstallDependencies{mkdirCalled: false, statErrorToReturn: os.ErrNotExist, installErrorToReturn: errors.New("something happened")}
 	defer resetDependencies()
 
 	_, err := install(ctx, ext)
-	require.Error(t, err, installErrorToReturn)
-	require.True(t, mkdirCalled)
+	require.Error(t, err, installDependency.(*evilInstallDependencies).installErrorToReturn)
+	require.True(t, installDependency.(*evilInstallDependencies).mkdirCalled)
 }
 
 func Test_installFileExistFails(t *testing.T) {
 	ctx := log.NewSyncLogger(log.NewLogfmtLogger(os.Stdout))
 	ext := createTestVMExtensionForDisable()
 
-	installDependency = evilInstallDependencies{}
+	installDependency = &evilInstallDependencies{}
 	defer resetDependencies()
 
-	mkdirCalled = false
-	statErrorToReturn = errors.New("bad permissions")
-	installErrorToReturn = os.ErrNotExist
-	installDependency = evilInstallDependencies{}
+	installDependency = &evilInstallDependencies{mkdirCalled: false, statErrorToReturn: errors.New("bad permissions"), installErrorToReturn: os.ErrNotExist}
 	defer resetDependencies()
 
 	_, err := install(ctx, ext)
-	require.Error(t, err, statErrorToReturn)
-	require.False(t, mkdirCalled)
+	require.Error(t, err, installDependency.(*evilInstallDependencies).statErrorToReturn)
+	require.False(t, installDependency.(*evilInstallDependencies).mkdirCalled)
 }
 
 func Test_uninstallAlreadyGone(t *testing.T) {
 	ctx := log.NewSyncLogger(log.NewLogfmtLogger(os.Stdout))
 	ext := createTestVMExtensionForDisable()
 
-	removeAllCalled = false
-	statErrorToReturn = os.ErrNotExist
-	installDependency = evilInstallDependencies{}
+	installDependency = &evilInstallDependencies{removeAllCalled: false, statErrorToReturn: os.ErrNotExist}
 	defer resetDependencies()
 
 	_, err := uninstall(ctx, ext)
 	require.NoError(t, err, "uninstall failed")
-	require.False(t, removeAllCalled)
+	require.False(t, installDependency.(*evilInstallDependencies).removeAllCalled)
 }
 
 func Test_uninstallSuccess(t *testing.T) {
 	ctx := log.NewSyncLogger(log.NewLogfmtLogger(os.Stdout))
 	ext := createTestVMExtensionForDisable()
 
-	removeAllCalled = false
-	statErrorToReturn = nil
-	installErrorToReturn = nil
-	installDependency = evilInstallDependencies{}
+	installDependency = &evilInstallDependencies{removeAllCalled: false, statErrorToReturn: nil, installErrorToReturn: nil}
 	defer resetDependencies()
 
 	_, err := uninstall(ctx, ext)
 	require.NoError(t, err, "uninstall failed")
-	require.True(t, removeAllCalled)
+	require.True(t, installDependency.(*evilInstallDependencies).removeAllCalled)
 }
 
 func Test_uninstallFailToRemoveDir(t *testing.T) {
 	ctx := log.NewSyncLogger(log.NewLogfmtLogger(os.Stdout))
 	ext := createTestVMExtensionForDisable()
 
-	installDependency = evilInstallDependencies{}
+	installDependency = &evilInstallDependencies{}
 	defer resetDependencies()
 
-	removeAllCalled = false
-	statErrorToReturn = nil
-	installErrorToReturn = errors.New("something happened")
-	installDependency = evilInstallDependencies{}
+	installDependency = &evilInstallDependencies{removeAllCalled: false, statErrorToReturn: nil, installErrorToReturn: errors.New("something happened")}
 	defer resetDependencies()
 
 	_, err := uninstall(ctx, ext)
-	require.Error(t, err, installErrorToReturn)
-	require.True(t, removeAllCalled)
+	require.Error(t, err, installDependency.(*evilInstallDependencies).installErrorToReturn)
+	require.True(t, installDependency.(*evilInstallDependencies).removeAllCalled)
 }
 
 func Test_uninstallFileExistFails(t *testing.T) {
 	ctx := log.NewSyncLogger(log.NewLogfmtLogger(os.Stdout))
 	ext := createTestVMExtensionForDisable()
 
-	installDependency = evilInstallDependencies{}
+	installDependency = &evilInstallDependencies{}
 	defer resetDependencies()
 
-	removeAllCalled = false
-	statErrorToReturn = errors.New("bad permissions")
-	installErrorToReturn = os.ErrNotExist
-	installDependency = evilInstallDependencies{}
+	installDependency = &evilInstallDependencies{removeAllCalled: false, statErrorToReturn: errors.New("bad permissions"), installErrorToReturn: os.ErrNotExist}
 	defer resetDependencies()
 
 	_, err := uninstall(ctx, ext)
-	require.Error(t, err, statErrorToReturn)
-	require.False(t, removeAllCalled)
+	require.Error(t, err, installDependency.(*evilInstallDependencies).statErrorToReturn)
+	require.False(t, installDependency.(*evilInstallDependencies).removeAllCalled)
 }
 
 func resetInstallDependencies() {
-	installDependency = installDependencyImpl{}
+	installDependency = &installDependencyImpl{}
 }
 
 func testUpdateCallbackNormal(ctx log.Logger, ext *VMExtension) error {

@@ -39,13 +39,13 @@ type executionInfo struct {
 
 // VMExtension is an abstraction for standard extension operations in an OS agnostic manner
 type VMExtension struct {
-	Name                    string             // The name of the extension. This will contain 'Windows' or 'Linux'
-	Version                 string             // The version of the extension
-	RequestedSequenceNumber uint               // The requested sequence number to run
-	CurrentSequenceNumber   uint               // The last run sequence number
-	HandlerEnv              HandlerEnvironment // Contains information about the folders necessary for the extension
-	Settings                HandlerSettings    // Contains settings passed to the extension
-	exec                    executionInfo      // Internal information necessary for the extension to run
+	Name                    string              // The name of the extension. This will contain 'Windows' or 'Linux'
+	Version                 string              // The version of the extension
+	RequestedSequenceNumber uint                // The requested sequence number to run
+	CurrentSequenceNumber   uint                // The last run sequence number
+	HandlerEnv              *HandlerEnvironment // Contains information about the folders necessary for the extension
+	Settings                *HandlerSettings    // Contains settings passed to the extension
+	exec                    executionInfo       // Internal information necessary for the extension to run
 }
 
 // HandlerEnvironment describes the handler environment configuration for an extension
@@ -59,39 +59,39 @@ type HandlerEnvironment struct {
 
 // Allows for mocking all environment operations when running tests against VM extensions
 type getVMExtensionEnvironmentManager interface {
-	getHandlerEnvironment(name string, version string) (HandlerEnvironment, error)
+	getHandlerEnvironment(name string, version string) (*HandlerEnvironment, error)
 	findSeqNum(ctx log.Logger, configFolder string) (uint, error)
 	getCurrentSequenceNumber(ctx log.Logger, retriever sequenceNumberRetriever, name string, version string) (uint, error)
-	getHandlerSettings(ctx log.Logger, he HandlerEnvironment, seqNo uint) (HandlerSettings, error)
+	getHandlerSettings(ctx log.Logger, he *HandlerEnvironment, seqNo uint) (*HandlerSettings, error)
 	setSequenceNumberInternal(ve *VMExtension, seqNo uint) error
 }
 
 type prodGetVMExtensionEnvironmentManager struct {
 }
 
-func (prodGetVMExtensionEnvironmentManager) getHandlerEnvironment(name string, version string) (HandlerEnvironment, error) {
+func (*prodGetVMExtensionEnvironmentManager) getHandlerEnvironment(name string, version string) (*HandlerEnvironment, error) {
 	return getHandlerEnvironment(name, version)
 }
 
-func (prodGetVMExtensionEnvironmentManager) findSeqNum(ctx log.Logger, configFolder string) (uint, error) {
+func (*prodGetVMExtensionEnvironmentManager) findSeqNum(ctx log.Logger, configFolder string) (uint, error) {
 	return findSeqNum(ctx, configFolder)
 }
 
-func (prodGetVMExtensionEnvironmentManager) getCurrentSequenceNumber(ctx log.Logger, retriever sequenceNumberRetriever, name string, version string) (uint, error) {
+func (*prodGetVMExtensionEnvironmentManager) getCurrentSequenceNumber(ctx log.Logger, retriever sequenceNumberRetriever, name string, version string) (uint, error) {
 	return getCurrentSequenceNumber(ctx, retriever, name, version)
 }
 
-func (prodGetVMExtensionEnvironmentManager) getHandlerSettings(ctx log.Logger, he HandlerEnvironment, seqNo uint) (HandlerSettings, error) {
+func (*prodGetVMExtensionEnvironmentManager) getHandlerSettings(ctx log.Logger, he *HandlerEnvironment, seqNo uint) (*HandlerSettings, error) {
 	return getHandlerSettings(ctx, he, seqNo)
 }
 
-func (prodGetVMExtensionEnvironmentManager) setSequenceNumberInternal(ve *VMExtension, seqNo uint) error {
+func (*prodGetVMExtensionEnvironmentManager) setSequenceNumberInternal(ve *VMExtension, seqNo uint) error {
 	return setSequenceNumberInternal(ve, seqNo)
 }
 
 // GetVMExtension returns a new VMExtension object
 func GetVMExtension(ctx log.Logger, initInfo *InitializationInfo) (ext *VMExtension, _ error) {
-	return getVMExtensionInternal(ctx, initInfo, prodGetVMExtensionEnvironmentManager{})
+	return getVMExtensionInternal(ctx, initInfo, &prodGetVMExtensionEnvironmentManager{})
 }
 
 // Internal method that allows mocking for unit tests
