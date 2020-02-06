@@ -45,7 +45,7 @@ func getOSName() (name string) {
 
 // getSequenceNumberInternal is the Windows specific logic for reading the current
 // sequence number for the extension from the registry
-func getSequenceNumberInternal(name string, version string) (sn uint, _ error) {
+func getSequenceNumberInternal(name string, version string) (uint, error) {
 	extensionKeyName := getExtensionKeyName(name, version)
 	k, err := registry.OpenKey(registry.LOCAL_MACHINE, extensionKeyName, registry.QUERY_VALUE)
 	if err != nil {
