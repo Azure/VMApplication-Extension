@@ -1,0 +1,24 @@
+{
+ "runtimeSettings": [
+  {
+   "handlerSettings": {
+    "publicSettings": {
+     "Flipper": "flip",
+     "Flopper": "flop"
+    },
+    "protectedSettings": "",
+    "protectedSettingsCertThumbprint": "0b612f714b8defd5592bd45da9fe8cc5bbba3648"
+   }
+  },
+  {
+   "handlerSettings": {
+    "publicSettings": {
+     "Flipper": "flip",
+     "Flopper": "flop"
+    },
+    "protectedSettings": "",
+    "protectedSettingsCertThumbprint": "0b612f714b8defd5592bd45da9fe8cc5bbba3648"
+   }
+  }
+ ]
+}
