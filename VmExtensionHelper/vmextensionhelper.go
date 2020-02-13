@@ -45,7 +45,7 @@ type VMExtension struct {
 	CurrentSequenceNumber   uint                // The last run sequence number
 	HandlerEnv              *HandlerEnvironment // Contains information about the folders necessary for the extension
 	Settings                *HandlerSettings    // Contains settings passed to the extension
-	exec                    executionInfo       // Internal information necessary for the extension to run
+	exec                    *executionInfo      // Internal information necessary for the extension to run
 }
 
 // HandlerEnvironment describes the handler environment configuration for an extension
@@ -157,7 +157,7 @@ func getVMExtensionInternal(ctx log.Logger, initInfo *InitializationInfo, manage
 		CurrentSequenceNumber:   currentSeqNo,
 		HandlerEnv:              handlerEnv,
 		Settings:                settings,
-		exec: executionInfo{
+		exec: &executionInfo{
 			manager:             manager,
 			requiresSeqNoChange: initInfo.RequiresSeqNoChange,
 			supportsDisable:     initInfo.SupportsDisable,
