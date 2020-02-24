@@ -29,6 +29,7 @@ type osDependencies interface {
 	stat(string) (os.FileInfo, error)
 	readfile(string) ([]byte, error)
 	writefile(string, []byte, os.FileMode) error
+	removefile(string) error
 }
 
 type osDependenciesImpl struct{}
@@ -48,6 +49,10 @@ func (*osDependenciesImpl) readfile(name string) ([]byte, error) {
 
 func (*osDependenciesImpl) writefile(filename string, data []byte, perm os.FileMode) error {
 	return ioutil.WriteFile(filename, data, perm)
+}
+
+func (*osDependenciesImpl) removefile(name string) error {
+	return os.Remove(name)
 }
 
 // getPackageStatePlan is the central method for determining what we need to do
@@ -78,7 +83,7 @@ func getPackageStatePlan(ctx log.Logger, ext *vmextensionhelper.VMExtension, req
 	resolveFromPackageStates(ctx, ext, requested, proposedPackageState, collectionResolveCallback(sourcePackageNotNeeded), collectionResolveCallback(proposedPackageNotNeeded))
 
 	hasProposedPackages := false
-	if len(proposedPackageState.Packages) > 0 {
+	if proposedPackageState != nil && len(proposedPackageState.Packages) > 0 {
 		hasProposedPackages = true
 	}
 
@@ -89,9 +94,11 @@ func getPackageStatePlan(ctx log.Logger, ext *vmextensionhelper.VMExtension, req
 
 	// Now write all package states for our plan
 	maxProposedNumber := 0
-	for _, proposedFile := range proposedPackageState.Packages {
-		if proposedFile.ProposedFileNumber > maxProposedNumber {
-			maxProposedNumber = proposedFile.ProposedFileNumber
+	if proposedPackageState != nil {
+		for _, proposedFile := range proposedPackageState.Packages {
+			if proposedFile.ProposedFileNumber > maxProposedNumber {
+				maxProposedNumber = proposedFile.ProposedFileNumber
+			}
 		}
 	}
 
@@ -121,6 +128,19 @@ func getNextProposedPackage(ctx log.Logger, ext *vmextensionhelper.VMExtension) 
 	}
 
 	return &returnPackage
+}
+
+func markProposedPackageFinished(ctx log.Logger, ext *vmextensionhelper.VMExtension, pkg *vmPackage) error {
+	fileName := strconv.Itoa(pkg.ProposedFileNumber) + "." + proposedPackageStateSuffix
+	filePath := path.Join(ext.HandlerEnv.DataFolder, fileName)
+	ctx.Log("info", fmt.Sprintf("Removing file %s because processing has finished", filePath))
+
+	err := os.Remove(filePath)
+	if err != nil {
+		ctx.Log("error", fmt.Sprintf("Unable to delete proposal file %s: %v", filePath, err))
+	}
+
+	return err
 }
 
 func writeProposedPackages(ctx log.Logger, ext *vmextensionhelper.VMExtension, requested *vmPackageData, startProposedNumber int) error {
@@ -154,7 +174,7 @@ func writeProposedPackages(ctx log.Logger, ext *vmextensionhelper.VMExtension, r
 func proposedPackageNotNeeded(ctx log.Logger, ext *vmextensionhelper.VMExtension, losingPackage *vmPackage) {
 	ctx.Log("message", fmt.Sprintf("Proposed package %s superceded by the current plan. Removing.", losingPackage.Name))
 
-	fileName := string(losingPackage.ProposedFileNumber) + "." + proposedPackageStateSuffix
+	fileName := strconv.Itoa(losingPackage.ProposedFileNumber) + "." + proposedPackageStateSuffix
 	fullFilePath := path.Join(ext.HandlerEnv.DataFolder, fileName)
 	err := os.Remove(fullFilePath)
 	if err != nil {
@@ -305,9 +325,13 @@ func getProposedPackageState(ctx log.Logger, ext *vmextensionhelper.VMExtension)
 }
 
 func findPackageState(name string, packageData *vmPackageData) *vmPackage {
-	_, p := findPackageInSlice(name, packageData.Packages)
+	if packageData != nil {
+		_, p := findPackageInSlice(name, packageData.Packages)
 
-	return p
+		return p
+	}
+
+	return nil
 }
 
 func findPackageInSlice(name string, packages []vmPackage) (int, *vmPackage) {
@@ -328,17 +352,27 @@ func resolvePackageState(ctx log.Logger, first *vmPackage, second *vmPackage) *v
 	// If both are install/update, then choose the higher version. If either is install, then set that state to install.
 	// If first is removed, but second is install and has a higher version, then choose second
 	// If second is remove, then choose second
+	ctx.Log("message", fmt.Sprintf("Resolving package state for %s. First(version=%s, operation=%s) Second(version=%s, operation=%s)", first.Name, first.Version, first.Operation, second.Version, second.Operation))
 	if first.isInstallOrUpdate() && second.isInstallOrUpdate() {
 		// If they are equal, stick with first
-		if compareVersions(ctx, first.Version, second.Version) == -1 {
-			ctx.Log("message", fmt.Sprintf("Found two package states with version %s and %s. Choosing the first", first.Version, second.Version))
+		compare := compareVersions(ctx, first.Version, second.Version)
+		if compare == 0 {
+			ctx.Log("message", fmt.Sprintf("Versions are identical. Choosing the first"))
+			if second.isInstall() {
+				first.Operation = operationInstall
+			}
+			return first
+		}
+
+		if compare == -1 {
+			ctx.Log("message", fmt.Sprintf("Choosing the second due to a higher version."))
 			if first.isInstall() {
 				second.Operation = operationInstall
 			}
 			return second
 		}
 
-		ctx.Log("message", fmt.Sprintf("Found two package states with version %s and %s. Choosing the second", first.Version, second.Version))
+		ctx.Log("message", fmt.Sprintf("Choosing the first due to a higher version"))
 		if second.isInstall() {
 			first.Operation = operationInstall
 		}
@@ -347,21 +381,21 @@ func resolvePackageState(ctx log.Logger, first *vmPackage, second *vmPackage) *v
 
 	if first.isRemove() {
 		if second.isInstall() && compareVersions(ctx, first.Version, second.Version) == -1 {
-			ctx.Log("message", fmt.Sprintf("Found two packages states, first with remove and version %s and second with install and version %s. Due to higher version, taking second", first.Version, second.Version))
+			ctx.Log("message", fmt.Sprintf("Choosing the second due to a higher version"))
 			return second
 		}
 
 		if second.isRemove() {
-			ctx.Log("message", "Found two package states with remove. Choosing the second.", first.Version, second.Version)
+			ctx.Log("message", "Both packages are remove. Choosing the second.")
 			return second
 		}
 
-		ctx.Log("message", fmt.Sprintf("Found two package states with remove and version %s and second with version %s. Choosing the first", first.Version, second.Version))
+		ctx.Log("message", fmt.Sprintf("Choosing first due to a higher version"))
 		return first
 	}
 
 	// By logic, we only reach here if the second is remove but the first is not
-	ctx.Log("message", fmt.Sprintf("Found two package states with versions %s and %s. Second is remove, so choosing the second", first.Version, second.Version))
+	ctx.Log("message", fmt.Sprintf("Second is remove, so choosing the second"))
 	return second
 }
 

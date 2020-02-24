@@ -41,6 +41,10 @@ func (*mockOSDependencies) writefile(filename string, data []byte, perm os.FileM
 	return errors.New("The file has writer's block")
 }
 
+func (*mockOSDependencies) removefile(name string) error {
+	return errors.New("This file is disinclined to acquiesce to your request")
+}
+
 func Test_getProposedFileNumber_NoSuffix(t *testing.T) {
 	isProposed, _ := getProposedFileNumber("yaba")
 	require.False(t, isProposed)
@@ -168,7 +172,8 @@ func Test_resolvePackageState_updateInstallFirstHigher(t *testing.T) {
 	first := getPackage("first", "update", "2.0.0")
 	second := getPackage("second", "install", "1.0.0")
 	chosen := resolvePackageState(ctx, first, second)
-	require.Equal(t, first, chosen)
+	require.Equal(t, "first", chosen.Name)
+	require.Equal(t, "2.0.0", chosen.Version)
 	require.Equal(t, operationInstall, chosen.Operation)
 }
 
@@ -177,7 +182,8 @@ func Test_resolvePackageState_updateInstallEqual(t *testing.T) {
 	first := getPackage("first", "update", "1.0.0")
 	second := getPackage("second", "install", "1.0.0")
 	chosen := resolvePackageState(ctx, first, second)
-	require.Equal(t, first, chosen)
+	require.Equal(t, "first", chosen.Name)
+	require.Equal(t, "1.0.0", chosen.Version)
 	require.Equal(t, operationInstall, chosen.Operation)
 }
 
@@ -828,32 +834,336 @@ func Test_getNextProposedPackage_higherNumber(t *testing.T) {
 	require.Equal(t, "scuba", nextPackage.Name)
 }
 
-func Test_getPackageStatePlan_allPackagesRemoved(t *testing.T) {
+func Test_getPackageStatePlan_allPackagesRemovedByProposed(t *testing.T) {
+	cleanDataDirectory(t)
+	ctx := log.NewSyncLogger(log.NewLogfmtLogger(os.Stdout))
+	requested := vmPackageData{Packages: []vmPackage{
+		*getPackage("iggy", "update", "2.0.0"),
+		*getPackage("piggy", "update", "2.0.0"),
+	}}
+	ext := createTestVMExtension(requested)
 
+	proposed := vmPackageData{Packages: []vmPackage{
+		*getPackage("iggy", "update", "3.0.0"),
+		*getPackage("piggy", "update", "3.0.0"),
+	}}
+	err := writeProposedPackages(ctx, ext, &proposed, 0)
+	require.NoError(t, err)
+
+	current := vmPackageData{Packages: []vmPackage{
+		*getPackage("iggy", "update", "1.0.0"),
+		*getPackage("piggy", "update", "1.0.0"),
+	}}
+	createPackageFile(t, &current, currentPackageStateFileName)
+
+	requiresChanges, hasProposedState, err := getPackageStatePlan(ctx, ext, &requested)
+	require.False(t, requiresChanges)
+	require.True(t, hasProposedState)
+	require.NoError(t, err)
+
+	// We should still have the two proposed files
+	nextPackage := getNextProposedPackage(ctx, ext)
+	require.NotNil(t, nextPackage)
+	require.Equal(t, "3.0.0", nextPackage.Version)
+	markProposedPackageFinished(ctx, ext, nextPackage)
+
+	nextPackage = getNextProposedPackage(ctx, ext)
+	require.NotNil(t, nextPackage)
+	require.Equal(t, "3.0.0", nextPackage.Version)
+	markProposedPackageFinished(ctx, ext, nextPackage)
+}
+
+func Test_getPackageStatePlan_allPackagesRemovedByCurrent(t *testing.T) {
+	cleanDataDirectory(t)
+	ctx := log.NewSyncLogger(log.NewLogfmtLogger(os.Stdout))
+	requested := vmPackageData{Packages: []vmPackage{
+		*getPackage("iggy", "update", "2.0.0"),
+		*getPackage("piggy", "update", "2.0.0"),
+	}}
+	ext := createTestVMExtension(requested)
+
+	current := vmPackageData{Packages: []vmPackage{
+		*getPackage("iggy", "update", "4.0.0"),
+		*getPackage("piggy", "update", "4.0.0"),
+	}}
+	createPackageFile(t, &current, currentPackageStateFileName)
+
+	requiresChanges, hasProposedState, err := getPackageStatePlan(ctx, ext, &requested)
+	require.False(t, requiresChanges)
+	require.False(t, hasProposedState)
+	require.NoError(t, err)
+
+	// We should have no proposed files
+	nextPackage := getNextProposedPackage(ctx, ext)
+	require.Nil(t, nextPackage)
 }
 
 func Test_getPackageStatePlan_removeProposedPackage(t *testing.T) {
+	cleanDataDirectory(t)
+	ctx := log.NewSyncLogger(log.NewLogfmtLogger(os.Stdout))
+	requested := vmPackageData{Packages: []vmPackage{
+		*getPackage("iggy", "update", "3.0.0"),
+		*getPackage("piggy", "update", "3.0.0"),
+	}}
+	ext := createTestVMExtension(requested)
 
+	proposed := vmPackageData{Packages: []vmPackage{
+		*getPackage("piggy", "update", "2.0.0"),
+	}}
+	err := writeProposedPackages(ctx, ext, &proposed, 0)
+	require.NoError(t, err)
+
+	current := vmPackageData{Packages: []vmPackage{
+		*getPackage("iggy", "install", "1.0.0"),
+		*getPackage("piggy", "install", "1.0.0"),
+	}}
+	createPackageFile(t, &current, currentPackageStateFileName)
+
+	requiresChanges, hasProposedState, err := getPackageStatePlan(ctx, ext, &requested)
+	require.True(t, requiresChanges)
+	require.True(t, hasProposedState)
+	require.NoError(t, err)
+
+	// The proposed file will be deleted
+	nextPackage := getNextProposedPackage(ctx, ext)
+	require.NotNil(t, nextPackage)
+	require.Equal(t, "3.0.0", nextPackage.Version)
+	markProposedPackageFinished(ctx, ext, nextPackage)
+
+	nextPackage = getNextProposedPackage(ctx, ext)
+	require.NotNil(t, nextPackage)
+	require.Equal(t, "3.0.0", nextPackage.Version)
+	markProposedPackageFinished(ctx, ext, nextPackage)
 }
 
 func Test_getPackageStatePlan_cannotRemoveProposedPackage(t *testing.T) {
+	cleanDataDirectory(t)
+	ctx := log.NewSyncLogger(log.NewLogfmtLogger(os.Stdout))
+	requested := vmPackageData{Packages: []vmPackage{
+		*getPackage("iggy", "update", "3.0.0"),
+		*getPackage("piggy", "update", "3.0.0"),
+	}}
+	ext := createTestVMExtension(requested)
 
+	proposed := vmPackageData{Packages: []vmPackage{
+		*getPackage("piggy", "update", "2.0.0"),
+	}}
+	err := writeProposedPackages(ctx, ext, &proposed, 0)
+	require.NoError(t, err)
+
+	current := vmPackageData{Packages: []vmPackage{
+		*getPackage("iggy", "install", "1.0.0"),
+		*getPackage("piggy", "install", "1.0.0"),
+	}}
+	createPackageFile(t, &current, currentPackageStateFileName)
+
+	osDependency = &mockOSDependencies{}
+	defer resetOSDependency()
+
+	_, _, err = getPackageStatePlan(ctx, ext, &requested)
+	require.Error(t, err)
 }
 
 func Test_getPackageStatePlan_cannotWriteProposedPackages(t *testing.T) {
+	cleanDataDirectory(t)
+	ctx := log.NewSyncLogger(log.NewLogfmtLogger(os.Stdout))
+	requested := vmPackageData{Packages: []vmPackage{
+		*getPackage("iggy", "update", "3.0.0"),
+		*getPackage("piggy", "update", "3.0.0"),
+	}}
+	ext := createTestVMExtension(requested)
 
+	current := vmPackageData{Packages: []vmPackage{
+		*getPackage("iggy", "install", "1.0.0"),
+		*getPackage("piggy", "install", "1.0.0"),
+	}}
+	createPackageFile(t, &current, currentPackageStateFileName)
+
+	osDependency = &mockOSDependencies{}
+	defer resetOSDependency()
+
+	_, _, err := getPackageStatePlan(ctx, ext, &requested)
+	require.Error(t, err)
 }
 
 func Test_getPackageStatePlan_addToProposedPackages(t *testing.T) {
+	cleanDataDirectory(t)
+	ctx := log.NewSyncLogger(log.NewLogfmtLogger(os.Stdout))
+	requested := vmPackageData{Packages: []vmPackage{
+		*getPackage("iggy", "install", "3.0.0"),
+	}}
+	ext := createTestVMExtension(requested)
 
+	proposed := vmPackageData{Packages: []vmPackage{
+		*getPackage("piggy", "update", "3.0.0"),
+	}}
+	err := writeProposedPackages(ctx, ext, &proposed, 0)
+	require.NoError(t, err)
+
+	current := vmPackageData{Packages: []vmPackage{
+		*getPackage("piggy", "install", "1.0.0"),
+	}}
+	createPackageFile(t, &current, currentPackageStateFileName)
+
+	requiresChanges, hasProposedState, err := getPackageStatePlan(ctx, ext, &requested)
+	require.True(t, requiresChanges)
+	require.True(t, hasProposedState)
+	require.NoError(t, err)
+
+	// We'll now have two proposed files
+	nextPackage := getNextProposedPackage(ctx, ext)
+	require.NotNil(t, nextPackage)
+	require.Equal(t, "3.0.0", nextPackage.Version)
+	markProposedPackageFinished(ctx, ext, nextPackage)
+
+	nextPackage = getNextProposedPackage(ctx, ext)
+	require.NotNil(t, nextPackage)
+	require.Equal(t, "3.0.0", nextPackage.Version)
+	markProposedPackageFinished(ctx, ext, nextPackage)
 }
 
 func Test_getPackageStatePlan_noProposedPackages(t *testing.T) {
+	cleanDataDirectory(t)
+	ctx := log.NewSyncLogger(log.NewLogfmtLogger(os.Stdout))
+	requested := vmPackageData{Packages: []vmPackage{
+		*getPackage("iggy", "install", "3.0.0"),
+	}}
+	ext := createTestVMExtension(requested)
 
+	current := vmPackageData{Packages: []vmPackage{
+		*getPackage("piggy", "install", "1.0.0"),
+	}}
+	createPackageFile(t, &current, currentPackageStateFileName)
+
+	requiresChanges, hasProposedState, err := getPackageStatePlan(ctx, ext, &requested)
+	require.True(t, requiresChanges)
+	require.False(t, hasProposedState)
+	require.NoError(t, err)
+
+	// We'll have one proposed file
+	nextPackage := getNextProposedPackage(ctx, ext)
+	require.NotNil(t, nextPackage)
+	require.Equal(t, "3.0.0", nextPackage.Version)
+	markProposedPackageFinished(ctx, ext, nextPackage)
+
+	nextPackage = getNextProposedPackage(ctx, ext)
+	require.Nil(t, nextPackage)
+}
+
+func Test_getPackageStatePlan_noCurrentPackages(t *testing.T) {
+	cleanDataDirectory(t)
+	ctx := log.NewSyncLogger(log.NewLogfmtLogger(os.Stdout))
+	requested := vmPackageData{Packages: []vmPackage{
+		*getPackage("piggy", "update", "3.0.0"),
+	}}
+	ext := createTestVMExtension(requested)
+
+	proposed := vmPackageData{Packages: []vmPackage{
+		*getPackage("piggy", "update", "2.0.0"),
+	}}
+	err := writeProposedPackages(ctx, ext, &proposed, 0)
+	require.NoError(t, err)
+
+	requiresChanges, hasProposedState, err := getPackageStatePlan(ctx, ext, &requested)
+	require.True(t, requiresChanges)
+	require.True(t, hasProposedState)
+	require.NoError(t, err)
+
+	nextPackage := getNextProposedPackage(ctx, ext)
+	require.NotNil(t, nextPackage)
+	require.Equal(t, "3.0.0", nextPackage.Version)
+	markProposedPackageFinished(ctx, ext, nextPackage)
+
+	nextPackage = getNextProposedPackage(ctx, ext)
+	require.Nil(t, nextPackage)
+}
+
+func Test_getPackageStatePlan_noCurrentOrProposedPackages(t *testing.T) {
+	cleanDataDirectory(t)
+	ctx := log.NewSyncLogger(log.NewLogfmtLogger(os.Stdout))
+	requested := vmPackageData{Packages: []vmPackage{
+		*getPackage("piggy", "update", "3.0.0"),
+	}}
+	ext := createTestVMExtension(requested)
+
+	requiresChanges, hasProposedState, err := getPackageStatePlan(ctx, ext, &requested)
+	require.True(t, requiresChanges)
+	require.False(t, hasProposedState)
+	require.NoError(t, err)
+
+	nextPackage := getNextProposedPackage(ctx, ext)
+	require.NotNil(t, nextPackage)
+	require.Equal(t, "3.0.0", nextPackage.Version)
+	markProposedPackageFinished(ctx, ext, nextPackage)
+
+	nextPackage = getNextProposedPackage(ctx, ext)
+	require.Nil(t, nextPackage)
 }
 
 func Test_getPackageStatePlan_noRequestedPackages(t *testing.T) {
+	cleanDataDirectory(t)
+	ctx := log.NewSyncLogger(log.NewLogfmtLogger(os.Stdout))
+	requested := vmPackageData{Packages: []vmPackage{}}
+	ext := createTestVMExtension(requested)
 
+	requiresChanges, hasProposedState, err := getPackageStatePlan(ctx, ext, &requested)
+	require.False(t, requiresChanges)
+	require.False(t, hasProposedState)
+	require.NoError(t, err)
+}
+
+func Test_markProposedPackageFinished_doesntExist(t *testing.T) {
+	cleanDataDirectory(t)
+	ctx := log.NewSyncLogger(log.NewLogfmtLogger(os.Stdout))
+	ext := createTestVMExtension(createSettings(nil))
+	pkg := getPackage("piggy", "install", "1.0.0")
+	pkg.ProposedFileNumber = 5
+
+	err := markProposedPackageFinished(ctx, ext, pkg)
+	require.Error(t, err)
+}
+
+func Test_markProposedPackageFinished_error(t *testing.T) {
+	cleanDataDirectory(t)
+	ctx := log.NewSyncLogger(log.NewLogfmtLogger(os.Stdout))
+	ext := createTestVMExtension(createSettings(nil))
+	pkg := getPackage("piggy", "update", "3.0.0")
+	pkg.ProposedFileNumber = 5
+	proposed := vmPackageData{Packages: []vmPackage{*pkg}}
+	err := writeProposedPackages(ctx, ext, &proposed, 0)
+	require.NoError(t, err)
+
+	osDependency = &mockOSDependencies{}
+	defer resetOSDependency()
+
+	err = markProposedPackageFinished(ctx, ext, pkg)
+	require.Error(t, err)
+}
+
+func Test_markProposedPackageFinished_valid(t *testing.T) {
+	cleanDataDirectory(t)
+	ctx := log.NewSyncLogger(log.NewLogfmtLogger(os.Stdout))
+	ext := createTestVMExtension(createSettings(nil))
+
+	proposed := vmPackageData{Packages: []vmPackage{
+		*getPackage("ziggy", "update", "3.0.0"),
+		*getPackage("piggy", "update", "3.0.0"),
+	}}
+	err := writeProposedPackages(ctx, ext, &proposed, 0)
+	require.NoError(t, err)
+
+	nextPackage := getNextProposedPackage(ctx, ext)
+	require.NotNil(t, nextPackage)
+	require.Equal(t, "ziggy", nextPackage.Name)
+	markProposedPackageFinished(ctx, ext, nextPackage)
+
+	nextPackage = getNextProposedPackage(ctx, ext)
+	require.NotNil(t, nextPackage)
+	require.Equal(t, "piggy", nextPackage.Name)
+	markProposedPackageFinished(ctx, ext, nextPackage)
+
+	nextPackage = getNextProposedPackage(ctx, ext)
+	require.Nil(t, nextPackage)
 }
 
 func resetOSDependency() {
