@@ -67,6 +67,14 @@ func (*osDependenciesImpl) removefile(name string) error {
 // hasProposedState - whether we found any proposed states
 // The calling code will factor these in to deciding whether to proceed (it needs to verify if the other process is running)
 // The calling code will then retrieve packages one by one and process them
+//
+// Note that a potential race condition exists for which we currently cannot do much
+// If one instance of the extension is installing version 1 for some VmApp, and another instance is started with
+// a different version or removal, then both actions will be running simultaneously. Unfortunately, even if we
+// signaled instance 1 to stop, it doesn't have the ability to do so. It only runs a script, and killing it isn't
+// guaranteed to help because the install may actually be occurring on another process and there are likely
+// artifacts that will need to be rolled back. If customers absolutely need this handled, then their installation
+// and removal code needs to factor that in.
 func getPackageStatePlan(ctx log.Logger, ext *vmextensionhelper.VMExtension, requested *vmPackageData) (requiresChanges bool, hasProposedState bool, _ error) {
 	currentPackageState, err := getCurrentPackageState(ctx, ext)
 	if err != nil {
@@ -252,7 +260,7 @@ func getPackageStateFromFile(ctx log.Logger, filePath string) (*vmPackageData, e
 
 	if len(b) == 0 {
 		ctx.Log("message", "Package state is empty")
-		return nil, nil
+		return &vmPackageData{Packages: []vmPackage{}}, nil
 	}
 
 	var packageData vmPackageData
@@ -288,7 +296,7 @@ func getProposedPackageState(ctx log.Logger, ext *vmextensionhelper.VMExtension)
 	for _, proposedFile := range proposedFiles {
 		filePath := path.Join(ext.HandlerEnv.DataFolder, proposedFile.Name)
 		proposedPackages, err := getPackageStateFromFile(ctx, filePath)
-		if err != nil || proposedPackages == nil {
+		if err != nil {
 			// If we can't read a proposed package state, move on
 			// TODO: is this the correct behavior?
 			ctx.Log("message", "Couldn't read proposed package state", "error", fmt.Errorf("Couldn't read proposed package state from %s: %v", filePath, err))
@@ -409,13 +417,13 @@ func compareVersions(ctx log.Logger, first string, second string) int {
 			return 1
 		}
 
-		firstPart, err := strconv.ParseInt(firstParts[i], 10, 16)
+		firstPart, err := strconv.Atoi(firstParts[i])
 		if err != nil {
 			ctx.Log("message", fmt.Sprintf("Cannot parse version number for %s", first))
 			return strings.Compare(first, second)
 		}
 
-		secondPart, err := strconv.ParseInt(secondParts[i], 10, 16)
+		secondPart, err := strconv.Atoi(secondParts[i])
 		if err != nil {
 			ctx.Log("message", fmt.Sprintf("Cannot parse version number for %s", second))
 			return strings.Compare(first, second)
@@ -448,12 +456,12 @@ func getProposedFileNumber(fileName string) (isProposedFile bool, fileNumber int
 		return false, 0
 	}
 
-	n, err := strconv.ParseInt(parts[0], 10, 16)
+	n, err := strconv.Atoi(parts[0])
 	if err != nil {
 		return false, 0
 	}
 
-	return true, int(n)
+	return true, n
 }
 
 func doesFileExist(filePath string) (bool, error) {

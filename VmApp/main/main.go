@@ -102,6 +102,7 @@ func vmAppEnableCallback(ctx log.Logger, ext *vmextensionhelper.VMExtension) (st
 		return "", err
 	}
 
+	// Placeholder for now
 	return "blah", nil
 }
 

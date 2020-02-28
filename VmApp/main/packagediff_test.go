@@ -86,6 +86,12 @@ func Test_getProposedFileNumber_Empty(t *testing.T) {
 	require.False(t, isProposed)
 }
 
+func Test_getProposedFileNumber_Negative(t *testing.T) {
+	isProposed, fileNumber := getProposedFileNumber("-2.proposed")
+	require.True(t, isProposed)
+	require.Equal(t, -2, fileNumber)
+}
+
 func Test_resolvePackageState_installInstallFirstHigher(t *testing.T) {
 	ctx := log.NewSyncLogger(log.NewLogfmtLogger(os.Stdout))
 	first := getPackage("first", "install", "2.0.0")
@@ -457,7 +463,8 @@ func Test_getPackageStateFromFile_fileEmpty(t *testing.T) {
 	createEmptyFile(t)
 	ps, err := getPackageStateFromFile(ctx, emptyFileName)
 	require.NoError(t, err)
-	require.Nil(t, ps)
+	require.NotNil(t, ps)
+	require.Equal(t, 0, len(ps.Packages))
 }
 
 func Test_getPackageStateFromFile_cannotParse(t *testing.T) {
