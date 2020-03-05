@@ -46,48 +46,48 @@ func (*mockOSDependencies) removefile(name string) error {
 }
 
 func Test_getProposedFileNumber_NoSuffix(t *testing.T) {
-	isProposed, _ := getProposedFileNumber("yaba")
+	_, isProposed := getProposedFileNumber("yaba")
 	require.False(t, isProposed)
 }
 
 func Test_getProposedFileNumber_NoDot(t *testing.T) {
-	isProposed, _ := getProposedFileNumber("0proposed")
+	_, isProposed := getProposedFileNumber("0proposed")
 	require.False(t, isProposed)
 }
 
 func Test_getProposedFileNumber_MultipleDots(t *testing.T) {
-	isProposed, _ := getProposedFileNumber("0.1.proposed")
+	_, isProposed := getProposedFileNumber("0.1.proposed")
 	require.False(t, isProposed)
 }
 
 func Test_getProposedFileNumber_Valid(t *testing.T) {
-	isProposed, fileNumber := getProposedFileNumber("14.proposed")
+	fileNumber, isProposed := getProposedFileNumber("14.proposed")
 	require.True(t, isProposed)
 	require.Equal(t, 14, fileNumber)
 }
 
 func Test_getProposedFileNumber_Hex(t *testing.T) {
-	isProposed, _ := getProposedFileNumber("1a.proposed")
+	_, isProposed := getProposedFileNumber("1a.proposed")
 	require.False(t, isProposed)
 }
 
 func Test_getProposedFileNumber_TooLarge(t *testing.T) {
-	isProposed, _ := getProposedFileNumber("2147483647.proposed")
+	_, isProposed := getProposedFileNumber("4294967296335332323434323.proposed")
 	require.False(t, isProposed)
 }
 
 func Test_getProposedFileNumber_EmptyNumber(t *testing.T) {
-	isProposed, _ := getProposedFileNumber(".proposed")
+	_, isProposed := getProposedFileNumber(".proposed")
 	require.False(t, isProposed)
 }
 
 func Test_getProposedFileNumber_Empty(t *testing.T) {
-	isProposed, _ := getProposedFileNumber("")
+	_, isProposed := getProposedFileNumber("")
 	require.False(t, isProposed)
 }
 
 func Test_getProposedFileNumber_Negative(t *testing.T) {
-	isProposed, fileNumber := getProposedFileNumber("-2.proposed")
+	fileNumber, isProposed := getProposedFileNumber("-2.proposed")
 	require.True(t, isProposed)
 	require.Equal(t, -2, fileNumber)
 }

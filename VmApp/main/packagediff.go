@@ -17,6 +17,8 @@ import (
 const (
 	currentPackageStateFileName = "packagestate"
 	proposedPackageStateSuffix  = "proposed"
+	MaxUint                     = ^uint(0)
+	MaxInt                      = int(MaxUint >> 1)
 )
 
 var (
@@ -126,7 +128,7 @@ func getNextProposedPackage(ctx log.Logger, ext *vmextensionhelper.VMExtension) 
 	}
 
 	// Find the lowest number
-	minProposedNumber := 65535
+	minProposedNumber := MaxInt
 	var returnPackage vmPackage
 	for _, proposedPackage := range proposedPackageState.Packages {
 		if proposedPackage.ProposedFileNumber < minProposedNumber {
@@ -279,7 +281,7 @@ func getProposedPackageState(ctx log.Logger, ext *vmextensionhelper.VMExtension)
 	var proposedFiles []proposedFile
 	filepath.Walk(ext.HandlerEnv.DataFolder, func(path string, f os.FileInfo, _ error) error {
 		if !f.IsDir() {
-			isProposedFile, fileNumber := getProposedFileNumber(f.Name())
+			fileNumber, isProposedFile := getProposedFileNumber(f.Name())
 			if isProposedFile {
 				proposedFiles = append(proposedFiles, proposedFile{Name: f.Name(), FileNumber: fileNumber})
 			}
@@ -343,13 +345,10 @@ func findPackageState(name string, packageData *vmPackageData) *vmPackage {
 }
 
 func findPackageInSlice(name string, packages []vmPackage) (int, *vmPackage) {
-	pos := 0
-	for _, p := range packages {
+	for pos, p := range packages {
 		if strings.Compare(name, p.Name) == 0 {
 			return pos, &p
 		}
-
-		pos++
 	}
 
 	return -1, nil
@@ -446,22 +445,22 @@ func compareVersions(ctx log.Logger, first string, second string) int {
 	return 0
 }
 
-func getProposedFileNumber(fileName string) (isProposedFile bool, fileNumber int) {
+func getProposedFileNumber(fileName string) (fileNumber int, isProposedFile bool) {
 	if !strings.HasSuffix(fileName, proposedPackageStateSuffix) {
-		return false, 0
+		return 0, false
 	}
 
 	parts := strings.Split(fileName, ".")
 	if len(parts) != 2 {
-		return false, 0
+		return 0, false
 	}
 
 	n, err := strconv.Atoi(parts[0])
 	if err != nil {
-		return false, 0
+		return 0, false
 	}
 
-	return true, n
+	return n, true
 }
 
 func doesFileExist(filePath string) (bool, error) {
