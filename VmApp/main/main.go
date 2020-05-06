@@ -96,14 +96,49 @@ func getExtensionAndRun() error {
 
 // Callback indicating the operation is enable and the sequence number has changed
 func vmAppEnableCallback(ctx log.Logger, ext *vmextensionhelper.VMExtension) (string, error) {
-	_, err := getVMPackageData(ctx, ext)
+	packageData, err := getVMPackageData(ctx, ext)
 	if err != nil {
 		ctx.Log("message", "Could not read the VM package data")
 		return "", err
 	}
 
-	// Placeholder for now
-	return "blah", nil
+	requiresChanges, hasProposedState, err := getPackageStatePlan(ctx, ext, packageData)
+	if err != nil {
+		ctx.Log("message", "Could not create package state plan")
+		return "", err
+	}
+
+	if requiresChanges || hasProposedState {
+		return processPackages(ctx, ext)
+	}
+
+	return "Nothing to process", nil
+}
+
+func processPackages(ctx log.Logger, ext *vmextensionhelper.VMExtension) (string, error) {
+	packageToProcess := getNextProposedPackage(ctx, ext)
+	for packageToProcess != nil {
+		err := processPackage(ctx, packageToProcess)
+		if err != nil {
+			ctx.Log("message", "Unable to process package '%s'", packageToProcess.Name)
+		}
+
+		err = markProposedPackageFinished(ctx, ext, packageToProcess)
+		if err != nil {
+			// If we fail to mark a package as finished, then we can no longer guarantee
+			// the state by continuing to process, so game over
+			ctx.Log("message", "Unable to mark package '%s' as finished", packageToProcess.Name)
+			return "Failed to mark package", err
+		}
+
+		packageToProcess = getNextProposedPackage(ctx, ext)
+	}
+
+	return "Complete", nil
+}
+
+func processPackage(ctx log.Logger, packageToProcess *vmPackage) error {
+	return nil
 }
 
 func getVMPackageData(ctx log.Logger, ext *vmextensionhelper.VMExtension) (*vmPackageData, error) {

@@ -118,8 +118,87 @@ func Test_getVMPackageData_noApplicationName(t *testing.T) {
 	require.Error(t, err)
 }
 
+func Test_main_getPackageStatePlanFails(t *testing.T) {
+	ctx := log.NewSyncLogger(log.NewLogfmtLogger(os.Stdout))
+	vmPackages := createVmPackageData()
+
+	ext := createTestVMExtension(vmPackages)
+	osDependency = NewMockDependencies()
+	defer resetOSDependency()
+	_, err := vmAppEnableCallback(ctx, ext)
+	require.Error(t, err)
+}
+
+func Test_main_nothingToProcess(t *testing.T) {
+	ctx := log.NewSyncLogger(log.NewLogfmtLogger(os.Stdout))
+	vmPackages := vmPackageData{
+		Packages: []vmPackage{},
+	}
+	ext := createTestVMExtension(vmPackages)
+
+	result, err := vmAppEnableCallback(ctx, ext)
+	require.NoError(t, err)
+	require.Equal(t, "Nothing to process", result)
+}
+
+func Test_main_processPackagesNormal(t *testing.T) {
+	ctx := log.NewSyncLogger(log.NewLogfmtLogger(os.Stdout))
+	vmPackages := createMultipleVmPackageData()
+	ext := createTestVMExtension(vmPackages)
+
+	result, err := vmAppEnableCallback(ctx, ext)
+	require.NoError(t, err)
+	require.Equal(t, "Complete", result)
+}
+
+func Test_main_processPackagesFailToMark(t *testing.T) {
+	ctx := log.NewSyncLogger(log.NewLogfmtLogger(os.Stdout))
+	vmPackages := createMultipleVmPackageData()
+	ext := createTestVMExtension(vmPackages)
+
+	mockDependency := NewBareMockDependencies()
+	osDependency = mockDependency
+	mockDependency.UseMockRemoveFile = true
+	defer resetOSDependency()
+	_, err := vmAppEnableCallback(ctx, ext)
+	require.Error(t, err)
+}
+
 func resetExtensionVersion() {
 	extensionVersion = "1.0.0"
+}
+
+func createVmPackageData() vmPackageData {
+	vmPackages := vmPackageData{
+		Packages: []vmPackage{
+			{
+				Name:      "yaba",
+				Operation: "install",
+				Version:   "1.0.0",
+			},
+		},
+	}
+
+	return vmPackages
+}
+
+func createMultipleVmPackageData() vmPackageData {
+	vmPackages := vmPackageData{
+		Packages: []vmPackage{
+			{
+				Name:      "yaba",
+				Operation: "install",
+				Version:   "1.0.0",
+			},
+			{
+				Name:      "flipmonster",
+				Operation: "enable",
+				Version:   "1.0.0",
+			},
+		},
+	}
+
+	return vmPackages
 }
 
 func createSettings(settings interface{}) *vmextensionhelper.HandlerSettings {
