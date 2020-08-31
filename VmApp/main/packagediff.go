@@ -145,7 +145,7 @@ func markProposedPackageFinished(ctx log.Logger, ext *vmextensionhelper.VMExtens
 	filePath := path.Join(ext.HandlerEnv.DataFolder, fileName)
 	ctx.Log("info", fmt.Sprintf("Removing file %s because processing has finished", filePath))
 
-	err := os.Remove(filePath)
+	err := osDependency.removefile(filePath)
 	if err != nil {
 		ctx.Log("error", fmt.Sprintf("Unable to delete proposal file %s: %v", filePath, err))
 	}
@@ -186,7 +186,7 @@ func proposedPackageNotNeeded(ctx log.Logger, ext *vmextensionhelper.VMExtension
 
 	fileName := strconv.Itoa(losingPackage.ProposedFileNumber) + "." + proposedPackageStateSuffix
 	fullFilePath := path.Join(ext.HandlerEnv.DataFolder, fileName)
-	err := os.Remove(fullFilePath)
+	err := osDependency.removefile(fullFilePath)
 	if err != nil {
 		ctx.Log("error", fmt.Sprintf("Unable to delete proposal file %s: %v", losingPackage.Name, err))
 	}

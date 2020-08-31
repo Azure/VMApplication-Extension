@@ -23,26 +23,67 @@ const (
 )
 
 type mockOSDependencies struct {
+	UseMockStat       bool
+	UseMockReadFile   bool
+	UseMockWriteFile  bool
+	UseMockRemoveFile bool
+	actualImpl        osDependencies
 }
 
-func (*mockOSDependencies) stat(name string) (os.FileInfo, error) {
-	return nil, errors.New("Something weird happened")
+func NewBareMockDependencies() *mockOSDependencies {
+	return &mockOSDependencies{
+		UseMockStat:       false,
+		UseMockReadFile:   false,
+		UseMockRemoveFile: false,
+		UseMockWriteFile:  false,
+		actualImpl:        &osDependenciesImpl{},
+	}
 }
 
-func (*mockOSDependencies) readfile(name string) ([]byte, error) {
-	if strings.Contains(cannotReadFileName, name) {
-		return nil, errors.New("This file cannot be bothered")
+func NewMockDependencies() *mockOSDependencies {
+	return &mockOSDependencies{
+		UseMockStat:       true,
+		UseMockReadFile:   true,
+		UseMockRemoveFile: true,
+		UseMockWriteFile:  true,
+		actualImpl:        &osDependenciesImpl{},
+	}
+}
+
+func (d *mockOSDependencies) stat(name string) (os.FileInfo, error) {
+	if d.UseMockStat {
+		return nil, errors.New("Something weird happened")
 	}
 
-	return ioutil.ReadFile(name)
+	return d.actualImpl.stat(name)
 }
 
-func (*mockOSDependencies) writefile(filename string, data []byte, perm os.FileMode) error {
-	return errors.New("The file has writer's block")
+func (d *mockOSDependencies) readfile(name string) ([]byte, error) {
+	if d.UseMockReadFile {
+		if strings.Contains(cannotReadFileName, name) {
+			return nil, errors.New("This file cannot be bothered")
+		}
+
+		return ioutil.ReadFile(name)
+	}
+
+	return d.actualImpl.readfile(name)
 }
 
-func (*mockOSDependencies) removefile(name string) error {
-	return errors.New("This file is disinclined to acquiesce to your request")
+func (d *mockOSDependencies) writefile(filename string, data []byte, perm os.FileMode) error {
+	if d.UseMockWriteFile {
+		return errors.New("The file has writer's block")
+	}
+
+	return d.actualImpl.writefile(filename, data, perm)
+}
+
+func (d *mockOSDependencies) removefile(name string) error {
+	if d.UseMockRemoveFile {
+		return errors.New("This file is disinclined to acquiesce to your request")
+	}
+
+	return d.actualImpl.removefile(name)
 }
 
 func Test_getProposedFileNumber_NoSuffix(t *testing.T) {
@@ -512,7 +553,7 @@ func Test_getProposedPackageState_couldntReadFile(t *testing.T) {
 	cleanDataDirectory(t)
 	writeProposalFile(t, 457, "yaba", "install", "1.0.0")
 	writeProposalFile(t, 2, "snorble", "install", "1.0.0")
-	osDependency = &mockOSDependencies{}
+	osDependency = NewMockDependencies()
 	defer resetOSDependency()
 
 	packageData := getProposedPackageState(ctx, ext)
@@ -591,7 +632,7 @@ func Test_getProposedPackageState_normalCase(t *testing.T) {
 func Test_getCurrentPackageState_error(t *testing.T) {
 	ctx := log.NewSyncLogger(log.NewLogfmtLogger(os.Stdout))
 	ext := createTestVMExtension(createSettings(nil))
-	osDependency = &mockOSDependencies{}
+	osDependency = NewMockDependencies()
 	defer resetOSDependency()
 
 	pkg, err := getCurrentPackageState(ctx, ext)
@@ -738,7 +779,7 @@ func Test_resolveFromPackageStates_currentWinsForAll(t *testing.T) {
 func Test_writeProposedPackages_cannotWriteFile(t *testing.T) {
 	ctx := log.NewSyncLogger(log.NewLogfmtLogger(os.Stdout))
 	ext := createTestVMExtension(createSettings(nil))
-	osDependency = &mockOSDependencies{}
+	osDependency = NewMockDependencies()
 	defer resetOSDependency()
 
 	data := vmPackageData{Packages: []vmPackage{
@@ -964,7 +1005,7 @@ func Test_getPackageStatePlan_cannotRemoveProposedPackage(t *testing.T) {
 	}}
 	createPackageFile(t, &current, currentPackageStateFileName)
 
-	osDependency = &mockOSDependencies{}
+	osDependency = NewMockDependencies()
 	defer resetOSDependency()
 
 	_, _, err = getPackageStatePlan(ctx, ext, &requested)
@@ -986,7 +1027,7 @@ func Test_getPackageStatePlan_cannotWriteProposedPackages(t *testing.T) {
 	}}
 	createPackageFile(t, &current, currentPackageStateFileName)
 
-	osDependency = &mockOSDependencies{}
+	osDependency = NewMockDependencies()
 	defer resetOSDependency()
 
 	_, _, err := getPackageStatePlan(ctx, ext, &requested)
@@ -1140,7 +1181,7 @@ func Test_markProposedPackageFinished_error(t *testing.T) {
 	err := writeProposedPackages(ctx, ext, &proposed, 0)
 	require.NoError(t, err)
 
-	osDependency = &mockOSDependencies{}
+	osDependency = NewMockDependencies()
 	defer resetOSDependency()
 
 	err = markProposedPackageFinished(ctx, ext, pkg)
