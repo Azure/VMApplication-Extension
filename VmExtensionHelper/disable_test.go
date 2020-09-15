@@ -149,7 +149,7 @@ func createTestVMExtensionForDisable() *VMExtension {
 			DataFolder:    "./data/",
 		},
 		Settings: &HandlerSettings{},
-		exec: executionInfo{
+		exec: &executionInfo{
 			requiresSeqNoChange: true,
 			supportsDisable:     true,
 			enableCallback:      testEnableCallback,

@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"testing"
+	"time"
 
 	"github.com/go-kit/kit/log"
 	"github.com/pkg/errors"
@@ -60,6 +61,16 @@ func (mm *mockGetVMExtensionEnvironmentManager) setSequenceNumberInternal(ve *VM
 	}
 
 	return nil
+}
+
+func TestMain(m *testing.M){
+	// initialize  detect the directory from the mock
+	mm := createMockVMExtensionEnvironmentManager()
+	he, _ := mm.getHandlerEnvironment("", "")
+	os.Remove(he.ConfigFolder)
+	os.MkdirAll(he.ConfigFolder, 0744)
+	m.Run()
+	// cleanup delete the directory from the mock
 }
 
 func Test_getVMExtensionNilValues(t *testing.T) {
@@ -160,7 +171,7 @@ func Test_getVMExtensionDisableSupport(t *testing.T) {
 	require.NoError(t, err, "disable cmd failed")
 	require.False(t, isDisabled(ctx, ext))
 
-	// Diable enabled
+	// Disable enabled
 	ii.SupportsDisable = true
 	ext, err = getVMExtensionInternal(ctx, ii, mm)
 	require.NoError(t, err, "getVMExtensionInternal failed")
@@ -286,9 +297,11 @@ func Test_reenableExtension(t *testing.T) {
 	ext, _ := getVMExtensionInternal(ctx, ii, mm)
 
 	err := setDisabled(ctx, ext, true)
-	defer setDisabled(ctx, ext, false)
+	//defer setDisabled(ctx, ext, false)
+	time.Sleep(1000 * time.Millisecond)
 	require.NoError(t, err, "setDisabled failed")
 	_, err = enable(ctx, ext)
+	time.Sleep(1000 * time.Millisecond)
 	require.NoError(t, err, "enable failed")
 	require.False(t, isDisabled(ctx, ext))
 }

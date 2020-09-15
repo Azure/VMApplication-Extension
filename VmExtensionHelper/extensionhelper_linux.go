@@ -28,7 +28,7 @@ const handlerEnvFileName = "HandlerEnvironment.json"
 
 // HandlerEnvironment describes the handler environment configuration presented
 // to the extension handler by the Azure Linux Guest Agent.
-type handlerEnvironmentLinux struct {
+type HandlerEnvironmentLinux struct {
 	Version            float64 `json:"version"`
 	Name               string  `json:"name"`
 	HandlerEnvironment struct {
@@ -46,16 +46,17 @@ func getOSName() (name string) {
 
 // getSequenceNumberInternal is the Linux specific logic for reading the current
 // sequence number for the extension
-func getSequenceNumberInternal(name string, version string) (sn uint, _ error) {
+func getSequenceNumberInternal(name string, version string) (_ uint, _ error) {
 	// Read the sequence number from the mrseq file
 	b, _, err := findAndReadFile(mostRecentSequence)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 
 	// TODO: add test for spaces when Linux unit tests are added
 	contents := strings.TrimSpace(string(b))
-	sequenceNumber, err := strconv.ParseUint(contents, 10, 64)
+	sequenceNumber64, err := strconv.ParseUint(contents, 10, 32)
+	sequenceNumber := uint(sequenceNumber64)
 	if err != nil {
 		return 0, fmt.Errorf("vmextension: cannot read sequence number")
 	}
@@ -73,19 +74,19 @@ func setSequenceNumberInternal(ve *VMExtension, seqNo uint) error {
 
 	contents := string(seqNo)
 	b := []byte(contents)
-	err = ioutil.WriteFile(fileLoc, b)
+	return ioutil.WriteFile(fileLoc, b, 0644)
 }
 
 // GetHandlerEnv locates the HandlerEnvironment.json file by assuming it lives
 // next to or one level above the extension handler (read: this) executable,
 // reads, parses and returns it.
 func getHandlerEnvironment(name string, version string) (he *HandlerEnvironment, _ error) {
-	b, err := findAndReadFile(handlerEnvFileName)
+	contents, _, err := findAndReadFile(handlerEnvFileName)
 	if err != nil {
 		return nil, err
 	}
 
-	handlerEnvLinux, err := ParseHandlerEnv(b)
+	handlerEnvLinux, err := parseHandlerEnv(contents)
 	if err != nil {
 		return nil, err
 	}
@@ -99,7 +100,7 @@ func getHandlerEnvironment(name string, version string) (he *HandlerEnvironment,
 		ConfigFolder:  handlerEnvLinux.HandlerEnvironment.ConfigFolder,
 		LogFolder:     handlerEnvLinux.HandlerEnvironment.LogFolder,
 		DataFolder:    dataFolder,
-	}
+	}, nil
 }
 
 // findAndReadFile locates the specified file on disk relative to our currently
@@ -107,7 +108,7 @@ func getHandlerEnvironment(name string, version string) (he *HandlerEnvironment,
 func findAndReadFile(fileName string) (b []byte, fileLoc string, _ error) {
 	dir, err := scriptDir()
 	if err != nil {
-		return nil, _, fmt.Errorf("vmextension: cannot find base directory of the running process: %v", err)
+		return nil, "", fmt.Errorf("vmextension: cannot find base directory of the running process: %v", err)
 	}
 
 	paths := []string{
@@ -115,11 +116,10 @@ func findAndReadFile(fileName string) (b []byte, fileLoc string, _ error) {
 		filepath.Join(dir, "..", fileName), // one up (i.e. executable is in [EXT_NAME]/bin/.)
 	}
 
-	var b []byte
 	for _, p := range paths {
 		o, err := ioutil.ReadFile(p)
 		if err != nil && !os.IsNotExist(err) {
-			return nil, nil, fmt.Errorf("vmextension: error examining '%s' at '%s': %v", fileName, p, err)
+			return nil, "", fmt.Errorf("vmextension: error examining '%s' at '%s': %v", fileName, p, err)
 		} else if err == nil {
 			fileLoc = p
 			b = o
@@ -145,7 +145,7 @@ func scriptDir() (string, error) {
 
 // ParseHandlerEnv parses the
 // /var/lib/waagent/[extension]/HandlerEnvironment.json format.
-func parseHandlerEnv(b []byte) (*HandlerEnvironmentLinux, _ error) {
+func parseHandlerEnv(b []byte) (*HandlerEnvironmentLinux, error) {
 	var hf []HandlerEnvironmentLinux
 
 	if err := json.Unmarshal(b, &hf); err != nil {
@@ -154,7 +154,7 @@ func parseHandlerEnv(b []byte) (*HandlerEnvironmentLinux, _ error) {
 	if len(hf) != 1 {
 		return nil, fmt.Errorf("vmextension: expected 1 config in parsed HandlerEnvironment, found: %v", len(hf))
 	}
-	return hf[0], nil
+	return &hf[0], nil
 }
 
 // decryptProtectedSettings decrypts the read protected settigns using certificates
