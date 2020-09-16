@@ -6,6 +6,7 @@ import (
 	"os"
 	"reflect"
 	"testing"
+	"time"
 )
 
 var hndlEnv = vmextensionhelper.HandlerEnvironment{
@@ -32,18 +33,27 @@ var packageRegistry = PackageRegistry{"package1": VMAppsPackage{
 	Version:               "1.2.3.2",
 }}
 
-func TestPackageRegistryReadWrite(t *testing.T){
-	// initialzie
+func initializeTest(t *testing.T){
 	err := os.MkdirAll(hndlEnv.ConfigFolder, 0700)
 	if err != nil {
 		os.Stderr.WriteString("could not create handler environment config directory")
-		return
+		t.Fatal(err)
 	}
-	// cleanup
-	defer os.RemoveAll(hndlEnv.ConfigFolder)
-	err = packageRegistry.writeToDisk(&hndlEnv)
+}
+
+func cleanupTest(){
+	os.RemoveAll(hndlEnv.ConfigFolder)
+}
+
+func TestPackageRegistryReadWrite(t *testing.T) {
+	initializeTest(t)
+	defer cleanupTest()
+	var pkgHndlr IPackageHandler
+	pkgHndlr, err := PackageHandlerInit(&hndlEnv, time.Second)
 	assert.NoError(t, err, "operation should not throw error")
-	result, err := getExistingPackages(&hndlEnv)
+	err = pkgHndlr.WriteToDisk(&packageRegistry)
+
+	result, err := pkgHndlr.GetExistingPackages()
 	assert.NoError(t, err, "operation should not throw error")
 
 	_, ok1 := result["package1"]
@@ -52,4 +62,20 @@ func TestPackageRegistryReadWrite(t *testing.T){
 	assert.True(t, ok2, "key should be present in dictionary")
 
 	assert.True(t, reflect.DeepEqual(packageRegistry, result), "the maps should be equal")
+}
+
+func TestOnlyOneInstanceofPackageHandlerCanExist(t *testing.T){
+	initializeTest(t)
+	defer cleanupTest()
+	pkgHndlr1, err := PackageHandlerInit(&hndlEnv, 60 * time.Second)
+	assert.NoError(t, err, "operation should not throw error")
+	pkgHndlr2, err := PackageHandlerInit(&hndlEnv, time.Second)
+	assert.Error(t, err, "operation should throw error")
+	assert.Nil(t, pkgHndlr2, "package handler instnace should be nill")
+	_, ok := err.(*FileLockTimeoutError)
+	assert.True(t, ok, "Error type should ne FileLockTimeoutError")
+	pkgHndlr1.Close()
+	pkgHndlr2, err = PackageHandlerInit(&hndlEnv, time.Second)
+	assert.NoError(t, err, "operation should not throw error")
+	pkgHndlr2.Close()
 }

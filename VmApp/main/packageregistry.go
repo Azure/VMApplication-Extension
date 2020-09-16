@@ -3,19 +3,20 @@ package main
 import (
 	"encoding/json"
 	"github.com/Azure/VMApplication-Extension/VmExtensionHelper"
-	"io/ioutil"
-	"os"
 	"path"
+	"syscall"
+	"time"
 )
 
 const (
-	localApplicationRegistryFileName       = "applicationRegistry"
-	localApplicationRegistryBackupFileName = "applicationRegistry.backup"
-	activeChangesFileName                  = "applicationRegistry.active"
+	localApplicationRegistryFileName                         = "applicationRegistry"
+	localApplicationRegistryBackupFileName                   = "applicationRegistry.backup"
+	activeChangesFileName                                    = "applicationRegistry.active"
+	localApplicationRegistryFileDefaultTimeout time.Duration = 30 * time.Minute
 )
 
 // defines a map between the application name and the other properties of the application
-type PackageRegistry map [string]VMAppsPackage
+type PackageRegistry map[string]VMAppsPackage
 
 type VMAppsPackages []VMAppsPackage
 
@@ -30,27 +31,73 @@ type VMAppsPackage struct {
 	DirectDownloadOnly    bool   `json:"directOnly"`
 }
 
+type IPackageHandler interface {
+	GetExistingPackages() (PackageRegistry, error)
+	WriteToDisk(packageRegistry *PackageRegistry) (error)
+}
+
+type PackageHandler struct {
+	handlerEnv *vmextensionhelper.HandlerEnvironment
+	lockedFile *lockedFile
+}
+
+type FileLockTimeoutError struct{
+	message string
+}
+
+func FileLockTimeoutErrorInit(message string)(*FileLockTimeoutError){
+	return &FileLockTimeoutError{message: message}
+}
+
+func (self *FileLockTimeoutError) Error() (string){
+	return self.message
+}
+
+func PackageHandlerInit(handlerEnv *vmextensionhelper.HandlerEnvironment, fileLockTimeout time.Duration) (*PackageHandler, error) {
+	appRegistryFilePath := path.Join(handlerEnv.ConfigFolder, localApplicationRegistryFileName)
+	fileLock, err := FileLockInit(appRegistryFilePath, fileLockTimeout)
+	if err != nil {
+		return nil, err
+	}
+
+	return &PackageHandler{handlerEnv: handlerEnv, lockedFile: fileLock}, nil
+}
+
+// Closes the file handle, renders the object of the class PackageHandler unusable
+func (self *PackageHandler) Close() {
+	self.lockedFile.Close()
+}
 
 // returns a map of VMApps Name to VMAppsPackage for all packages that are currently installed on the VM
 // do not call directly except for test, meant to be called from the wrapper function in packageregistry_linux or
 // packageregistry_windows
-func getExistingPackages(handlerEnv *vmextensionhelper.HandlerEnvironment)(PackageRegistry, error){
-	appRegistryFilePath := path.Join(handlerEnv.ConfigFolder, localApplicationRegistryFileName)
+func (self *PackageHandler) GetExistingPackages() (PackageRegistry, error) {
 	// make an empty byte slice with 4KB default size
-	fileBytes, err := ioutil.ReadFile(appRegistryFilePath)
-	if err != nil {
-		return nil, err
+	fileBytes := make([]byte, 0, 4096)
+	buffer := make([]byte, 4096, 4096)
+
+	// reset the packageRegistryFileHandle
+	syscall.Seek(self.lockedFile.FileDescriptor, 0, 0)
+	for {
+		nbytes, err := syscall.Read(self.lockedFile.FileDescriptor, buffer)
+		if err != nil && err.Error() != "EOF" {
+			return nil, err
+		}
+		if nbytes == 0 {
+			break
+		}
+		fileBytes = append(fileBytes, buffer[:nbytes]...)
 	}
 
 	vmAppsPackages := VMAppsPackages{}
-	err = json.Unmarshal(fileBytes, &vmAppsPackages)
+	err := json.Unmarshal(fileBytes, &vmAppsPackages)
 	if err != nil {
 		return nil, err
 	}
 
-	retval := make(map [string]VMAppsPackage)
+	retval := make(map[string]VMAppsPackage)
 
-	for _, v := range vmAppsPackages{
+	for _, v := range vmAppsPackages {
 		retval[v.ApplicationName] = v
 	}
 
@@ -59,9 +106,9 @@ func getExistingPackages(handlerEnv *vmextensionhelper.HandlerEnvironment)(Packa
 
 // do not call directly except for test, meant to be called from the wrapper function in packageregistry_linux or
 // packageregistry_windows
-func (self *PackageRegistry)writeToDisk(handlerEnv *vmextensionhelper.HandlerEnvironment)(error){
-	values := make (VMAppsPackages, 0)
-	for _, v := range (*self){
+func (self *PackageHandler) WriteToDisk(packageRegistry *PackageRegistry) (error) {
+	values := make(VMAppsPackages, 0)
+	for _, v := range (*packageRegistry) {
 		values = append(values, v)
 	}
 	bytes, err := json.Marshal(values)
@@ -69,18 +116,11 @@ func (self *PackageRegistry)writeToDisk(handlerEnv *vmextensionhelper.HandlerEnv
 		return err
 	}
 
-	appRegistryFilePath := path.Join(handlerEnv.ConfigFolder, localApplicationRegistryFileName)
-	file, err := os.OpenFile(appRegistryFilePath, os.O_WRONLY|os.O_CREATE, 0700)
-	defer file.Close()
-	if err != nil {
-		return err
-	}
-
-	_, err = file.Write(bytes)
+	// reset the packageRegistryFileHandle
+	syscall.Seek(self.lockedFile.FileDescriptor, 0, 0)
+	_, err = syscall.Write(self.lockedFile.FileDescriptor, bytes)
 	if err != nil {
 		return err
 	}
 	return nil
 }
-
-
