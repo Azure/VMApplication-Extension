@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/Azure/VMApplication-Extension/VmApp/constants"
 	"github.com/Azure/VMApplication-Extension/VmExtensionHelper"
 	"github.com/stretchr/testify/assert"
 	"os"
@@ -34,7 +35,7 @@ var packageRegistry = PackageRegistry{"package1": VMAppsPackage{
 }}
 
 func initializeTest(t *testing.T){
-	err := os.MkdirAll(hndlEnv.ConfigFolder, 0700)
+	err := os.MkdirAll(hndlEnv.ConfigFolder, constants.FilePermissions_UserOnly_ReadWriteExecute)
 	if err != nil {
 		os.Stderr.WriteString("could not create handler environment config directory")
 		t.Fatal(err)
@@ -71,9 +72,9 @@ func TestOnlyOneInstanceofPackageHandlerCanExist(t *testing.T){
 	assert.NoError(t, err, "operation should not throw error")
 	pkgHndlr2, err := PackageHandlerInit(&hndlEnv, time.Second)
 	assert.Error(t, err, "operation should throw error")
-	assert.Nil(t, pkgHndlr2, "package handler instnace should be nill")
+	assert.Nil(t, pkgHndlr2, "package handler instance should be nil")
 	_, ok := err.(*FileLockTimeoutError)
-	assert.True(t, ok, "Error type should ne FileLockTimeoutError")
+	assert.True(t, ok, "Error type should be FileLockTimeoutError")
 	pkgHndlr1.Close()
 	pkgHndlr2, err = PackageHandlerInit(&hndlEnv, time.Second)
 	assert.NoError(t, err, "operation should not throw error")

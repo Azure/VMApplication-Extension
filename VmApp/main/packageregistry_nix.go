@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/Azure/VMApplication-Extension/VmApp/constants"
 	"os"
 	"syscall"
 	"time"
@@ -11,7 +12,7 @@ type lockedFile struct {
 }
 
 func FileLockInit(filePath string, timeout time.Duration) (*lockedFile, error) {
-	file, err := syscall.Open(filePath, os.O_RDWR|os.O_CREATE, 0700)
+	file, err := syscall.Open(filePath, os.O_RDWR|os.O_CREATE, constants.FilePermissions_UserOnly_ReadWrite)
 	if err != nil {
 		// file cannot be open
 		return nil, err
