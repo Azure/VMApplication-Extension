@@ -1,10 +1,8 @@
-package main
+package packageregistry
 
 import (
 	"encoding/json"
-	"github.com/Azure/VMApplication-Extension/VmApp/constants"
 	"github.com/Azure/VMApplication-Extension/VmExtensionHelper"
-	"os"
 	"path"
 	"syscall"
 	"time"
@@ -16,18 +14,6 @@ type lockedFile struct {
 type PackageHandler struct {
 	handlerEnv *vmextensionhelper.HandlerEnvironment
 	lockedFile *lockedFile
-}
-
-type FileLockTimeoutError struct{
-	message string
-}
-
-func FileLockTimeoutErrorInit(message string)(*FileLockTimeoutError){
-	return &FileLockTimeoutError{message: message}
-}
-
-func (self *FileLockTimeoutError) Error() (string){
-	return self.message
 }
 
 func PackageHandlerInit(handlerEnv *vmextensionhelper.HandlerEnvironment, fileLockTimeout time.Duration) (*PackageHandler, error) {
@@ -102,39 +88,4 @@ func (self *PackageHandler) WriteToDisk(packageRegistry *PackageRegistry) (error
 	return nil
 }
 
-func FileLockInit(filePath string, timeout time.Duration) (*lockedFile, error) {
-	file, err := syscall.Open(filePath, os.O_RDWR|os.O_CREATE, constants.FilePermissions_UserOnly_ReadWrite)
-	if err != nil {
-		// file cannot be open
-		return nil, err
-	}
 
-	errChan := make(chan error)
-	timeoutChan := make(chan struct{})
-
-	go func() {
-		// acquire exclusive lock on file
-		err := syscall.Flock(file, syscall.LOCK_EX)
-		select {
-		case <-timeoutChan:
-			syscall.Flock(file, syscall.LOCK_UN)
-			syscall.Close(file)
-		case errChan <- err:
-		}
-	}()
-
-	select {
-	case err := <-errChan:
-		if err != nil {
-			return nil, err
-		}
-		return &lockedFile{FileDescriptor: file}, nil
-	case <-time.After(timeout):
-		close(timeoutChan)
-		return nil, FileLockTimeoutErrorInit("File lock could not be acquired in the specified time")
-	}
-}
-
-func (self *lockedFile) Close() (error) {
-	return syscall.Close(self.FileDescriptor)
-}

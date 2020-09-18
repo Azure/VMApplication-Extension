@@ -1,4 +1,4 @@
-package main
+package packageregistry
 
 import (
 	"github.com/Azure/VMApplication-Extension/VmApp/constants"
