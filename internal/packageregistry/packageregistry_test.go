@@ -3,6 +3,7 @@ package packageregistry
 import (
 	"github.com/Azure/VMApplication-Extension/VmApp/constants"
 	"github.com/Azure/VMApplication-Extension/VmExtensionHelper"
+	"github.com/Azure/VMApplication-Extension/internal/lockedfile"
 	"github.com/stretchr/testify/assert"
 	"os"
 	"reflect"
@@ -73,7 +74,7 @@ func TestOnlyOneInstanceofPackageHandlerCanExist(t *testing.T){
 	pkgHndlr2, err := PackageHandlerInit(&hndlEnv, time.Second)
 	assert.Error(t, err, "operation should throw error")
 	assert.Nil(t, pkgHndlr2, "package handler instance should be nil")
-	_, ok := err.(*FileLockTimeoutError)
+	_, ok := err.(*lockedfile.FileLockTimeoutError)
 	assert.True(t, ok, "Error type should be FileLockTimeoutError")
 	pkgHndlr1.Close()
 	pkgHndlr2, err = PackageHandlerInit(&hndlEnv, time.Second)

@@ -3,22 +3,20 @@ package packageregistry
 import (
 	"encoding/json"
 	"github.com/Azure/VMApplication-Extension/VmExtensionHelper"
+	"github.com/Azure/VMApplication-Extension/internal/lockedfile"
 	"path"
 	"syscall"
 	"time"
 )
 
-type lockedFile struct {
-	FileDescriptor int
-}
 type PackageHandler struct {
 	handlerEnv *vmextensionhelper.HandlerEnvironment
-	lockedFile *lockedFile
+	lockedFile *lockedfile.LockedFile
 }
 
 func PackageHandlerInit(handlerEnv *vmextensionhelper.HandlerEnvironment, fileLockTimeout time.Duration) (*PackageHandler, error) {
 	appRegistryFilePath := path.Join(handlerEnv.ConfigFolder, localApplicationRegistryFileName)
-	fileLock, err := FileLockInit(appRegistryFilePath, fileLockTimeout)
+	fileLock, err := lockedfile.FileLockInit(appRegistryFilePath, fileLockTimeout)
 	if err != nil {
 		return nil, err
 	}

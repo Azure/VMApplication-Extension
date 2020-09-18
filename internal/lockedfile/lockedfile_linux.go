@@ -1,6 +1,17 @@
 package lockedfile
 
-func FileLockInit(filePath string, timeout time.Duration) (*lockedFile, error) {
+import (
+	"github.com/Azure/VMApplication-Extension/VmApp/constants"
+	"os"
+	"syscall"
+	"time"
+)
+
+type LockedFile struct {
+	FileDescriptor int
+}
+
+func FileLockInit(filePath string, timeout time.Duration) (*LockedFile, error) {
 	file, err := syscall.Open(filePath, os.O_RDWR|os.O_CREATE, constants.FilePermissions_UserOnly_ReadWrite)
 	if err != nil {
 		// file cannot be open
@@ -26,13 +37,13 @@ func FileLockInit(filePath string, timeout time.Duration) (*lockedFile, error) {
 		if err != nil {
 			return nil, err
 		}
-		return &lockedFile{FileDescriptor: file}, nil
+		return &LockedFile{FileDescriptor: file}, nil
 	case <-time.After(timeout):
 		close(timeoutChan)
 		return nil, FileLockTimeoutErrorInit("File lock could not be acquired in the specified time")
 	}
 }
 
-func (self *lockedFile) Close() (error) {
+func (self *LockedFile) Close() (error) {
 	return syscall.Close(self.FileDescriptor)
 }
