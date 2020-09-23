@@ -41,7 +41,9 @@ func (self *PackageRegistryHandler) GetExistingPackages() (PackageRegistry, erro
 		fileBytes = append(fileBytes, buffer[:readBytes]...)
 
 		// modify ol to read next bytes
-		ol.Offset += readBytes
+		longOffset := CombineTwoUint32ToUlong(ol.OffsetHigh, ol.Offset)
+		longOffset += uint64(readBytes)
+		ol.OffsetHigh, ol.Offset = SplitUlongToTwoUint32(longOffset)
 		windows.ResetEvent(ol.HEvent)
 	}
 
@@ -58,6 +60,19 @@ func (self *PackageRegistryHandler) GetExistingPackages() (PackageRegistry, erro
 	}
 
 	return retval, nil
+}
+
+func SplitUlongToTwoUint32(ulong uint64) (high uint32, low uint32) {
+	low = uint32(ulong)
+	high = uint32(ulong >> 32)
+	return
+}
+
+func CombineTwoUint32ToUlong(high uint32, low uint32) (long uint64) {
+	long = uint64(high)
+	long = long << 32
+	long += uint64(low)
+	return long
 }
 
 // do not call directly except for test, meant to be called from the wrapper function in packageregistry_linux or
