@@ -4,10 +4,14 @@ type FileLockTimeoutError struct{
 	message string
 }
 
-func FileLockTimeoutErrorInit(message string)(*FileLockTimeoutError){
-	return &FileLockTimeoutError{message: message}
+func (self *FileLockTimeoutError) Error() (string){
+	return self.message
 }
 
-func (self *FileLockTimeoutError) Error() (string){
+type FileLockGenericError struct {
+	message string
+}
+
+func (self *FileLockGenericError) Error() (string){
 	return self.message
 }

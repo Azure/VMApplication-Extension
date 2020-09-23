@@ -15,7 +15,7 @@ var hndlEnv = vmextensionhelper.HandlerEnvironment{
 	ConfigFolder: "./testdir",
 }
 
-var packageRegistry = PackageRegistry{"package1": VMAppsPackage{
+var packageRegistry = PackageRegistry{"package1": &VMAppsPackage{
 	ApplicationName:       "package1",
 	ConfigurationLocation: "some configuration location1",
 	DirectDownloadOnly:    false,
@@ -24,7 +24,7 @@ var packageRegistry = PackageRegistry{"package1": VMAppsPackage{
 	RemoveCommand:         "remove_1.ps1",
 	UpdateCommand:         "update_1.ps1",
 	Version:               "1.2.3.1",
-}, "package2": VMAppsPackage{
+}, "package2": &VMAppsPackage{
 	ApplicationName:       "package2",
 	ConfigurationLocation: "some configuration location2",
 	DirectDownloadOnly:    true,
@@ -51,9 +51,10 @@ func TestPackageRegistryReadWrite(t *testing.T) {
 	initializeTest(t)
 	defer cleanupTest()
 	var pkgHndlr IPackageHandler
-	pkgHndlr, err := PackageHandlerInit(&hndlEnv, time.Second)
+	pkgHndlr, err := New(&hndlEnv, time.Second)
 	assert.NoError(t, err, "operation should not throw error")
-	err = pkgHndlr.WriteToDisk(&packageRegistry)
+	err = pkgHndlr.WriteToDisk(packageRegistry)
+	assert.NoError(t, err, "operation should not throw error")
 
 	result, err := pkgHndlr.GetExistingPackages()
 	assert.NoError(t, err, "operation should not throw error")
@@ -64,20 +65,80 @@ func TestPackageRegistryReadWrite(t *testing.T) {
 	assert.True(t, ok2, "key should be present in dictionary")
 
 	assert.True(t, reflect.DeepEqual(packageRegistry, result), "the maps should be equal")
+
+	// test overwrite
+	pkg := packageRegistry["package1"]
+	pkg.Version = "new version"
+	packageRegistry["package1"] = pkg
+
+
+	err = pkgHndlr.WriteToDisk(packageRegistry)
+	assert.NoError(t, err, "operation should not throw error")
+
+	result, err = pkgHndlr.GetExistingPackages()
+	assert.NoError(t, err, "operation should not throw error")
+
+	_, ok1 = result["package1"]
+	_, ok2 = result["package2"]
+	assert.True(t, ok1, "key should be present in dictionary")
+	assert.True(t, ok2, "key should be present in dictionary")
+
+	assert.True(t, reflect.DeepEqual(packageRegistry, result), "the maps should be equal")
+	err = pkgHndlr.Close()
+	assert.NoError(t, err, "operation should not throw error")
+}
+
+func TestValuesAreProperlySaved(t *testing.T){
+	initializeTest(t)
+	defer cleanupTest()
+	reg1 := PackageRegistry{"p1" : &VMAppsPackage{ApplicationName:"p1", Version:"1.1"}}
+	var pkgHndlr IPackageHandler
+	pkgHndlr, err := New(&hndlEnv, time.Second)
+	assert.NoError(t, err, "operation should not throw error")
+	err = pkgHndlr.WriteToDisk(reg1)
+	assert.NoError(t, err, "operation should not throw error")
+	err = pkgHndlr.Close()
+	assert.NoError(t, err, "operation should not throw error")
+
+	pkgHndlr, err = New(&hndlEnv, time.Second)
+	assert.NoError(t, err, "operation should not throw error")
+	result, err := pkgHndlr.GetExistingPackages()
+	assert.True(t, reflect.DeepEqual(reg1, result), "the maps should be equal")
+	err = pkgHndlr.Close()
+	assert.NoError(t, err, "operation should not throw error")
+
+	// write different data again, test if it is consistent
+	reg2 := PackageRegistry{"p2" : &VMAppsPackage{ApplicationName:"p2", Version:"2.1"}}
+	pkgHndlr, err = New(&hndlEnv, time.Second)
+	assert.NoError(t, err, "operation should not throw error")
+	err = pkgHndlr.WriteToDisk(reg2)
+	assert.NoError(t, err, "operation should not throw error")
+	err = pkgHndlr.Close()
+	assert.NoError(t, err, "operation should not throw error")
+
+	pkgHndlr, err = New(&hndlEnv, time.Second)
+	assert.NoError(t, err, "operation should not throw error")
+	result, err = pkgHndlr.GetExistingPackages()
+	assert.True(t, reflect.DeepEqual(reg2, result), "the maps should be equal")
+	err = pkgHndlr.Close()
+	assert.NoError(t, err, "operation should not throw error")
+
 }
 
 func TestOnlyOneInstanceofPackageHandlerCanExist(t *testing.T){
 	initializeTest(t)
 	defer cleanupTest()
-	pkgHndlr1, err := PackageHandlerInit(&hndlEnv, 60 * time.Second)
+	pkgHndlr1, err := New(&hndlEnv, 60 * time.Second)
 	assert.NoError(t, err, "operation should not throw error")
-	pkgHndlr2, err := PackageHandlerInit(&hndlEnv, time.Second)
+	pkgHndlr2, err := New(&hndlEnv, time.Second)
 	assert.Error(t, err, "operation should throw error")
 	assert.Nil(t, pkgHndlr2, "package handler instance should be nil")
 	_, ok := err.(*lockedfile.FileLockTimeoutError)
 	assert.True(t, ok, "Error type should be FileLockTimeoutError")
-	pkgHndlr1.Close()
-	pkgHndlr2, err = PackageHandlerInit(&hndlEnv, time.Second)
+	err = pkgHndlr1.Close()
 	assert.NoError(t, err, "operation should not throw error")
-	pkgHndlr2.Close()
+	pkgHndlr2, err = New(&hndlEnv, time.Second)
+	assert.NoError(t, err, "operation should not throw error")
+	err = pkgHndlr2.Close()
+	assert.NoError(t, err, "operation should not throw error")
 }

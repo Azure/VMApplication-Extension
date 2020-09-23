@@ -2,37 +2,13 @@ package packageregistry
 
 import (
 	"encoding/json"
-	"github.com/Azure/VMApplication-Extension/VmExtensionHelper"
-	"github.com/Azure/VMApplication-Extension/internal/lockedfile"
-	"path"
 	"syscall"
-	"time"
 )
-
-type PackageHandler struct {
-	handlerEnv *vmextensionhelper.HandlerEnvironment
-	lockedFile *lockedfile.LockedFile
-}
-
-func PackageHandlerInit(handlerEnv *vmextensionhelper.HandlerEnvironment, fileLockTimeout time.Duration) (*PackageHandler, error) {
-	appRegistryFilePath := path.Join(handlerEnv.ConfigFolder, localApplicationRegistryFileName)
-	fileLock, err := lockedfile.FileLockInit(appRegistryFilePath, fileLockTimeout)
-	if err != nil {
-		return nil, err
-	}
-
-	return &PackageHandler{handlerEnv: handlerEnv, lockedFile: fileLock}, nil
-}
-
-// Closes the file handle, renders the object of the class PackageHandler unusable
-func (self *PackageHandler) Close() {
-	self.lockedFile.Close()
-}
 
 // returns a map of VMApps Name to VMAppsPackage for all packages that are currently installed on the VM
 // do not call directly except for test, meant to be called from the wrapper function in packageregistry_linux or
 // packageregistry_windows
-func (self *PackageHandler) GetExistingPackages() (PackageRegistry, error) {
+func (self *PackageRegistryHandler) GetExistingPackages() (PackageRegistryHandler, error) {
 	// make an empty byte slice with 4KB default size
 	fileBytes := make([]byte, 0, 4096)
 	buffer := make([]byte, 4096, 4096)
@@ -67,9 +43,9 @@ func (self *PackageHandler) GetExistingPackages() (PackageRegistry, error) {
 
 // do not call directly except for test, meant to be called from the wrapper function in packageregistry_linux or
 // packageregistry_windows
-func (self *PackageHandler) WriteToDisk(packageRegistry *PackageRegistry) (error) {
+func (self *PackageRegistryHandler) WriteToDisk(packageRegistry PackageRegistryHandler) (error) {
 	values := make(VMAppsPackages, 0)
-	for _, v := range (*packageRegistry) {
+	for _, v := range (packageRegistry) {
 		values = append(values, v)
 	}
 	bytes, err := json.Marshal(values)

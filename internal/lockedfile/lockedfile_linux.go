@@ -11,7 +11,7 @@ type LockedFile struct {
 	FileDescriptor int
 }
 
-func FileLockInit(filePath string, timeout time.Duration) (*LockedFile, error) {
+func New(filePath string, timeout time.Duration) (*LockedFile, error) {
 	file, err := syscall.Open(filePath, os.O_RDWR|os.O_CREATE, constants.FilePermissions_UserOnly_ReadWrite)
 	if err != nil {
 		// file cannot be open
@@ -40,7 +40,7 @@ func FileLockInit(filePath string, timeout time.Duration) (*LockedFile, error) {
 		return &LockedFile{FileDescriptor: file}, nil
 	case <-time.After(timeout):
 		close(timeoutChan)
-		return nil, FileLockTimeoutErrorInit("File lock could not be acquired in the specified time")
+		return nil, FileLockTimeoutError{"file lock could not be acquired in the specified time"}
 	}
 }
 
