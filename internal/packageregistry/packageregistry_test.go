@@ -15,7 +15,7 @@ var hndlEnv = vmextensionhelper.HandlerEnvironment{
 	ConfigFolder: "./testdir",
 }
 
-var packageRegistry = PackageRegistry{"package1": &VMAppsPackage{
+var packageRegistry = CurrentPackageRegistry{"package1": &VMAppPackageCurrent{
 	ApplicationName:       "package1",
 	ConfigurationLocation: "some configuration location1",
 	DirectDownloadOnly:    false,
@@ -24,7 +24,7 @@ var packageRegistry = PackageRegistry{"package1": &VMAppsPackage{
 	RemoveCommand:         "remove_1.ps1",
 	UpdateCommand:         "update_1.ps1",
 	Version:               "1.2.3.1",
-}, "package2": &VMAppsPackage{
+}, "package2": &VMAppPackageCurrent{
 	ApplicationName:       "package2",
 	ConfigurationLocation: "some configuration location2",
 	DirectDownloadOnly:    true,
@@ -50,7 +50,7 @@ func cleanupTest(){
 func TestPackageRegistryReadWrite(t *testing.T) {
 	initializeTest(t)
 	defer cleanupTest()
-	var pkgHndlr IPackageHandler
+	var pkgHndlr IRegistryHandler
 	pkgHndlr, err := New(&hndlEnv, time.Second)
 	assert.NoError(t, err, "operation should not throw error")
 	err = pkgHndlr.WriteToDisk(packageRegistry)
@@ -91,8 +91,8 @@ func TestPackageRegistryReadWrite(t *testing.T) {
 func TestValuesAreProperlySaved(t *testing.T){
 	initializeTest(t)
 	defer cleanupTest()
-	reg1 := PackageRegistry{"p1" : &VMAppsPackage{ApplicationName:"p1", Version:"1.1"}}
-	var pkgHndlr IPackageHandler
+	reg1 := CurrentPackageRegistry{"p1" : &VMAppPackageCurrent{ApplicationName: "p1", Version:"1.1"}}
+	var pkgHndlr IRegistryHandler
 	pkgHndlr, err := New(&hndlEnv, time.Second)
 	assert.NoError(t, err, "operation should not throw error")
 	err = pkgHndlr.WriteToDisk(reg1)
@@ -108,7 +108,7 @@ func TestValuesAreProperlySaved(t *testing.T){
 	assert.NoError(t, err, "operation should not throw error")
 
 	// write different data again, test if it is consistent
-	reg2 := PackageRegistry{"p2" : &VMAppsPackage{ApplicationName:"p2", Version:"2.1"}}
+	reg2 := CurrentPackageRegistry{"p2" : &VMAppPackageCurrent{ApplicationName: "p2", Version:"2.1"}}
 	pkgHndlr, err = New(&hndlEnv, time.Second)
 	assert.NoError(t, err, "operation should not throw error")
 	err = pkgHndlr.WriteToDisk(reg2)
