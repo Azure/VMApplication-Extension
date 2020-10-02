@@ -22,6 +22,8 @@ const (
 	Install
 	Update
 	Delete
+	Failed
+	Skipped
 )
 
 // defines a map between the application name and the other properties of the application

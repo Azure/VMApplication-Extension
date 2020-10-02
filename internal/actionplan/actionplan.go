@@ -5,20 +5,32 @@ import (
 	"github.com/Azure/VMApplication-Extension/pkg/cmd"
 	"github.com/Azure/VMApplication-Extension/pkg/utils"
 	"github.com/pkg/errors"
+	"math"
 	"sort"
 )
+
+var minInt32 = int(math.MinInt32)
 
 type action struct {
 	vmAppPackage    *packageregistry.VMAppPackageCurrent
 	actionToPerform packageregistry.ActionEnum
 }
 
+type dependentActions []*action
+
 type ActionPlan struct {
-	actionList []*action
+	unorderedActions []dependentActions
+	orderedActions   map[int][]dependentActions
+	sortedOrder      []int
 }
 
 func New(currentPackageRegistry packageregistry.CurrentPackageRegistry, desiredVMAppCollection packageregistry.VMAppPackageIncomingCollection) (*ActionPlan, error) {
-	actionList := make([]*action, 0)
+
+	actionPlan := &ActionPlan{
+		unorderedActions: make([]dependentActions, 0),
+		orderedActions:   make(map[int][]dependentActions),
+		sortedOrder:      make([]int, 0),
+	}
 
 	// get list of previously existing applications that don't exist in the new configuration
 	packageRegistryIncoming := make(packageregistry.DesiredPackageRegistry)
@@ -26,8 +38,9 @@ func New(currentPackageRegistry packageregistry.CurrentPackageRegistry, desiredV
 	vmAppCurrentCollection := currentPackageRegistry.GetPackageCollection()
 	for _, vmAppCurrent := range vmAppCurrentCollection {
 		_, exists := packageRegistryIncoming[vmAppCurrent.ApplicationName]
-		if exists {
-			actionList = append(actionList, &action{vmAppCurrent, packageregistry.Delete})
+		if !exists {
+			actionToPerform := &action{vmAppCurrent, packageregistry.Delete}
+			actionPlan.insert(&minInt32, actionToPerform) // the order suggests that delete operations are performed first
 		}
 	}
 
@@ -47,18 +60,38 @@ func New(currentPackageRegistry packageregistry.CurrentPackageRegistry, desiredV
 			if versionComparison != 0 {
 				if len(vmAppIncoming.UpdateCommand) == 0 {
 					// not the same version and there is no update command
-					actionList = append(actionList, &action{vmAppCurrent, packageregistry.Delete}) // delete current and install incoming
-					actionList = append(actionList, &action{packageregistry.VMAppPackageIncomingToVmAppPackageCurrent(vmAppIncoming), packageregistry.Install})
+					deleteAction := &action{vmAppCurrent, packageregistry.Delete} // delete current and install incoming
+					installAction := &action{packageregistry.VMAppPackageIncomingToVmAppPackageCurrent(vmAppIncoming), packageregistry.Install}
+					actionPlan.insert(vmAppIncoming.Order, deleteAction, installAction)
 				} else {
-					actionList = append(actionList, &action{packageregistry.VMAppPackageIncomingToVmAppPackageCurrent(vmAppIncoming), packageregistry.Update})
+					updateAction :=  &action{packageregistry.VMAppPackageIncomingToVmAppPackageCurrent(vmAppIncoming), packageregistry.Update}
+					actionPlan.insert(vmAppIncoming.Order, updateAction)
 				}
 			}
 		} else {
-
+			installAction := &action{packageregistry.VMAppPackageIncomingToVmAppPackageCurrent(vmAppIncoming), packageregistry.Install}
+			actionPlan.insert(vmAppIncoming.Order, installAction)
 		}
 	}
 
-	return &ActionPlan{actionList: actionList}, nil
+	sort.Ints(actionPlan.sortedOrder)
+
+	return actionPlan, nil
+}
+
+func (actionPlan *ActionPlan) insert(order *int, implicitOrderActions ... *action, ) {
+	if order == nil {
+		actionPlan.unorderedActions = append(actionPlan.unorderedActions, implicitOrderActions)
+	} else {
+		orderedActions, present := actionPlan.orderedActions[*order]
+		if present {
+			orderedActions = append(orderedActions, implicitOrderActions)
+		} else
+		{
+			actionPlan.orderedActions[*order] = []dependentActions{implicitOrderActions}
+			actionPlan.sortedOrder = append(actionPlan.sortedOrder, *order)
+		}
+	}
 }
 
 func (actionPlan *ActionPlan) Execute(registryHandler packageregistry.IRegistryHandler, commandHandler cmd.ICommandHandler) (error) {
@@ -67,9 +100,8 @@ func (actionPlan *ActionPlan) Execute(registryHandler packageregistry.IRegistryH
 	if err != nil {
 		return err
 	}
-	for ; len(actionPlan.actionList) > 0; actionPlan.actionList = actionPlan.actionList[1:] {
-		// TODO: save actionList
 
+	for ; len(actionPlan.actionList) > 0; actionPlan.actionList = actionPlan.actionList[1:] {
 		act := actionPlan.actionList[0]
 		regKey := act.vmAppPackage.ApplicationName
 		_, exists := registry[regKey]
@@ -78,7 +110,6 @@ func (actionPlan *ActionPlan) Execute(registryHandler packageregistry.IRegistryH
 			registry[regKey].OngoingOperation = act.actionToPerform
 		}
 
-		// write the registry file so that we can keep track of what is going on
 		registryHandler.WriteToDisk(registry)
 
 		var commandToExecute string
