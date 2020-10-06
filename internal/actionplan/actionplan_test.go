@@ -105,7 +105,7 @@ func TestSingleInstallWithOrder(t *testing.T) {
 	cmdHandler := NewCommandHandlerMock(mockCommandExecutorNoError)
 	err = actionPlan.Execute(packageReg, cmdHandler)
 	assert.NoError(t, err, "execution of actionPlan should succeed")
-	assert.EqualValues(t, app1.InstallCommand, cmdHandler.CommandsInvoked[0], "Install command be invoked")
+	assert.EqualValues(t, app1.InstallCommand, cmdHandler.CommandsInvoked[0], "Install command must be invoked")
 	newReg, err := packageReg.GetExistingPackages()
 	assert.NoError(t, err)
 	assertPackageRegistryHasBeenUpdatedProperly(t, newReg, incomingCollection)

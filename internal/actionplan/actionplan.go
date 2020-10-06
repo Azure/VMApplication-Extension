@@ -210,13 +210,18 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 	default:
 		errorMessageToReturn = errors.Errorf("Unexpected Action to perform encountered %v", act.actionToPerform)
 	}
-	retCode, err := commandHandler.Execute(commandToExecute, act.vmAppPackage.GetWorkingDirectory(actionPlan.environment))
-	if err != nil {
-		errorMessageToReturn = errors.Wrapf(err, "Error executing command %v", commandToExecute)
+
+	// try to execute only if you have a valid command to execute
+	if errorMessageToReturn == nil {
+		retCode, err := commandHandler.Execute(commandToExecute, act.vmAppPackage.GetWorkingDirectory(actionPlan.environment))
+		if err != nil {
+			errorMessageToReturn = errors.Wrapf(err, "Error executing command %v", commandToExecute)
+		}
+		if retCode != 0 {
+			errorMessageToReturn = errors.Errorf("Command %v exited with non-zero error code", commandToExecute)
+		}
 	}
-	if retCode != 0 {
-		errorMessageToReturn = errors.Errorf("Command %v exited with non-zero error code", commandToExecute)
-	}
+
 	if errorMessageToReturn != nil {
 		registry[regKey].OngoingOperation = packageregistry.Failed
 	} else {
