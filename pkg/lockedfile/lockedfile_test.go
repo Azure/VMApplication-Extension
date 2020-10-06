@@ -31,13 +31,13 @@ func TestLockFileMetadata(t *testing.T) {
 	lf.Close()
 	lastOpened, lastClosed, err := getLastOpenedAndLastClosedTime(testFilePath)
 	assert.NoError(t, err)
-	assert.True(t, lastClosed.After(lastOpened), "last closed should be greater than last opened")
+	assert.True(t, lastClosed.After(lastOpened), "lastClosed should be after than lastOpened")
 }
 
 func getLastOpenedAndLastClosedTime(filePath string) (lastOpened, lastClosed time.Time, err error) {
 	// read locked file to ensure that the timestamps are correct
-	// windows cannot handle shrinking sizes properly, so the timestams have to be read with regex instead of json.Umarshall
-	bytes, err := ioutil.ReadFile(testFilePath)
+	// windows cannot handle shrinking sizes properly, so the timestamps have to be read with regex instead of json.Umarshall
+	bytes, err := ioutil.ReadFile(filePath)
 	if err != nil {
 		return
 	}

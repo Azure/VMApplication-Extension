@@ -192,7 +192,6 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 	// record new operation in the packageRegistry
 	registry[regKey] = act.vmAppPackage
 	registry[regKey].OngoingOperation = act.actionToPerform
-
 	err := registryHandler.WriteToDisk(registry)
 	if err != nil {
 		return err
