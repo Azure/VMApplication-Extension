@@ -15,3 +15,11 @@ type FileLockGenericError struct {
 func (self *FileLockGenericError) Error() (string){
 	return self.message
 }
+
+type FileIoTimeout struct{
+	message string
+}
+
+func (self *FileIoTimeout) Error() (string){
+	return self.message
+}

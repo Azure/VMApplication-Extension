@@ -97,7 +97,7 @@ func (actionPlan *ActionPlan) insertOperation(order *int, dependentActions1 ...*
 	}
 }
 
-func (actionPlan *ActionPlan) Execute(registryHandler packageregistry.IRegistryHandler, commandHandler cmd.ICommandHandler) error {
+func (actionPlan *ActionPlan) Execute(registryHandler packageregistry.IPackageRegistry, commandHandler cmd.ICommandHandler) error {
 	// registry will be mutated and written to disk so that we can keep track of all the actions that have happened
 	registry, err := registryHandler.GetExistingPackages()
 	if err != nil {
@@ -182,7 +182,7 @@ func combineErrors(combinedErrors error, error1 error) (error) {
 	return combinedErrors
 }
 
-func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IRegistryHandler,
+func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPackageRegistry,
 	commandHandler cmd.ICommandHandler, registry packageregistry.CurrentPackageRegistry,
 	act *action) (errorMessageToReturn error) {
 	errorMessageToReturn = nil

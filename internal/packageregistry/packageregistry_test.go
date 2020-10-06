@@ -3,7 +3,7 @@ package packageregistry
 import (
 	"github.com/Azure/VMApplication-Extension/VmApp/constants"
 	"github.com/Azure/VMApplication-Extension/VmExtensionHelper"
-	"github.com/Azure/VMApplication-Extension/internal/lockedfile"
+	"github.com/Azure/VMApplication-Extension/pkg/lockedfile"
 	"github.com/stretchr/testify/assert"
 	"os"
 	"reflect"
@@ -50,7 +50,7 @@ func cleanupTest(){
 func TestPackageRegistryReadWrite(t *testing.T) {
 	initializeTest(t)
 	defer cleanupTest()
-	var pkgHndlr IRegistryHandler
+	var pkgHndlr IPackageRegistry
 	pkgHndlr, err := New(&hndlEnv, time.Second)
 	assert.NoError(t, err, "operation should not throw error")
 	err = pkgHndlr.WriteToDisk(packageRegistry)
@@ -92,7 +92,7 @@ func TestValuesAreProperlySaved(t *testing.T){
 	initializeTest(t)
 	defer cleanupTest()
 	reg1 := CurrentPackageRegistry{"p1" : &VMAppPackageCurrent{ApplicationName: "p1", Version:"1.1"}}
-	var pkgHndlr IRegistryHandler
+	var pkgHndlr IPackageRegistry
 	pkgHndlr, err := New(&hndlEnv, time.Second)
 	assert.NoError(t, err, "operation should not throw error")
 	err = pkgHndlr.WriteToDisk(reg1)

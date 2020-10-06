@@ -5,6 +5,7 @@ import (
 	"github.com/Azure/VMApplication-Extension/VmExtensionHelper"
 	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
 	"github.com/Azure/VMApplication-Extension/pkg/cmd"
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"math/rand"
 	"os"
@@ -33,9 +34,11 @@ var app2 = &packageregistry.VMAppPackageIncoming{
 	UpdateCommand:   "echo update",
 }
 
+type CommandExecutor func(string, string) (int, error)
+
 type CommandHandlerMock struct {
 	CommandsInvoked []string
-	Executor        func(string, string) (int, error)
+	Executor        CommandExecutor
 }
 
 func NewCommandHandlerMock(executor func(string, string) (int, error)) (*CommandHandlerMock) {
@@ -47,12 +50,19 @@ func (commandHandlerMock *CommandHandlerMock) Execute(command string, workingDir
 	return commandHandlerMock.Executor(command, workingDir)
 }
 
-var mockCommandExecutorNoError = func(string, string) (int, error) {
+var mockCommandExecutorNoError CommandExecutor = func(string, string) (int, error) {
 	return 0, nil
 }
 
-var mockCommandExecutorNonZeroReturnCode = func(string, string) (int, error) {
+var mockCommandExecutorNonZeroReturnCode CommandExecutor = func(string, string) (int, error) {
 	return rand.Intn(255) + 1, nil // returns an exit code between 1 and 255
+}
+
+var mockCommandFailOnDemand  CommandExecutor = func(command string, workingDir string) (int, error){
+	if command == "fail"{
+		return -1, errors.Errorf("command failed as expected")
+	}
+	return 0, nil
 }
 
 var environment = &vmextensionhelper.HandlerEnvironment{
