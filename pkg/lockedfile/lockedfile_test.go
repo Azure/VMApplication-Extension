@@ -30,6 +30,7 @@ func TestLockFileMetadata(t *testing.T) {
 	assert.NoError(t, err)
 	lf.Close()
 	lastOpened, lastClosed, err := getLastOpenedAndLastClosedTime(testFilePath)
+	assert.NoError(t, err)
 	assert.True(t, lastClosed.After(lastOpened), "last closed should be greater than last opened")
 }
 
