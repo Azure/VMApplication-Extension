@@ -41,7 +41,7 @@ func newInner(filePath string, timeout time.Duration, metadata *Metadata) (*Lock
 		return &LockedFile{file, metadata}, nil
 	case <-time.After(timeout):
 		close(timeoutChan)
-		return nil, FileLockTimeoutError{"file lock could not be acquired in the specified time"}
+		return nil, &FileLockTimeoutError{"file lock could not be acquired in the specified time"}
 	}
 }
 
@@ -50,9 +50,9 @@ func (self *LockedFile) ReadLockedFile()([]byte, error){
 	buffer := make([]byte, 4096, 4096)
 
 	// reset the packageRegistryFileHandle
-	syscall.Seek(self.FileDescriptor, 0, 0)
+	syscall.Seek(self.fileDescriptor, 0, 0)
 	for {
-		nbytes, err := syscall.Read(self.FileDescriptor, buffer)
+		nbytes, err := syscall.Read(self.fileDescriptor, buffer)
 		if err != nil && err.Error() != "EOF" {
 			return nil, err
 		}
@@ -65,15 +65,14 @@ func (self *LockedFile) ReadLockedFile()([]byte, error){
 }
 
 func (self *LockedFile) WriteLockedFile(bytes []byte)(error){
-	syscall.Seek(self.FileDescriptor, 0, syscall.FILE_BEGIN)
-	_, err = syscall.Write(self.FileDescriptor, bytes)
+	syscall.Seek(self.fileDescriptor, 0, 0)
+	_, err := syscall.Write(self.fileDescriptor, bytes)
 	if err != nil {
 		return err
 	}
-	syscall.SetEndOfFile(self.FileDescriptor)
 	return nil
 }
 
 func (self *LockedFile) closeInner() (error) {
-	return syscall.Close(self.FileDescriptor)
+	return syscall.Close(self.fileDescriptor)
 }

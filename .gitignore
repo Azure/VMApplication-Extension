@@ -3,3 +3,4 @@
 internal/lockedfile/testdir/
 internal/packageregistry/testdir/
 internal/actionplan/testdir/
+/pkg/lockedfile/testdir/

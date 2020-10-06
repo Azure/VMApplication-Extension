@@ -1,16 +1,54 @@
 package lockedfile
 
 import (
+	"github.com/Azure/VMApplication-Extension/VmApp/constants"
+	"github.com/stretchr/testify/assert"
+	"io/ioutil"
+	"os"
 	"path"
+	"regexp"
 	"testing"
 	"time"
 )
 
-const testdir = ".testdir"
+const testdir = "./testdir"
 
-var testFilePath = path.Combine(testdir, "temp.lockedfile")
+var testFilePath = path.Join(testdir, "temp.lockedfile")
 
-func TestLockFileCanBeWrittenAndRead(t *testing.T){
+var lastOpenedRegex = regexp.MustCompile("\"LastOpened\":\"([^\\\"]+)\"")
+var lastClosedRegex = regexp.MustCompile("\"LastClosed\":\"([^\\\"]+)\"")
+
+func initializeTest(t *testing.T){
+	err := os.MkdirAll(testdir, constants.FilePermissions_UserOnly_ReadWriteExecute)
+	assert.NoError(t, err)
+}
+
+func TestLockFileMetadata(t *testing.T) {
+	initializeTest(t)
 	var lf ILockedFile
 	lf, err := New(testFilePath, time.Second)
+	assert.NoError(t, err)
+	lf.Close()
+	lastOpened, lastClosed, err := getLastOpenedAndLastClosedTime(testFilePath)
+	assert.True(t, lastClosed.After(lastOpened), "last closed should be greater than last opened")
+}
+
+func getLastOpenedAndLastClosedTime(filePath string) (lastOpened, lastClosed time.Time, err error) {
+	// read locked file to ensure that the timestamps are correct
+	// windows cannot handle shrinking sizes properly, so the timestams have to be read with regex instead of json.Umarshall
+	bytes, err := ioutil.ReadFile(testFilePath)
+	if err != nil {
+		return
+	}
+
+	fileContentString := string(bytes)
+
+	groups := lastOpenedRegex.FindAllStringSubmatch(fileContentString, -1)
+	lastOpened, err = time.Parse(time.RFC3339Nano, groups[0][1])
+	if err != nil {
+		return
+	}
+	groups = lastClosedRegex.FindAllStringSubmatch(fileContentString, -1)
+	lastClosed, err = time.Parse(time.RFC3339Nano, groups[0][1])
+	return
 }
