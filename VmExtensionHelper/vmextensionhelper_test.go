@@ -63,16 +63,6 @@ func (mm *mockGetVMExtensionEnvironmentManager) setSequenceNumberInternal(ve *VM
 	return nil
 }
 
-func TestMain(m *testing.M){
-	// initialize  detect the directory from the mock
-	mm := createMockVMExtensionEnvironmentManager()
-	he, _ := mm.getHandlerEnvironment("", "")
-	os.Remove(he.ConfigFolder)
-	os.MkdirAll(he.ConfigFolder, 0744)
-	m.Run()
-	// cleanup delete the directory from the mock
-}
-
 func Test_getVMExtensionNilValues(t *testing.T) {
 	ctx := log.NewSyncLogger(log.NewLogfmtLogger(os.Stdout))
 	_, err := GetVMExtension(ctx, nil)

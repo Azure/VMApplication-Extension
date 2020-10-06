@@ -3,7 +3,7 @@ package actionplan
 import (
 	"github.com/Azure/VMApplication-Extension/VmExtensionHelper"
 	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
-	"github.com/Azure/VMApplication-Extension/pkg/cmd"
+	"github.com/Azure/VMApplication-Extension/pkg/commandhandler"
 	"github.com/Azure/VMApplication-Extension/pkg/utils"
 	"github.com/pkg/errors"
 	"sort"
@@ -97,7 +97,7 @@ func (actionPlan *ActionPlan) insertOperation(order *int, dependentActions1 ...*
 	}
 }
 
-func (actionPlan *ActionPlan) Execute(registryHandler packageregistry.IPackageRegistry, commandHandler cmd.ICommandHandler) error {
+func (actionPlan *ActionPlan) Execute(registryHandler packageregistry.IPackageRegistry, commandHandler commandhandler.ICommandHandler) error {
 	// registry will be mutated and written to disk so that we can keep track of all the actions that have happened
 	registry, err := registryHandler.GetExistingPackages()
 	if err != nil {
@@ -183,7 +183,7 @@ func combineErrors(combinedErrors error, error1 error) (error) {
 }
 
 func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPackageRegistry,
-	commandHandler cmd.ICommandHandler, registry packageregistry.CurrentPackageRegistry,
+	commandHandler commandhandler.ICommandHandler, registry packageregistry.CurrentPackageRegistry,
 	act *action) (errorMessageToReturn error) {
 	errorMessageToReturn = nil
 	regKey := act.vmAppPackage.ApplicationName

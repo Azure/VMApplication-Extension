@@ -1,4 +1,4 @@
-package cmd
+package commandhandler
 
 import (
 	"github.com/Azure/VMApplication-Extension/VmApp/constants"
@@ -14,7 +14,7 @@ type ICommandHandler interface{
 type CommandHandler struct{
 }
 
-func NewCommandHandler()(*CommandHandler){
+func New()(*CommandHandler){
 	return &CommandHandler{}
 }
 

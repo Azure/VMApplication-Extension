@@ -4,7 +4,7 @@ import (
 	"github.com/Azure/VMApplication-Extension/VmApp/constants"
 	"github.com/Azure/VMApplication-Extension/VmExtensionHelper"
 	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
-	"github.com/Azure/VMApplication-Extension/pkg/cmd"
+	"github.com/Azure/VMApplication-Extension/pkg/commandhandler"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"math/rand"
@@ -125,7 +125,7 @@ func TestSingleInstallWithoutOrder(t *testing.T){
 	incomingCollection := packageregistry.VMAppPackageIncomingCollection{app2}
 	actionPlan, err := New(emptyPackageRegistry, incomingCollection, environment)
 	assert.NoError(t, err)
-	cmdHandler := cmd.NewCommandHandler()
+	cmdHandler := commandhandler.New()
 	err = actionPlan.Execute(packageReg, cmdHandler)
 	assert.NoError(t, err, "execution of actionPlan should succeed")
 	newReg, err := packageReg.GetExistingPackages()

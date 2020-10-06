@@ -35,7 +35,7 @@ var packageRegistry = CurrentPackageRegistry{"package1": &VMAppPackageCurrent{
 	Version:               "1.2.3.2",
 }}
 
-func initializeTest(t *testing.T){
+func initializeTest(t *testing.T) {
 	err := os.MkdirAll(hndlEnv.ConfigFolder, constants.FilePermissions_UserOnly_ReadWriteExecute)
 	if err != nil {
 		os.Stderr.WriteString("could not create handler environment config directory")
@@ -43,7 +43,7 @@ func initializeTest(t *testing.T){
 	}
 }
 
-func cleanupTest(){
+func cleanupTest() {
 	os.RemoveAll(hndlEnv.ConfigFolder)
 }
 
@@ -71,7 +71,6 @@ func TestPackageRegistryReadWrite(t *testing.T) {
 	pkg.Version = "new version"
 	packageRegistry["package1"] = pkg
 
-
 	err = pkgHndlr.WriteToDisk(packageRegistry)
 	assert.NoError(t, err, "operation should not throw error")
 
@@ -88,10 +87,10 @@ func TestPackageRegistryReadWrite(t *testing.T) {
 	assert.NoError(t, err, "operation should not throw error")
 }
 
-func TestValuesAreProperlySaved(t *testing.T){
+func TestValuesAreProperlySaved(t *testing.T) {
 	initializeTest(t)
 	defer cleanupTest()
-	reg1 := CurrentPackageRegistry{"p1" : &VMAppPackageCurrent{ApplicationName: "p1", Version:"1.1"}}
+	reg1 := CurrentPackageRegistry{"p1": &VMAppPackageCurrent{ApplicationName: "p1", Version: "1.1"}}
 	var pkgHndlr IPackageRegistry
 	pkgHndlr, err := New(&hndlEnv, time.Second)
 	assert.NoError(t, err, "operation should not throw error")
@@ -108,7 +107,7 @@ func TestValuesAreProperlySaved(t *testing.T){
 	assert.NoError(t, err, "operation should not throw error")
 
 	// write different data again, test if it is consistent
-	reg2 := CurrentPackageRegistry{"p2" : &VMAppPackageCurrent{ApplicationName: "p2", Version:"2.1"}}
+	reg2 := CurrentPackageRegistry{"p2": &VMAppPackageCurrent{ApplicationName: "p2", Version: "2.1"}}
 	pkgHndlr, err = New(&hndlEnv, time.Second)
 	assert.NoError(t, err, "operation should not throw error")
 	err = pkgHndlr.WriteToDisk(reg2)
@@ -125,10 +124,10 @@ func TestValuesAreProperlySaved(t *testing.T){
 
 }
 
-func TestOnlyOneInstanceofPackageHandlerCanExist(t *testing.T){
+func TestOnlyOneInstanceofPackageRegistryCanExist(t *testing.T) {
 	initializeTest(t)
 	defer cleanupTest()
-	pkgHndlr1, err := New(&hndlEnv, 60 * time.Second)
+	pkgHndlr1, err := New(&hndlEnv, 60*time.Second)
 	assert.NoError(t, err, "operation should not throw error")
 	pkgHndlr2, err := New(&hndlEnv, time.Second)
 	assert.Error(t, err, "operation should throw error")
