@@ -56,7 +56,7 @@ func New(currentPackageRegistry packageregistry.CurrentPackageRegistry, desiredV
 	for _, vmAppIncoming := range desiredVMAppCollection {
 		vmAppCurrent, exists := currentPackageRegistry[vmAppIncoming.ApplicationName]
 		if exists {
-			// updates without explicit update methods still require deletes
+			// updates
 			versionComparison, err := utils.CompareVersion(&vmAppCurrent.Version, &vmAppIncoming.Version)
 			if err != nil {
 				return nil, err
@@ -73,6 +73,7 @@ func New(currentPackageRegistry packageregistry.CurrentPackageRegistry, desiredV
 				}
 			}
 		} else {
+			// installs
 			installAction := &action{packageregistry.VMAppPackageIncomingToVmAppPackageCurrent(vmAppIncoming), packageregistry.Install}
 			actionPlan.insertOperation(vmAppIncoming.Order, installAction)
 		}
@@ -145,7 +146,7 @@ func (actionPlan *ActionPlan) Execute(registryHandler packageregistry.IPackageRe
 		}
 	}
 
-	// handle remaining unordered implicit operations
+	// handle remaining unordered operations
 	for _, depActions := range actionPlan.unorderedActions {
 		depActionFailed := false
 		for _, act := range depActions {
