@@ -3,7 +3,6 @@ package packageregistry
 import (
 	"github.com/Azure/VMApplication-Extension/VmExtensionHelper"
 	"github.com/Azure/VMApplication-Extension/internal/lockedfile"
-	"math"
 	"path"
 	"time"
 )
@@ -45,6 +44,10 @@ type VMAppPackageCurrent struct {
 	OngoingOperation      ActionEnum `json:"OngoingOperation"`
 }
 
+func (vmAppPackageCurrent *VMAppPackageCurrent) GetWorkingDirectory(environment *vmextensionhelper.HandlerEnvironment)(string){
+	return path.Join(environment.DataFolder, vmAppPackageCurrent.ApplicationName)
+}
+
 
 type VMAppPackageIncomingCollection []*VMAppPackageIncoming
 
@@ -59,39 +62,6 @@ type VMAppPackageIncoming struct {
 	DirectDownloadOnly    bool   `json:"directOnly"`
 	Order                 *int
 }
-
-// this is needed so that VMAppPackageIncoming can be sorted by the order
-func (self VMAppPackageIncomingCollection) Len() int {
-	return len(self)
-}
-
-// this is needed so that VMAppPackageIncoming can be sorted by the order
-// nulls last
-func (self VMAppPackageIncomingCollection) Less(i, j int) bool {
-	var orderAtI, orderAtJ int
-
-	if self[i].Order == nil {
-		orderAtI = math.MaxInt32
-	} else {
-		orderAtI = *self[i].Order
-	}
-
-	if self[j].Order == nil {
-		orderAtJ = math.MaxInt32
-	} else {
-		orderAtJ = *self[j].Order
-	}
-
-	return orderAtI < orderAtJ
-}
-
-// this is needed so that VMAppPackageIncoming can be sorted by the order
-func (self VMAppPackageIncomingCollection) Swap(i, j int) {
-	temp := self[i]
-	self[i] = self[j]
-	self[j] = temp
-}
-
 
 type IRegistryHandler interface {
 	GetExistingPackages() (CurrentPackageRegistry, error)

@@ -1,35 +1,43 @@
 package actionplan
 
 import (
+	"github.com/Azure/VMApplication-Extension/VmExtensionHelper"
 	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
 	"github.com/Azure/VMApplication-Extension/pkg/cmd"
 	"github.com/Azure/VMApplication-Extension/pkg/utils"
 	"github.com/pkg/errors"
-	"math"
 	"sort"
 )
-
-var minInt32 = int(math.MinInt32)
 
 type action struct {
 	vmAppPackage    *packageregistry.VMAppPackageCurrent
 	actionToPerform packageregistry.ActionEnum
 }
 
+// when an update requires an implicit remove and uninstall, the install is dependent on the remove
+// this data structure helps us skip the install if the remove fails
 type dependentActions []*action
 
 type ActionPlan struct {
+	environment      *vmextensionhelper.HandlerEnvironment
 	unorderedActions []dependentActions
-	orderedActions   map[int][]dependentActions
-	sortedOrder      []int
+	// we need to skip the actions that have a higher order number if applications in the lower order numbers fail
+	// this data structure helps us achieve it
+	orderedActions map[int][]dependentActions
+	// we keep the user provided orders sorted order to look up the orderedActions map
+	// remember to sort while initializing
+	sortedOrder                 []int
+	unorderedImplicitUninstalls []*action
 }
 
-func New(currentPackageRegistry packageregistry.CurrentPackageRegistry, desiredVMAppCollection packageregistry.VMAppPackageIncomingCollection) (*ActionPlan, error) {
+func New(currentPackageRegistry packageregistry.CurrentPackageRegistry, desiredVMAppCollection packageregistry.VMAppPackageIncomingCollection, environment *vmextensionhelper.HandlerEnvironment) (*ActionPlan, error) {
 
 	actionPlan := &ActionPlan{
-		unorderedActions: make([]dependentActions, 0),
-		orderedActions:   make(map[int][]dependentActions),
-		sortedOrder:      make([]int, 0),
+		environment:                 environment,
+		unorderedActions:            make([]dependentActions, 0),
+		orderedActions:              make(map[int][]dependentActions),
+		sortedOrder:                 make([]int, 0),
+		unorderedImplicitUninstalls: make([]*action, 0),
 	}
 
 	// get list of previously existing applications that don't exist in the new configuration
@@ -39,14 +47,10 @@ func New(currentPackageRegistry packageregistry.CurrentPackageRegistry, desiredV
 	for _, vmAppCurrent := range vmAppCurrentCollection {
 		_, exists := packageRegistryIncoming[vmAppCurrent.ApplicationName]
 		if !exists {
-			actionToPerform := &action{vmAppCurrent, packageregistry.Delete}
-			actionPlan.insert(&minInt32, actionToPerform) // the order suggests that delete operations are performed first
+			deleteAction := &action{vmAppCurrent, packageregistry.Delete}
+			actionPlan.unorderedImplicitUninstalls = append(actionPlan.unorderedImplicitUninstalls, deleteAction)
 		}
 	}
-
-	// the sort happens on the order of the VMAppIncomingPackage
-	// this is necessary to maintain the order of operations of packages to install
-	sort.Sort(desiredVMAppCollection)
 
 	// second pass for updates and installs
 	for _, vmAppIncoming := range desiredVMAppCollection {
@@ -62,15 +66,15 @@ func New(currentPackageRegistry packageregistry.CurrentPackageRegistry, desiredV
 					// not the same version and there is no update command
 					deleteAction := &action{vmAppCurrent, packageregistry.Delete} // delete current and install incoming
 					installAction := &action{packageregistry.VMAppPackageIncomingToVmAppPackageCurrent(vmAppIncoming), packageregistry.Install}
-					actionPlan.insert(vmAppIncoming.Order, deleteAction, installAction)
+					actionPlan.insertOperation(vmAppIncoming.Order, deleteAction, installAction)
 				} else {
-					updateAction :=  &action{packageregistry.VMAppPackageIncomingToVmAppPackageCurrent(vmAppIncoming), packageregistry.Update}
-					actionPlan.insert(vmAppIncoming.Order, updateAction)
+					updateAction := &action{packageregistry.VMAppPackageIncomingToVmAppPackageCurrent(vmAppIncoming), packageregistry.Update}
+					actionPlan.insertOperation(vmAppIncoming.Order, updateAction)
 				}
 			}
 		} else {
 			installAction := &action{packageregistry.VMAppPackageIncomingToVmAppPackageCurrent(vmAppIncoming), packageregistry.Install}
-			actionPlan.insert(vmAppIncoming.Order, installAction)
+			actionPlan.insertOperation(vmAppIncoming.Order, installAction)
 		}
 	}
 
@@ -79,69 +83,152 @@ func New(currentPackageRegistry packageregistry.CurrentPackageRegistry, desiredV
 	return actionPlan, nil
 }
 
-func (actionPlan *ActionPlan) insert(order *int, implicitOrderActions ... *action, ) {
+func (actionPlan *ActionPlan) insertOperation(order *int, dependentActions1 ...*action) {
 	if order == nil {
-		actionPlan.unorderedActions = append(actionPlan.unorderedActions, implicitOrderActions)
+		actionPlan.unorderedActions = append(actionPlan.unorderedActions, dependentActions1)
 	} else {
 		orderedActions, present := actionPlan.orderedActions[*order]
 		if present {
-			orderedActions = append(orderedActions, implicitOrderActions)
-		} else
-		{
-			actionPlan.orderedActions[*order] = []dependentActions{implicitOrderActions}
+			orderedActions = append(orderedActions, dependentActions1)
+		} else {
+			actionPlan.orderedActions[*order] = []dependentActions{dependentActions1}
 			actionPlan.sortedOrder = append(actionPlan.sortedOrder, *order)
 		}
 	}
 }
 
-func (actionPlan *ActionPlan) Execute(registryHandler packageregistry.IRegistryHandler, commandHandler cmd.ICommandHandler) (error) {
+func (actionPlan *ActionPlan) Execute(registryHandler packageregistry.IRegistryHandler, commandHandler cmd.ICommandHandler) error {
 	// registry will be mutated and written to disk so that we can keep track of all the actions that have happened
 	registry, err := registryHandler.GetExistingPackages()
 	if err != nil {
 		return err
 	}
 
-	for ; len(actionPlan.actionList) > 0; actionPlan.actionList = actionPlan.actionList[1:] {
-		act := actionPlan.actionList[0]
-		regKey := act.vmAppPackage.ApplicationName
-		_, exists := registry[regKey]
-		if exists {
-			registry[regKey] = act.vmAppPackage
-			registry[regKey].OngoingOperation = act.actionToPerform
+	var combinedErrors error = nil
+
+	// handle unordered implicit uninstalls
+	for _, act := range actionPlan.unorderedImplicitUninstalls {
+		newError := actionPlan.executeHelper(registryHandler, commandHandler, registry, act)
+		combinedErrors = combineErrors(combinedErrors, newError)
+	}
+
+	// handle ordered operations
+	var atLeastOneActionFailed bool
+	var actionFailedAtOrder int
+	for _, order := range actionPlan.sortedOrder {
+		actionsInTheSameOrder := actionPlan.orderedActions[order]
+		for _, depActions := range actionsInTheSameOrder {
+			depActionFailed := false
+			for _, act := range depActions {
+				regKey := act.vmAppPackage.ApplicationName
+
+				if depActionFailed || (atLeastOneActionFailed && order > actionFailedAtOrder) {
+					registry[regKey].OngoingOperation = packageregistry.Skipped
+					err = registryHandler.WriteToDisk(registry)
+					if err != nil {
+						combinedErrors = combineErrors(combinedErrors, err)
+						return combinedErrors
+					}
+
+					continue // it wil skip the remaining dependant actions and other ordered actions that have a higher order
+				}
+
+				newError := actionPlan.executeHelper(registryHandler, commandHandler, registry, act)
+
+				if newError != nil {
+					atLeastOneActionFailed = true
+					depActionFailed = true
+					actionFailedAtOrder = order
+				}
+				combinedErrors = combineErrors(combinedErrors, newError)
+			}
 		}
+	}
 
-		registryHandler.WriteToDisk(registry)
+	// handle remaining unordered implicit operations
+	for _, depActions := range actionPlan.unorderedActions {
+		depActionFailed := false
+		for _, act := range depActions {
+			regKey := act.vmAppPackage.ApplicationName
 
-		var commandToExecute string
+			if depActionFailed {
+				registry[regKey].OngoingOperation = packageregistry.Skipped
+				err = registryHandler.WriteToDisk(registry)
+				if err != nil {
+					combinedErrors = combineErrors(combinedErrors, err)
+					return combinedErrors
+				}
+				continue // it wil skip the remaining dependant actions
+			}
+			newError := actionPlan.executeHelper(registryHandler, commandHandler, registry, act)
 
-		var isDeleteOperation = false
-
-		switch (act.actionToPerform) {
-		case packageregistry.Install:
-			commandToExecute = act.vmAppPackage.InstallCommand
-		case packageregistry.Delete:
-			isDeleteOperation = true
-			commandToExecute = act.vmAppPackage.RemoveCommand
-		case packageregistry.Update:
-			commandToExecute = act.vmAppPackage.UpdateCommand
-		default:
-			return errors.Errorf("Unexpected Action to perform encountered %v", act.actionToPerform)
+			if newError != nil {
+				depActionFailed = true
+			}
+			combinedErrors = combineErrors(combinedErrors, newError)
 		}
-		retCode, err := commandHandler.Execute(commandToExecute)
-		if err != nil {
-			return errors.Wrapf(err, "Error executing command %v", commandToExecute)
-		}
-		if retCode != 0 {
-			return errors.Errorf("Command %v exited with non-zero error code", commandToExecute)
-		}
+	}
+	return combinedErrors
+}
 
+func combineErrors(combinedErrors error, error1 error) (error) {
+	if error1 != nil {
+		if combinedErrors != nil {
+			combinedErrors = errors.Wrap(combinedErrors, error1.Error())
+		} else {
+			combinedErrors = error1
+		}
+	}
+	return combinedErrors
+}
+
+func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IRegistryHandler,
+	commandHandler cmd.ICommandHandler, registry packageregistry.CurrentPackageRegistry,
+	act *action) (errorMessageToReturn error) {
+	errorMessageToReturn = nil
+	regKey := act.vmAppPackage.ApplicationName
+
+	// record new operation in the packageRegistry
+	registry[regKey] = act.vmAppPackage
+	registry[regKey].OngoingOperation = act.actionToPerform
+
+	err := registryHandler.WriteToDisk(registry)
+	if err != nil {
+		return err
+	}
+
+	var commandToExecute string
+	var isDeleteOperation = false
+	switch act.actionToPerform {
+	case packageregistry.Install:
+		commandToExecute = act.vmAppPackage.InstallCommand
+	case packageregistry.Delete:
+		isDeleteOperation = true
+		commandToExecute = act.vmAppPackage.RemoveCommand
+	case packageregistry.Update:
+		commandToExecute = act.vmAppPackage.UpdateCommand
+	default:
+		errorMessageToReturn = errors.Errorf("Unexpected Action to perform encountered %v", act.actionToPerform)
+	}
+	retCode, err := commandHandler.Execute(commandToExecute, act.vmAppPackage.GetWorkingDirectory(actionPlan.environment))
+	if err != nil {
+		errorMessageToReturn = errors.Wrapf(err, "Error executing command %v", commandToExecute)
+	}
+	if retCode != 0 {
+		errorMessageToReturn = errors.Errorf("Command %v exited with non-zero error code", commandToExecute)
+	}
+	if errorMessageToReturn != nil {
+		registry[regKey].OngoingOperation = packageregistry.Failed
+	} else {
 		if isDeleteOperation {
 			delete(registry, regKey)
 		} else {
 			registry[regKey].OngoingOperation = packageregistry.NoAction
 		}
-		registryHandler.WriteToDisk(registry)
 	}
-
-	return nil
+	err = registryHandler.WriteToDisk(registry)
+	if err != nil {
+		return err
+	}
+	return errorMessageToReturn
 }

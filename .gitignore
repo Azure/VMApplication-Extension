@@ -2,3 +2,4 @@
 /.idea/*
 internal/lockedfile/testdir/
 internal/packageregistry/testdir/
+internal/actionplan/testdir/

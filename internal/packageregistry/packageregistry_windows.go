@@ -86,15 +86,13 @@ func (self *RegistryHandler) WriteToDisk(packageRegistry CurrentPackageRegistry)
 		return err
 	}
 
-	// reset the packageRegistryFileHandle
-	var bytesWritten uint32
 	ol, err := lockedfile.GetOverlapped()
 	if err != nil {
 		return err
 	}
 	defer windows.Close(ol.HEvent)
 
-	err = windows.WriteFile(self.lockedFile.FileHandle, bytes, &bytesWritten, ol)
+	err = windows.WriteFile(self.lockedFile.FileHandle, bytes, nil, ol)
 
 	if err != syscall.ERROR_IO_PENDING {
 		return err
@@ -104,8 +102,8 @@ func (self *RegistryHandler) WriteToDisk(packageRegistry CurrentPackageRegistry)
 
 	switch s {
 	case syscall.WAIT_OBJECT_0:
-		// success!
-		return nil
+		// success writing file
+		return err
 	case syscall.WAIT_TIMEOUT:
 		windows.CancelIo(self.lockedFile.FileHandle)
 		return &FileIoTimeout{"fileIO timed out"}
