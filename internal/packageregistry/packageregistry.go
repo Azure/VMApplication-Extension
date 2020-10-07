@@ -37,7 +37,7 @@ type DesiredPackageRegistry map[string]*VMAppPackageIncoming
 type VMAppPackageCurrentCollection []*VMAppPackageCurrent
 
 type VMAppPackageCurrent struct {
-	ApplicationName       string     `json:"ApplicationName"`
+	ApplicationName       string     `json:"applicationName"`
 	PackageLocation       string     `json:"location"`
 	ConfigurationLocation string     `json:"config"`
 	Version               string     `json:"version"`
@@ -45,7 +45,7 @@ type VMAppPackageCurrent struct {
 	RemoveCommand         string     `json:"remove"`
 	UpdateCommand         string     `json:"update"`
 	DirectDownloadOnly    bool       `json:"directOnly"`
-	OngoingOperation      ActionEnum `json:"OngoingOperation"`
+	OngoingOperation      ActionEnum `json:"ongoingOperation"`
 }
 
 func (vmAppPackageCurrent *VMAppPackageCurrent) GetWorkingDirectory(environment *vmextensionhelper.HandlerEnvironment) (string) {
@@ -55,7 +55,7 @@ func (vmAppPackageCurrent *VMAppPackageCurrent) GetWorkingDirectory(environment 
 type VMAppPackageIncomingCollection []*VMAppPackageIncoming
 
 type VMAppPackageIncoming struct {
-	ApplicationName       string `json:"ApplicationName"`
+	ApplicationName       string `json:"applicationName"`
 	PackageLocation       string `json:"location"`
 	ConfigurationLocation string `json:"config"`
 	Version               string `json:"version"`
@@ -63,7 +63,7 @@ type VMAppPackageIncoming struct {
 	RemoveCommand         string `json:"remove"`
 	UpdateCommand         string `json:"update"`
 	DirectDownloadOnly    bool   `json:"directOnly"`
-	Order                 *int
+	Order                 *int   `json:"order"`
 }
 
 type IPackageRegistry interface {
@@ -115,12 +115,12 @@ func (self *PackageRegistry) GetExistingPackages() (CurrentPackageRegistry, erro
 	return currentPackageRegistry, err
 }
 
-func (self *PackageRegistry) WriteToDisk(packageRegistry CurrentPackageRegistry) (error){
+func (self *PackageRegistry) WriteToDisk(packageRegistry CurrentPackageRegistry) (error) {
 	regFile := self.getLocalApplicationRegistryFilePath()
 	regFileBackup := self.getLocalApplicationRegistryBackupFilePath()
 	var doesBackupFileExist = false
 	err := os.Rename(regFile, regFileBackup)
-	if err != nil{
+	if err != nil {
 		if !os.IsNotExist(err) {
 			// return on errors other than source file does not exist for os.Rename operation
 			return err
@@ -129,7 +129,7 @@ func (self *PackageRegistry) WriteToDisk(packageRegistry CurrentPackageRegistry)
 		doesBackupFileExist = true
 	}
 
-	vmAppPackageCurrentCollection :=  packageRegistry.GetPackageCollection()
+	vmAppPackageCurrentCollection := packageRegistry.GetPackageCollection()
 	bytes, err := json.Marshal(vmAppPackageCurrentCollection)
 	if err != nil {
 		return err
