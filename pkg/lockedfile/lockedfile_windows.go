@@ -50,7 +50,7 @@ func newInner(filePath string, timeout time.Duration, metadata *Metadata) (*lock
 		return &lockedFile{handle, metadata}, nil
 	}
 
-	// ERROR_IO_PENDING is expected when we're waiting on an asychronous event
+	// ERROR_IO_PENDING is expected when we're waiting on an asynchronous event
 	// to occur.
 	if err != syscall.ERROR_IO_PENDING {
 		return nil, err
