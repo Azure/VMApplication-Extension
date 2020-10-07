@@ -20,7 +20,7 @@ func New(filePath string, timeout time.Duration) (lockedFile ILockedFile, err  e
 	return
 }
 
-func (self *LockedFile)Close()(error){
+func (self *lockedFile)Close()(error){
 	self.metadata.updateAndWriteMetadata(self, updateCloseTime)
 	return self.closeInner()
 }

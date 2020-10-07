@@ -18,7 +18,7 @@ func TestVersionStringEqual(t *testing.T){
 	vString2 = "1"
 	result, err = CompareVersion(&vString1, &vString2)
 	assert.NoError(t, err, "Error not expected")
-	assert.EqualValues(t, 0,  result, "rresult should be equal to 0")
+	assert.EqualValues(t, 0,  result, "result should be equal to 0")
 
 	vString1 = "1"
 	vString2 = "1.0.0"

@@ -12,12 +12,12 @@ const (
 	fileIOTimeoutInMilliseconds = 10000
 )
 
-type LockedFile struct {
+type lockedFile struct {
 	fileHandle windows.Handle
 	metadata   *Metadata
 }
 
-func newInner(filePath string, timeout time.Duration, metadata *Metadata) (*LockedFile, error) {
+func newInner(filePath string, timeout time.Duration, metadata *Metadata) (*lockedFile, error) {
 	name, err := windows.UTF16PtrFromString(filePath)
 	if err != nil {
 		return nil, err
@@ -47,7 +47,7 @@ func newInner(filePath string, timeout time.Duration, metadata *Metadata) (*Lock
 
 	err = windows.LockFileEx(handle, windows.LOCKFILE_EXCLUSIVE_LOCK, reserved, allBytes, allBytes, ol)
 	if err == nil {
-		return &LockedFile{handle, metadata}, nil
+		return &lockedFile{handle, metadata}, nil
 	}
 
 	// ERROR_IO_PENDING is expected when we're waiting on an asychronous event
@@ -62,7 +62,7 @@ func newInner(filePath string, timeout time.Duration, metadata *Metadata) (*Lock
 	switch s {
 	case syscall.WAIT_OBJECT_0:
 		// success!
-		return &LockedFile{handle, metadata}, nil
+		return &lockedFile{handle, metadata}, nil
 	case syscall.WAIT_TIMEOUT:
 		windows.CancelIo(handle)
 		return nil, &FileLockTimeoutError{"file lock could not be acquired in the specified time"}
@@ -71,7 +71,7 @@ func newInner(filePath string, timeout time.Duration, metadata *Metadata) (*Lock
 	}
 }
 
-func (self *LockedFile) ReadLockedFile() ([]byte, error) {
+func (self *lockedFile) ReadLockedFile() ([]byte, error) {
 	// make an empty byte slice with 4KB default size
 	fileBytes := make([]byte, 0, 4096)
 	buffer := make([]byte, 4096, 4096)
@@ -110,7 +110,7 @@ func (self *LockedFile) ReadLockedFile() ([]byte, error) {
 }
 
 // warning this function does not resize the file when overwriting to a smaller size
-func (self *LockedFile) WriteLockedFile(bytes []byte)(error){
+func (self *lockedFile) WriteLockedFile(bytes []byte)(error){
 	ol, err := getOverlapped()
 	if err != nil {
 		return err
@@ -140,7 +140,7 @@ func (self *LockedFile) WriteLockedFile(bytes []byte)(error){
 }
 
 
-func (self *LockedFile) closeInner() (error) {
+func (self *lockedFile) closeInner() (error) {
 	err := windows.UnlockFileEx(self.fileHandle, reserved, allBytes, allBytes, &windows.Overlapped{HEvent: 0})
 	if err != nil {
 		return err
