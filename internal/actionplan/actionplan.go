@@ -6,6 +6,7 @@ import (
 	"github.com/Azure/VMApplication-Extension/pkg/commandhandler"
 	"github.com/Azure/VMApplication-Extension/pkg/utils"
 	"github.com/pkg/errors"
+	"math"
 	"sort"
 )
 
@@ -19,12 +20,12 @@ type action struct {
 type dependentActions []*action
 
 type ActionPlan struct {
-	environment      *vmextensionhelper.HandlerEnvironment
-	unorderedActions []dependentActions
+	environment         *vmextensionhelper.HandlerEnvironment
+	unorderedOperations []dependentActions
 	// we need to skip the actions that have a higher order number if applications in the lower order numbers fail
 	// this data structure helps us achieve it
-	orderedActions map[int][]dependentActions
-	// we keep the user provided orders sorted order to look up the orderedActions map
+	orderedOperations map[int][]dependentActions
+	// we keep the user provided orders sorted order to look up the orderedOperations map
 	// remember to sort while initializing
 	sortedOrder                 []int
 	unorderedImplicitUninstalls []*action
@@ -34,8 +35,8 @@ func New(currentPackageRegistry packageregistry.CurrentPackageRegistry, desiredV
 
 	actionPlan := &ActionPlan{
 		environment:                 environment,
-		unorderedActions:            make([]dependentActions, 0),
-		orderedActions:              make(map[int][]dependentActions),
+		unorderedOperations:         make([]dependentActions, 0),
+		orderedOperations:           make(map[int][]dependentActions),
 		sortedOrder:                 make([]int, 0),
 		unorderedImplicitUninstalls: make([]*action, 0),
 	}
@@ -57,11 +58,8 @@ func New(currentPackageRegistry packageregistry.CurrentPackageRegistry, desiredV
 		vmAppCurrent, exists := currentPackageRegistry[vmAppIncoming.ApplicationName]
 		if exists {
 			// updates
-			versionComparison, err := utils.CompareVersion(&vmAppCurrent.Version, &vmAppIncoming.Version)
-			if err != nil {
-				return nil, err
-			}
-			if versionComparison != 0 {
+			versionsEqual := utils.AreVersionsEqual(&vmAppCurrent.Version, &vmAppIncoming.Version)
+			if !versionsEqual {
 				if len(vmAppIncoming.UpdateCommand) == 0 {
 					// not the same version and there is no update command
 					deleteAction := &action{vmAppCurrent, packageregistry.Delete} // delete current and install incoming
@@ -86,13 +84,13 @@ func New(currentPackageRegistry packageregistry.CurrentPackageRegistry, desiredV
 
 func (actionPlan *ActionPlan) insertOperation(order *int, dependentActions1 ...*action) {
 	if order == nil {
-		actionPlan.unorderedActions = append(actionPlan.unorderedActions, dependentActions1)
+		actionPlan.unorderedOperations = append(actionPlan.unorderedOperations, dependentActions1)
 	} else {
-		orderedActions, present := actionPlan.orderedActions[*order]
+		orderedActions, present := actionPlan.orderedOperations[*order]
 		if present {
-			orderedActions = append(orderedActions, dependentActions1)
+			actionPlan.orderedOperations[*order] = append(orderedActions, dependentActions1)
 		} else {
-			actionPlan.orderedActions[*order] = []dependentActions{dependentActions1}
+			actionPlan.orderedOperations[*order] = []dependentActions{dependentActions1}
 			actionPlan.sortedOrder = append(actionPlan.sortedOrder, *order)
 		}
 	}
@@ -114,59 +112,49 @@ func (actionPlan *ActionPlan) Execute(registryHandler packageregistry.IPackageRe
 	}
 
 	// handle ordered operations
-	var atLeastOneActionFailed bool
-	var actionFailedAtOrder int
+	var atLeastOneActionFailed = false
+	var actionFailedAtOrder = math.MaxInt32
 	for _, order := range actionPlan.sortedOrder {
-		actionsInTheSameOrder := actionPlan.orderedActions[order]
+		actionsInTheSameOrder := actionPlan.orderedOperations[order]
 		for _, depActions := range actionsInTheSameOrder {
-			depActionFailed := false
 			for _, act := range depActions {
-				regKey := act.vmAppPackage.ApplicationName
+				// if we encountered and error in the past, skip all the operations for a higher order
+				if atLeastOneActionFailed && order > actionFailedAtOrder {
+					appName := act.vmAppPackage.ApplicationName
 
-				if depActionFailed || (atLeastOneActionFailed && order > actionFailedAtOrder) {
-					registry[regKey].OngoingOperation = packageregistry.Skipped
+					registry[appName] = act.vmAppPackage
+					registry[appName].OngoingOperation = packageregistry.Skipped
+
 					err = registryHandler.WriteToDisk(registry)
 					if err != nil {
 						combinedErrors = combineErrors(combinedErrors, err)
 						return combinedErrors
 					}
-
-					continue // it wil skip the remaining dependant actions and other ordered actions that have a higher order
+					break
 				}
 
 				newError := actionPlan.executeHelper(registryHandler, commandHandler, registry, act)
+				combinedErrors = combineErrors(combinedErrors, newError)
 
 				if newError != nil {
 					atLeastOneActionFailed = true
-					depActionFailed = true
 					actionFailedAtOrder = order
+					// no need to execute the remaining dependent operations
+					break
 				}
-				combinedErrors = combineErrors(combinedErrors, newError)
 			}
 		}
 	}
 
 	// handle remaining unordered operations
-	for _, depActions := range actionPlan.unorderedActions {
-		depActionFailed := false
+	for _, depActions := range actionPlan.unorderedOperations {
 		for _, act := range depActions {
-			regKey := act.vmAppPackage.ApplicationName
-
-			if depActionFailed {
-				registry[regKey].OngoingOperation = packageregistry.Skipped
-				err = registryHandler.WriteToDisk(registry)
-				if err != nil {
-					combinedErrors = combineErrors(combinedErrors, err)
-					return combinedErrors
-				}
-				continue // it wil skip the remaining dependant actions
-			}
 			newError := actionPlan.executeHelper(registryHandler, commandHandler, registry, act)
+			combinedErrors = combineErrors(combinedErrors, newError)
 
 			if newError != nil {
-				depActionFailed = true
+				break // will skip the remaining dependant actions
 			}
-			combinedErrors = combineErrors(combinedErrors, newError)
 		}
 	}
 	return combinedErrors
@@ -187,11 +175,10 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 	commandHandler commandhandler.ICommandHandler, registry packageregistry.CurrentPackageRegistry,
 	act *action) (errorMessageToReturn error) {
 	errorMessageToReturn = nil
-	regKey := act.vmAppPackage.ApplicationName
+	appName := act.vmAppPackage.ApplicationName
 
 	// record new operation in the packageRegistry
-	registry[regKey] = act.vmAppPackage
-	registry[regKey].OngoingOperation = act.actionToPerform
+	registry[appName] = act.vmAppPackage
 	err := registryHandler.WriteToDisk(registry)
 	if err != nil {
 		return err
@@ -223,12 +210,12 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 	}
 
 	if errorMessageToReturn != nil {
-		registry[regKey].OngoingOperation = packageregistry.Failed
+		registry[appName].OngoingOperation = packageregistry.Failed
 	} else {
 		if isDeleteOperation {
-			delete(registry, regKey)
+			delete(registry, appName)
 		} else {
-			registry[regKey].OngoingOperation = packageregistry.NoAction
+			registry[appName].OngoingOperation = packageregistry.NoAction
 		}
 	}
 	err = registryHandler.WriteToDisk(registry)

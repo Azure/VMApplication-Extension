@@ -5,6 +5,21 @@ import (
 	"strings"
 )
 
+func AreVersionsEqual(versionString1 *string, versionString2 *string) (bool) {
+	cmpResult, err := CompareVersion(versionString1, versionString2)
+	if err == nil {
+		return cmpResult == 0
+	} else {
+		if (versionString1 == nil) != (versionString2 == nil) {
+			return false
+		}
+		if (versionString1 == nil) && (versionString2 == nil) {
+			return true
+		}
+		return strings.Compare(*versionString1, *versionString2) == 0
+	}
+}
+
 // compares the version strings
 // returns 0 if both are equal, returns < 0 if versionString1 < versionString2 and returns > 0 if versionString 1 > versionString2
 func CompareVersion(versionString1 *string, versionString2 *string) (int, error) {
@@ -41,7 +56,7 @@ func CompareVersion(versionString1 *string, versionString2 *string) (int, error)
 	}
 
 	if len1 > len2 {
-		// 1.2.0.0 is same as
+		// 1.2.0.0 is same as 1.2
 		remainingVersion, err := findNonZeroVersionNumber(numbersText1, i, len1)
 		if err != nil {
 			return 0, err
