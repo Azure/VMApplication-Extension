@@ -263,7 +263,7 @@ func TestDependantActionsAreCancelled(t *testing.T) {
 	assert.Equal(t, packageregistry.Failed, newReg[oldVersion.ApplicationName].OngoingOperation, "the package status should be failed")
 }
 
-func TestOrderIsMaintained(t *testing.T) {
+func TestOrderIsMaintainedAndHigherOrderOperationsAreSkippedOnFailure(t *testing.T) {
 	initializeTest(t)
 	defer cleanupTest()
 	old1 := packageregistry.VMAppPackageCurrent{
