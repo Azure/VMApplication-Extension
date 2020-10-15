@@ -49,7 +49,7 @@ type VMAppPackageCurrent struct {
 }
 
 func (vmAppPackageCurrent *VMAppPackageCurrent) GetWorkingDirectory(environment *vmextensionhelper.HandlerEnvironment) (string) {
-	return path.Join(environment.DataFolder, vmAppPackageCurrent.ApplicationName)
+	return path.Join(environment.DataFolder, vmAppPackageCurrent.ApplicationName, vmAppPackageCurrent.Version)
 }
 
 type VMAppPackageIncomingCollection []*VMAppPackageIncoming

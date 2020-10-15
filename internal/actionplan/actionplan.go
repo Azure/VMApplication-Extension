@@ -2,6 +2,7 @@ package actionplan
 
 import (
 	"github.com/Azure/VMApplication-Extension/VmExtensionHelper"
+	"github.com/Azure/VMApplication-Extension/internal/downloader"
 	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
 	"github.com/Azure/VMApplication-Extension/pkg/commandhandler"
 	"github.com/Azure/VMApplication-Extension/pkg/utils"
@@ -29,9 +30,10 @@ type ActionPlan struct {
 	// remember to sort while initializing
 	sortedOrder                 []int
 	unorderedImplicitUninstalls []*action
+	downloader                  downloader.IDownloader
 }
 
-func New(currentPackageRegistry packageregistry.CurrentPackageRegistry, desiredVMAppCollection packageregistry.VMAppPackageIncomingCollection, environment *vmextensionhelper.HandlerEnvironment) (*ActionPlan, error) {
+func New(currentPackageRegistry packageregistry.CurrentPackageRegistry, desiredVMAppCollection packageregistry.VMAppPackageIncomingCollection, environment *vmextensionhelper.HandlerEnvironment, downloader downloader.IDownloader) (*ActionPlan, error) {
 
 	actionPlan := &ActionPlan{
 		environment:                 environment,
@@ -39,6 +41,7 @@ func New(currentPackageRegistry packageregistry.CurrentPackageRegistry, desiredV
 		orderedOperations:           make(map[int][]dependentActions),
 		sortedOrder:                 make([]int, 0),
 		unorderedImplicitUninstalls: make([]*action, 0),
+		downloader:                  downloader,
 	}
 
 	// get list of previously existing applications that don't exist in the new configuration
@@ -200,7 +203,21 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 
 	// try to execute only if you have a valid command to execute
 	if errorMessageToReturn == nil {
-		retCode, err := commandHandler.Execute(commandToExecute, act.vmAppPackage.GetWorkingDirectory(actionPlan.environment))
+		downloadPath := act.vmAppPackage.GetWorkingDirectory(actionPlan.environment)
+
+		// download packages now
+		if err := actionPlan.downloader.Download(act.vmAppPackage.PackageLocation, downloadPath); err!= nil {
+			return err
+		}
+
+		// download configuration if it exists
+		if len(act.vmAppPackage.PackageLocation) != 0 {
+			if err := actionPlan.downloader.Download(act.vmAppPackage.PackageLocation, downloadPath); err != nil {
+				return err
+			}
+		}
+
+		retCode, err := commandHandler.Execute(commandToExecute, downloadPath)
 		if err != nil {
 			errorMessageToReturn = errors.Wrapf(err, "Error executing command %v", commandToExecute)
 		}

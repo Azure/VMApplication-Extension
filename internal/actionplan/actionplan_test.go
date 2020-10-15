@@ -50,6 +50,12 @@ var mockCommandFailOnDemand CommandExecutor = func(command string, workingDir st
 	return 0, nil
 }
 
+type NoopDownloader struct{}
+
+func (downloader *NoopDownloader) Download(uri, downloadPath string)(error){
+	return nil
+}
+
 var environment = &vmextensionhelper.HandlerEnvironment{
 	DataFolder:   path.Join(".", "testdir", "data"),
 	ConfigFolder: path.Join(".", "testdir", "config"),
@@ -408,7 +414,7 @@ func executeActionPlan(t *testing.T,
 	}
 	err = packageReg.WriteToDisk(currentReg)
 	assert.NoError(t, err)
-	actionPlan, err := New(currentReg, incomingPackages, environment)
+	actionPlan, err := New(currentReg, incomingPackages, environment, new(NoopDownloader))
 	assert.NoError(t, err)
 	actionPlan.Execute(packageReg, cmdHandler)
 	currentReg, err = packageReg.GetExistingPackages()
