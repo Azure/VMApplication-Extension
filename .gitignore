@@ -6,3 +6,4 @@ internal/actionplan/testdir/
 /pkg/lockedfile/testdir/
 pkg/commandhandler/testdir/
 .vscode/
+VmExtensionHelper/seqno/flooperflop/

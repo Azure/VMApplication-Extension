@@ -2,6 +2,7 @@ package actionplan
 
 import (
 	"github.com/Azure/VMApplication-Extension/VmExtensionHelper"
+	"github.com/Azure/VMApplication-Extension/VmExtensionHelper/extensionerrors"
 	"github.com/Azure/VMApplication-Extension/internal/downloader"
 	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
 	"github.com/Azure/VMApplication-Extension/pkg/commandhandler"
@@ -111,7 +112,7 @@ func (actionPlan *ActionPlan) Execute(registryHandler packageregistry.IPackageRe
 	// handle unordered implicit uninstalls
 	for _, act := range actionPlan.unorderedImplicitUninstalls {
 		newError := actionPlan.executeHelper(registryHandler, commandHandler, registry, act)
-		combinedErrors = combineErrors(combinedErrors, newError)
+		combinedErrors = extensionerrors.CombineErrors(combinedErrors, newError)
 	}
 
 	// handle ordered operations
@@ -130,14 +131,14 @@ func (actionPlan *ActionPlan) Execute(registryHandler packageregistry.IPackageRe
 
 					err = registryHandler.WriteToDisk(registry)
 					if err != nil {
-						combinedErrors = combineErrors(combinedErrors, err)
+						combinedErrors = extensionerrors.CombineErrors(combinedErrors, err)
 						return combinedErrors
 					}
 					break
 				}
 
 				newError := actionPlan.executeHelper(registryHandler, commandHandler, registry, act)
-				combinedErrors = combineErrors(combinedErrors, newError)
+				combinedErrors = extensionerrors.CombineErrors(combinedErrors, newError)
 
 				if newError != nil {
 					atLeastOneActionFailed = true
@@ -153,7 +154,7 @@ func (actionPlan *ActionPlan) Execute(registryHandler packageregistry.IPackageRe
 	for _, depActions := range actionPlan.unorderedOperations {
 		for _, act := range depActions {
 			newError := actionPlan.executeHelper(registryHandler, commandHandler, registry, act)
-			combinedErrors = combineErrors(combinedErrors, newError)
+			combinedErrors = extensionerrors.CombineErrors(combinedErrors, newError)
 
 			if newError != nil {
 				break // will skip the remaining dependant actions
@@ -163,16 +164,6 @@ func (actionPlan *ActionPlan) Execute(registryHandler packageregistry.IPackageRe
 	return combinedErrors
 }
 
-func combineErrors(combinedErrors error, error1 error) (error) {
-	if error1 != nil {
-		if combinedErrors != nil {
-			combinedErrors = errors.Wrap(combinedErrors, error1.Error())
-		} else {
-			combinedErrors = error1
-		}
-	}
-	return combinedErrors
-}
 
 func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPackageRegistry,
 	commandHandler commandhandler.ICommandHandler, registry packageregistry.CurrentPackageRegistry,
