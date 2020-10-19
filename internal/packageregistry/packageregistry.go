@@ -2,8 +2,8 @@ package packageregistry
 
 import (
 	"encoding/json"
-	"github.com/Azure/VMApplication-Extension/VmApp/constants"
-	"github.com/Azure/VMApplication-Extension/VmExtensionHelper"
+	"github.com/Azure/VMApplication-Extension/VmExtensionHelper/constants"
+	"github.com/Azure/VMApplication-Extension/VmExtensionHelper/handlerenv"
 	"github.com/Azure/VMApplication-Extension/pkg/lockedfile"
 	"io/ioutil"
 	"os"
@@ -48,7 +48,7 @@ type VMAppPackageCurrent struct {
 	OngoingOperation      ActionEnum `json:"ongoingOperation"`
 }
 
-func (vmAppPackageCurrent *VMAppPackageCurrent) GetWorkingDirectory(environment *vmextensionhelper.HandlerEnvironment) (string) {
+func (vmAppPackageCurrent *VMAppPackageCurrent) GetWorkingDirectory(environment *handlerenv.HandlerEnvironment) (string) {
 	return path.Join(environment.DataFolder, vmAppPackageCurrent.ApplicationName, vmAppPackageCurrent.Version)
 }
 
@@ -73,13 +73,13 @@ type IPackageRegistry interface {
 }
 
 type PackageRegistry struct {
-	handlerEnv *vmextensionhelper.HandlerEnvironment
+	handlerEnv *handlerenv.HandlerEnvironment
 	lockedFile lockedfile.ILockedFile
 }
 
 // Keep the PackageRegistry object alive as long as the package registry is being accessed to lock it
 // Call PackageRegistry.Close() to release locks on the registry file
-func New(handlerEnv *vmextensionhelper.HandlerEnvironment, fileLockTimeout time.Duration) (IPackageRegistry, error) {
+func New(handlerEnv *handlerenv.HandlerEnvironment, fileLockTimeout time.Duration) (IPackageRegistry, error) {
 	appRegistryFilePath := path.Join(handlerEnv.ConfigFolder, lockFileName)
 	fileLock, err := lockedfile.New(appRegistryFilePath, fileLockTimeout)
 	if err != nil {

@@ -1,8 +1,8 @@
 package actionplan
 
 import (
-	"github.com/Azure/VMApplication-Extension/VmApp/constants"
-	"github.com/Azure/VMApplication-Extension/VmExtensionHelper"
+	"github.com/Azure/VMApplication-Extension/VmExtensionHelper/handlerenv"
+	"github.com/Azure/VMApplication-Extension/VmExtensionHelper/constants"
 	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
 	"github.com/Azure/VMApplication-Extension/pkg/commandhandler"
 	"github.com/pkg/errors"
@@ -56,7 +56,7 @@ func (downloader *NoopDownloader) Download(uri, downloadPath string)(error){
 	return nil
 }
 
-var environment = &vmextensionhelper.HandlerEnvironment{
+var environment = &handlerenv.HandlerEnvironment{
 	DataFolder:   path.Join(".", "testdir", "data"),
 	ConfigFolder: path.Join(".", "testdir", "config"),
 }

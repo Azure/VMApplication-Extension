@@ -114,7 +114,7 @@ func getVMExtensionInternal(ctx log.Logger, initInfo *InitializationInfo, manage
 
 	// Determine the current sequence number
 	retriever := seqno.ProcSequenceNumberRetriever{}
-	currentSeqNo, err := manager.getCurrentSequenceNumber(ctx, retriever, initInfo.Name, initInfo.Version)
+	currentSeqNo, err := manager.getCurrentSequenceNumber(ctx, &retriever, initInfo.Name, initInfo.Version)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to read the current sequence number due to '%v'", err)
 	}

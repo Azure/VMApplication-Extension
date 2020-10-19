@@ -1,7 +1,7 @@
 package actionplan
 
 import (
-	"github.com/Azure/VMApplication-Extension/VmExtensionHelper"
+	"github.com/Azure/VMApplication-Extension/VmExtensionHelper/handlerenv"
 	"github.com/Azure/VMApplication-Extension/VmExtensionHelper/extensionerrors"
 	"github.com/Azure/VMApplication-Extension/internal/downloader"
 	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
@@ -22,7 +22,7 @@ type action struct {
 type dependentActions []*action
 
 type ActionPlan struct {
-	environment         *vmextensionhelper.HandlerEnvironment
+	environment         *handlerenv.HandlerEnvironment
 	unorderedOperations []dependentActions
 	// we need to skip the actions that have a higher order number if applications in the lower order numbers fail
 	// this data structure helps us achieve it
@@ -34,7 +34,7 @@ type ActionPlan struct {
 	downloader                  downloader.IDownloader
 }
 
-func New(currentPackageRegistry packageregistry.CurrentPackageRegistry, desiredVMAppCollection packageregistry.VMAppPackageIncomingCollection, environment *vmextensionhelper.HandlerEnvironment, downloader downloader.IDownloader) (*ActionPlan, error) {
+func New(currentPackageRegistry packageregistry.CurrentPackageRegistry, desiredVMAppCollection packageregistry.VMAppPackageIncomingCollection, environment *handlerenv.HandlerEnvironment, downloader downloader.IDownloader) (*ActionPlan, error) {
 
 	actionPlan := &ActionPlan{
 		environment:                 environment,

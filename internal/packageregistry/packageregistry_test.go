@@ -1,8 +1,8 @@
 package packageregistry
 
 import (
-	"github.com/Azure/VMApplication-Extension/VmApp/constants"
-	"github.com/Azure/VMApplication-Extension/VmExtensionHelper"
+	"github.com/Azure/VMApplication-Extension/VmExtensionHelper/constants"
+	"github.com/Azure/VMApplication-Extension/VmExtensionHelper/handlerenv"
 	"github.com/Azure/VMApplication-Extension/pkg/lockedfile"
 	"github.com/stretchr/testify/assert"
 	"os"
@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-var hndlEnv = vmextensionhelper.HandlerEnvironment{
+var hndlEnv = handlerenv.HandlerEnvironment{
 	ConfigFolder: "./testdir",
 }
 

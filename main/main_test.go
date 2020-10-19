@@ -4,8 +4,9 @@ import (
 	"encoding/json"
 	"os"
 	"testing"
-
-	vmextensionhelper "github.com/Azure/VMApplication-Extension/VmExtensionHelper"
+	"github.com/Azure/VMApplication-Extension/VmExtensionHelper/handlerenv"
+	handlersettings "github.com/Azure/VMApplication-Extension/VmExtensionHelper/settings"
+	"github.com/Azure/VMApplication-Extension/VmExtensionHelper/vmextension"
 	"github.com/go-kit/kit/log"
 	"github.com/stretchr/testify/require"
 )
@@ -201,7 +202,7 @@ func createMultipleVmPackageData() vmPackageData {
 	return vmPackages
 }
 
-func createSettings(settings interface{}) *vmextensionhelper.HandlerSettings {
+func createSettings(settings interface{}) *handlersettings.HandlerSettings {
 	publicmap := make(map[string]interface{}, 1)
 	privatemap := make(map[string]interface{}, 2)
 
@@ -210,21 +211,21 @@ func createSettings(settings interface{}) *vmextensionhelper.HandlerSettings {
 		privatemap[vmPackagesSetting] = string(b)
 	}
 
-	return &vmextensionhelper.HandlerSettings{
+	return &handlersettings.HandlerSettings{
 		PublicSettings:    publicmap,
 		ProtectedSettings: privatemap,
 	}
 }
 
-func createTestVMExtension(settings interface{}) *vmextensionhelper.VMExtension {
+func createTestVMExtension(settings interface{}) *vmextension.VMExtension {
 	hs := createSettings(settings)
 
-	return &vmextensionhelper.VMExtension{
+	return &vmextension.VMExtension{
 		Name:                    extensionVersion,
 		Version:                 extensionVersion,
 		RequestedSequenceNumber: 2,
 		CurrentSequenceNumber:   1,
-		HandlerEnv: &vmextensionhelper.HandlerEnvironment{
+		HandlerEnv: &handlerenv.HandlerEnvironment{
 			HeartbeatFile: "./heartbeat.txt",
 			StatusFolder:  "./status/",
 			ConfigFolder:  "./config/",
