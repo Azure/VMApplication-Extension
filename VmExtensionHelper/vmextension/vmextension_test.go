@@ -48,7 +48,7 @@ func (mm *mockGetVMExtensionEnvironmentManager) findSeqNum(ctx log.Logger, confi
 	return mm.seqNo, nil
 }
 
-func (mm *mockGetVMExtensionEnvironmentManager) getCurrentSequenceNumber(ctx log.Logger, retriever seqno.ISequenceNumberRetriever, name string, version string) (uint, error) {
+func (mm *mockGetVMExtensionEnvironmentManager) getCurrentSequenceNumber(ctx log.Logger, retriever seqno.ISequenceNumberRetriever, name, version, configFolder string) (uint, error) {
 	if mm.getCurrentSequenceNumberError != nil {
 		return 0, mm.getCurrentSequenceNumberError
 	}

@@ -14,19 +14,19 @@ import (
 )
 
 type ISequenceNumberRetriever interface {
-	GetSequenceNumber(name string, version string) (uint, error)
+	GetSequenceNumber(name, version, configFolder string) (uint, error)
 }
 
 type ProcSequenceNumberRetriever struct {
 }
 
-func (*ProcSequenceNumberRetriever) GetSequenceNumber(name string, version string) (uint, error) {
-	return getSequenceNumberInternal(name, version)
+func (*ProcSequenceNumberRetriever) GetSequenceNumber(name , version, configFolder string) (uint, error) {
+	return getSequenceNumberInternal(name, version, configFolder)
 }
 
 // GetCurrentSequenceNumber returns the current sequence number the extension is using
-func GetCurrentSequenceNumber(ctx log.Logger, retriever ISequenceNumberRetriever, name string, version string) (sn uint, _ error) {
-	sequenceNumber, err := retriever.GetSequenceNumber(name, version)
+func GetCurrentSequenceNumber(ctx log.Logger, retriever ISequenceNumberRetriever, name, version, configFolder string) (sn uint, _ error) {
+	sequenceNumber, err := retriever.GetSequenceNumber(name, version, configFolder)
 	if err == extensionerrors.ErrNotFound {
 		// If we can't find the sequence number, then it's possible that the extension
 		// hasn't been installed yet. Go back to 0.
