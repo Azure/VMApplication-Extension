@@ -1,6 +1,13 @@
 package seqno
 
-import "path"
+import (
+	"fmt"
+	"github.com/Azure/VMApplication-Extension/VmExtensionHelper/constants"
+	"io/ioutil"
+	"os"
+	"path"
+	"strconv"
+)
 
 var mostRecentSequenceFileName = "mrseq"
 
@@ -9,20 +16,24 @@ func getSequenceNumberInternal(name, version, configFolder string) (uint, error)
 	mrseqStr, err := ioutil.ReadFile(path.Join(configFolder, mostRecentSequenceFileName))
 	if err != nil {
 		if os.IsNotExist(err) {
-			return -1, nil
+			return 0, nil
 		}
-		return -1, fmt.Errorf("failed to read mrseq file : %s", err)
+		return 0, fmt.Errorf("failed to read mrseq file : %s", err)
 	}
 
-	return strconv.Atoi(string(mrseqStr))
+	seqNum, err :=  strconv.Atoi(string(mrseqStr))
+	if err != nil {
+		return 0, err
+	}
+	return uint(seqNum), nil
 
 }
 
 func setSequenceNumberInternal(extName, extVersion string, seqNo uint) error {
-	b := []byte(fmt.Sprintf("%v", sequenceNumber))
-	err := ioutil.WriteFile(mostRecentSequenceFileName, b, chmod)
+	b := []byte(fmt.Sprintf("%v", seqNo))
+	err := ioutil.WriteFile(mostRecentSequenceFileName, b, constants.FilePermissions_UserOnly_ReadWrite)
 	if err != nil {
-		return errorhelper.AddStackToError(err)
+		return fmt.Errorf("could not write sequence number file %s, error: %v", mostRecentSequenceFileName, err)
 	}
 	return nil
 }

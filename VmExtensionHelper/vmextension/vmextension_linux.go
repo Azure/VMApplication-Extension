@@ -3,6 +3,7 @@ package vmextension
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/Azure/VMApplication-Extension/VmExtensionHelper/handlerenv"
 	"io/ioutil"
 	"os"
 	"path"
@@ -76,7 +77,7 @@ func setSequenceNumberInternal(ve *VMExtension, seqNo uint) error {
 // GetHandlerEnv locates the HandlerEnvironment.json file by assuming it lives
 // next to or one level above the extension handler (read: this) executable,
 // reads, parses and returns it.
-func getHandlerEnvironment(name string, version string) (he *HandlerEnvironment, _ error) {
+func getHandlerEnvironment(name string, version string) (he *handlerenv.HandlerEnvironment, _ error) {
 	contents, _, err := findAndReadFile(handlerEnvFileName)
 	if err != nil {
 		return nil, err
@@ -90,7 +91,7 @@ func getHandlerEnvironment(name string, version string) (he *HandlerEnvironment,
 	// The data directory is a subdirectory of waagent, with the extension name
 	dataFolder := path.Join(agentDir, name)
 
-	return &HandlerEnvironment{
+	return &handlerenv.HandlerEnvironment{
 		HeartbeatFile: handlerEnvLinux.HandlerEnvironment.HeartbeatFile,
 		StatusFolder:  handlerEnvLinux.HandlerEnvironment.StatusFolder,
 		ConfigFolder:  handlerEnvLinux.HandlerEnvironment.ConfigFolder,

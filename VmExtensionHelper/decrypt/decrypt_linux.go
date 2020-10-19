@@ -1,5 +1,13 @@
 package decrypt
 
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"os/exec"
+	"path/filepath"
+)
+
 // decryptProtectedSettings decrypts the read protected settigns using certificates
 func DecryptProtectedSettings(configFolder string, thumbprint string, decoded []byte) (map[string]interface{}, error) {
 	// go two levels up where certs are placed (/var/lib/waagent)
