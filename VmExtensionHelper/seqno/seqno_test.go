@@ -22,14 +22,14 @@ type mockSequenceNumberRetriever struct {
 	returnError error
 }
 
-func (snr mockSequenceNumberRetriever) GetSequenceNumber(name, version, configFolder string) (uint, error) {
+func (snr mockSequenceNumberRetriever) GetSequenceNumber(name, version string) (uint, error) {
 	return snr.returnSeqNo, snr.returnError
 }
 
 func Test_getCurrentSequenceNumberNotFound(t *testing.T) {
 	retriever := mockSequenceNumberRetriever{returnSeqNo: 0, returnError: extensionerrors.ErrNotFound}
 	ctx := log.NewSyncLogger(log.NewLogfmtLogger(os.Stdout))
-	seqNo, err := GetCurrentSequenceNumber(ctx, retriever, "yaba", "5.0", sequenceNumberTestFolder)
+	seqNo, err := GetCurrentSequenceNumber(ctx, retriever, "yaba", "5.0")
 	require.Equal(t, uint(0), seqNo)
 	require.Nil(t, err)
 }
@@ -37,14 +37,14 @@ func Test_getCurrentSequenceNumberNotFound(t *testing.T) {
 func Test_getCurrentSequenceNumberOtherError(t *testing.T) {
 	retriever := mockSequenceNumberRetriever{returnSeqNo: 0, returnError: extensionerrors.ErrInvalidSettingsFile}
 	ctx := log.NewSyncLogger(log.NewLogfmtLogger(os.Stdout))
-	_, err := GetCurrentSequenceNumber(ctx, retriever, "yaba", "5.0", sequenceNumberTestFolder)
+	_, err := GetCurrentSequenceNumber(ctx, retriever, "yaba", "5.0")
 	require.Equal(t, extensionerrors.ErrInvalidSettingsFile, err)
 }
 
 func Test_getCurrentSequenceNumberFound(t *testing.T) {
 	retriever := mockSequenceNumberRetriever{returnSeqNo: 42, returnError: nil}
 	ctx := log.NewSyncLogger(log.NewLogfmtLogger(os.Stdout))
-	seqNo, err := GetCurrentSequenceNumber(ctx, retriever, "yaba", "5.0", sequenceNumberTestFolder)
+	seqNo, err := GetCurrentSequenceNumber(ctx, retriever, "yaba", "5.0")
 	require.NoError(t, err, "getCurrentSequenceNumber failed")
 	require.Equal(t, uint(42), seqNo)
 }

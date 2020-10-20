@@ -54,7 +54,7 @@ type VMExtension struct {
 type getVMExtensionEnvironmentManager interface {
 	getHandlerEnvironment(name string, version string) (*handlerenv.HandlerEnvironment, error)
 	findSeqNum(ctx log.Logger, configFolder string) (uint, error)
-	getCurrentSequenceNumber(ctx log.Logger, retriever seqno.ISequenceNumberRetriever, name, version, configFolder string) (uint, error)
+	getCurrentSequenceNumber(ctx log.Logger, retriever seqno.ISequenceNumberRetriever, name, version string) (uint, error)
 	getHandlerSettings(ctx log.Logger, he *handlerenv.HandlerEnvironment, seqNo uint) (*settings.HandlerSettings, error)
 	setSequenceNumberInternal(ve *VMExtension, seqNo uint) error
 }
@@ -70,8 +70,8 @@ func (*prodGetVMExtensionEnvironmentManager) findSeqNum(ctx log.Logger, configFo
 	return seqno.FindSeqNum(ctx, configFolder)
 }
 
-func (*prodGetVMExtensionEnvironmentManager) getCurrentSequenceNumber(ctx log.Logger, retriever seqno.ISequenceNumberRetriever, name, version, configFolder string) (uint, error) {
-	return seqno.GetCurrentSequenceNumber(ctx, retriever, name, version, configFolder)
+func (*prodGetVMExtensionEnvironmentManager) getCurrentSequenceNumber(ctx log.Logger, retriever seqno.ISequenceNumberRetriever, name, version string) (uint, error) {
+	return seqno.GetCurrentSequenceNumber(ctx, retriever, name, version)
 }
 
 func (*prodGetVMExtensionEnvironmentManager) getHandlerSettings(ctx log.Logger, he *handlerenv.HandlerEnvironment, seqNo uint) (*settings.HandlerSettings, error) {
@@ -114,7 +114,7 @@ func getVMExtensionInternal(ctx log.Logger, initInfo *InitializationInfo, manage
 
 	// Determine the current sequence number
 	retriever := seqno.ProcSequenceNumberRetriever{}
-	currentSeqNo, err := manager.getCurrentSequenceNumber(ctx, &retriever, initInfo.Name, initInfo.Version, handlerEnv.ConfigFolder)
+	currentSeqNo, err := manager.getCurrentSequenceNumber(ctx, &retriever, initInfo.Name, initInfo.Version)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to read the current sequence number due to '%v'", err)
 	}

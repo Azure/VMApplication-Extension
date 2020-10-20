@@ -5,15 +5,14 @@ import (
 	"github.com/Azure/VMApplication-Extension/VmExtensionHelper/constants"
 	"io/ioutil"
 	"os"
-	"path"
 	"strconv"
 )
 
 var mostRecentSequenceFileName = "mrseq"
 
 // sequence number for the extension from the registry
-func getSequenceNumberInternal(name, version, configFolder string) (uint, error) {
-	mrseqStr, err := ioutil.ReadFile(path.Join(configFolder, mostRecentSequenceFileName))
+func getSequenceNumberInternal(name, version string) (uint, error) {
+	mrseqStr, err := ioutil.ReadFile(mostRecentSequenceFileName)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return 0, nil
