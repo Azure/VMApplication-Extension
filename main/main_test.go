@@ -2,13 +2,13 @@ package main
 
 import (
 	"encoding/json"
-	"os"
-	"testing"
 	"github.com/D1v38om83r/azure-extension-platform/pkg/handlerenv"
 	handlersettings "github.com/D1v38om83r/azure-extension-platform/pkg/settings"
-	"github.com/D1v38om83r/azure-extension-platform/pkg/vmextension"
+	"github.com/D1v38om83r/azure-extension-platform/vmextension"
 	"github.com/go-kit/kit/log"
 	"github.com/stretchr/testify/require"
+	"os"
+	"testing"
 )
 
 func Test_settingsFailToInit(t *testing.T) {

@@ -1,9 +1,9 @@
 package packageregistry
 
 import (
+	"github.com/Azure/VMApplication-Extension/pkg/lockedfile"
 	"github.com/D1v38om83r/azure-extension-platform/pkg/constants"
 	"github.com/D1v38om83r/azure-extension-platform/pkg/handlerenv"
-	"github.com/Azure/VMApplication-Extension/pkg/lockedfile"
 	"github.com/stretchr/testify/assert"
 	"os"
 	"reflect"

@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	vmextensionhelper "github.com/D1v38om83r/azure-extension-platform/pkg/vmextension"
+	vmextensionhelper "github.com/D1v38om83r/azure-extension-platform/vmextension"
 	"github.com/go-kit/kit/log"
 )
 

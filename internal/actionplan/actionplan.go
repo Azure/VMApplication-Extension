@@ -1,12 +1,12 @@
 package actionplan
 
 import (
-	"github.com/D1v38om83r/azure-extension-platform/pkg/handlerenv"
-	"github.com/D1v38om83r/azure-extension-platform/pkg/extensionerrors"
 	"github.com/Azure/VMApplication-Extension/internal/downloader"
 	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
 	"github.com/Azure/VMApplication-Extension/pkg/commandhandler"
 	"github.com/Azure/VMApplication-Extension/pkg/utils"
+	"github.com/D1v38om83r/azure-extension-platform/pkg/extensionerrors"
+	"github.com/D1v38om83r/azure-extension-platform/pkg/handlerenv"
 	"github.com/pkg/errors"
 	"math"
 	"sort"
