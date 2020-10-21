@@ -1,7 +1,7 @@
 package commandhandler
 
 import (
-	"github.com/Azure/VMApplication-Extension/VmExtensionHelper/constants"
+	"github.com/D1v38om83r/azure-extension-platform/pkg/constants"
 	"github.com/pkg/errors"
 	"os"
 	"path/filepath"

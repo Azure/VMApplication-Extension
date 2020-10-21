@@ -1,8 +1,8 @@
 package actionplan
 
 import (
-	"github.com/Azure/VMApplication-Extension/VmExtensionHelper/extensionerrors"
-	"github.com/Azure/VMApplication-Extension/VmExtensionHelper/handlerenv"
+	"github.com/D1v38om83r/azure-extension-platform/pkg/handlerenv"
+	"github.com/D1v38om83r/azure-extension-platform/pkg/extensionerrors"
 	"github.com/Azure/VMApplication-Extension/internal/downloader"
 	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
 	"github.com/Azure/VMApplication-Extension/pkg/commandhandler"

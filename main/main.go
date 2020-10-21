@@ -3,9 +3,9 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	vmextensionhelper "github.com/Azure/VMApplication-Extension/VmExtensionHelper/vmextension"
-	"github.com/go-kit/kit/log"
 	"os"
+	vmextensionhelper "github.com/D1v38om83r/azure-extension-platform/pkg/vmextension"
+	"github.com/go-kit/kit/log"
 )
 
 // Note: not const so test can change them

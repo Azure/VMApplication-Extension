@@ -2,8 +2,8 @@ package packageregistry
 
 import (
 	"encoding/json"
-	"github.com/Azure/VMApplication-Extension/VmExtensionHelper/constants"
-	"github.com/Azure/VMApplication-Extension/VmExtensionHelper/handlerenv"
+	"github.com/D1v38om83r/azure-extension-platform/pkg/constants"
+	"github.com/D1v38om83r/azure-extension-platform/pkg/handlerenv"
 	"github.com/Azure/VMApplication-Extension/pkg/lockedfile"
 	"io/ioutil"
 	"os"
