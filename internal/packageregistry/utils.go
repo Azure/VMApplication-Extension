@@ -2,7 +2,7 @@ package packageregistry
 
 import "github.com/pkg/errors"
 
-func (self CurrentPackageRegistry) Populate(collection VMAppPackageCurrentCollection) (error) {
+func (self CurrentPackageRegistry) Populate(collection VMAppPackageCurrentCollection) error {
 	for _, v := range collection {
 		if _, exists := self[v.ApplicationName]; exists {
 			return errors.Errorf("Duplicate application name %s detected in application registry", v.ApplicationName)
@@ -20,7 +20,7 @@ func (self CurrentPackageRegistry) GetPackageCollection() (collection VMAppPacka
 	return collection
 }
 
-func (self DesiredPackageRegistry) Populate(collection VMAppPackageIncomingCollection) (error) {
+func (self DesiredPackageRegistry) Populate(collection VMAppPackageIncomingCollection) error {
 	for _, v := range collection {
 		if _, exists := self[v.ApplicationName]; exists {
 			return errors.Errorf("Duplicate application name %s detected in application registry", v.ApplicationName)

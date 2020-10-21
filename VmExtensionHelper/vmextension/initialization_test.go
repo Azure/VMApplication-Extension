@@ -1,10 +1,10 @@
 package vmextension
 
 import (
-	"testing"
+	"github.com/Azure/VMApplication-Extension/VmExtensionHelper/extensionerrors"
 	"github.com/go-kit/kit/log"
 	"github.com/stretchr/testify/require"
-	"github.com/Azure/VMApplication-Extension/VmExtensionHelper/extensionerrors"
+	"testing"
 )
 
 func Test_initializationInfoValidate(t *testing.T) {

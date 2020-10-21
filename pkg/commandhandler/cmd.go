@@ -7,18 +7,18 @@ import (
 	"path/filepath"
 )
 
-type ICommandHandler interface{
-	Execute(command string, workingDir string)(returnCode int, err error)
+type ICommandHandler interface {
+	Execute(command string, workingDir string) (returnCode int, err error)
 }
 
-type CommandHandler struct{
+type CommandHandler struct {
 }
 
-func New()(*CommandHandler){
+func New() *CommandHandler {
 	return &CommandHandler{}
 }
 
-func (commandHandler *CommandHandler) Execute(command string, workingDir string)(returnCode int, err error){
+func (commandHandler *CommandHandler) Execute(command string, workingDir string) (returnCode int, err error) {
 	return execCmdInDir(command, workingDir)
 }
 
@@ -53,4 +53,3 @@ func execCmdInDir(cmd, workdir string) (int, error) {
 func logPaths(dir string) (stdout string, stderr string) {
 	return filepath.Join(dir, "stdout"), filepath.Join(dir, "stderr")
 }
-

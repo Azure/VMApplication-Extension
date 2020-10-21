@@ -48,7 +48,7 @@ type VMAppPackageCurrent struct {
 	OngoingOperation      ActionEnum `json:"ongoingOperation"`
 }
 
-func (vmAppPackageCurrent *VMAppPackageCurrent) GetWorkingDirectory(environment *handlerenv.HandlerEnvironment) (string) {
+func (vmAppPackageCurrent *VMAppPackageCurrent) GetWorkingDirectory(environment *handlerenv.HandlerEnvironment) string {
 	return path.Join(environment.DataFolder, vmAppPackageCurrent.ApplicationName, vmAppPackageCurrent.Version)
 }
 
@@ -68,8 +68,8 @@ type VMAppPackageIncoming struct {
 
 type IPackageRegistry interface {
 	GetExistingPackages() (CurrentPackageRegistry, error)
-	WriteToDisk(packageRegistry CurrentPackageRegistry) (error)
-	Close() (error)
+	WriteToDisk(packageRegistry CurrentPackageRegistry) error
+	Close() error
 }
 
 type PackageRegistry struct {
@@ -90,7 +90,7 @@ func New(handlerEnv *handlerenv.HandlerEnvironment, fileLockTimeout time.Duratio
 }
 
 // Closes the file handle, renders the object of the class PackageRegistry unusable
-func (self *PackageRegistry) Close() (error) {
+func (self *PackageRegistry) Close() error {
 	return self.lockedFile.Close()
 }
 
@@ -115,7 +115,7 @@ func (self *PackageRegistry) GetExistingPackages() (CurrentPackageRegistry, erro
 	return currentPackageRegistry, err
 }
 
-func (self *PackageRegistry) WriteToDisk(packageRegistry CurrentPackageRegistry) (error) {
+func (self *PackageRegistry) WriteToDisk(packageRegistry CurrentPackageRegistry) error {
 	regFile := self.getLocalApplicationRegistryFilePath()
 	regFileBackup := self.getLocalApplicationRegistryBackupFilePath()
 	var doesBackupFileExist = false
@@ -144,10 +144,10 @@ func (self *PackageRegistry) WriteToDisk(packageRegistry CurrentPackageRegistry)
 	}
 }
 
-func (self *PackageRegistry) getLocalApplicationRegistryFilePath() (string) {
+func (self *PackageRegistry) getLocalApplicationRegistryFilePath() string {
 	return path.Join(self.handlerEnv.ConfigFolder, localApplicationRegistryFileName)
 }
 
-func (self *PackageRegistry) getLocalApplicationRegistryBackupFilePath() (string) {
+func (self *PackageRegistry) getLocalApplicationRegistryBackupFilePath() string {
 	return path.Join(self.handlerEnv.ConfigFolder, localApplicationRegistryBackupFileName)
 }

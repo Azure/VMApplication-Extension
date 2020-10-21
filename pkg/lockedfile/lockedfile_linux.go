@@ -9,7 +9,7 @@ import (
 
 type lockedFile struct {
 	fileDescriptor int
-	metadata *Metadata
+	metadata       *Metadata
 }
 
 func newInner(filePath string, timeout time.Duration, metadata *Metadata) (*lockedFile, error) {
@@ -45,7 +45,7 @@ func newInner(filePath string, timeout time.Duration, metadata *Metadata) (*lock
 	}
 }
 
-func (self *lockedFile) ReadLockedFile()([]byte, error){
+func (self *lockedFile) ReadLockedFile() ([]byte, error) {
 	fileBytes := make([]byte, 0, 4096)
 	buffer := make([]byte, 4096, 4096)
 
@@ -64,7 +64,7 @@ func (self *lockedFile) ReadLockedFile()([]byte, error){
 	return fileBytes, nil
 }
 
-func (self *lockedFile) WriteLockedFile(bytes []byte)(error){
+func (self *lockedFile) WriteLockedFile(bytes []byte) error {
 	syscall.Seek(self.fileDescriptor, 0, 0)
 	_, err := syscall.Write(self.fileDescriptor, bytes)
 	if err != nil {
@@ -73,6 +73,6 @@ func (self *lockedFile) WriteLockedFile(bytes []byte)(error){
 	return nil
 }
 
-func (self *lockedFile) closeInner() (error) {
+func (self *lockedFile) closeInner() error {
 	return syscall.Close(self.fileDescriptor)
 }

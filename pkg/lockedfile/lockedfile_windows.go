@@ -7,8 +7,8 @@ import (
 )
 
 const (
-	reserved = 0
-	allBytes = ^uint32(0)
+	reserved                    = 0
+	allBytes                    = ^uint32(0)
 	fileIOTimeoutInMilliseconds = 10000
 )
 
@@ -110,7 +110,7 @@ func (self *lockedFile) ReadLockedFile() ([]byte, error) {
 }
 
 // warning this function does not resize the file when overwriting to a smaller size
-func (self *lockedFile) WriteLockedFile(bytes []byte)(error){
+func (self *lockedFile) WriteLockedFile(bytes []byte) error {
 	ol, err := getOverlapped()
 	if err != nil {
 		return err
@@ -139,8 +139,7 @@ func (self *lockedFile) WriteLockedFile(bytes []byte)(error){
 	return nil
 }
 
-
-func (self *lockedFile) closeInner() (error) {
+func (self *lockedFile) closeInner() error {
 	err := windows.UnlockFileEx(self.fileHandle, reserved, allBytes, allBytes, &windows.Overlapped{HEvent: 0})
 	if err != nil {
 		return err

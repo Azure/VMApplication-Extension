@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-func AreVersionsEqual(versionString1 *string, versionString2 *string) (bool) {
+func AreVersionsEqual(versionString1 *string, versionString2 *string) bool {
 	cmpResult, err := CompareVersion(versionString1, versionString2)
 	if err == nil {
 		return cmpResult == 0
@@ -43,7 +43,7 @@ func CompareVersion(versionString1 *string, versionString2 *string) (int, error)
 		}
 
 		if num1 == num2 {
-			continue;
+			continue
 		} else {
 			//
 			return num1 - num2, nil
@@ -65,12 +65,10 @@ func CompareVersion(versionString1 *string, versionString2 *string) (int, error)
 		if remainingVersion == 0 {
 			// 1.2.0.0 is considered the same as 1.2
 			return 0, nil
-		} else
-		{
+		} else {
 			return 1, nil
 		}
-	} else
-	{
+	} else {
 		remainingVersion, err := findNonZeroVersionNumber(numbersText2, i, len2)
 		if err != nil {
 			return 0, err
@@ -79,8 +77,7 @@ func CompareVersion(versionString1 *string, versionString2 *string) (int, error)
 		if remainingVersion == 0 {
 			// 1.2.0.0 is considered the same as 1.2
 			return 0, nil
-		} else
-		{
+		} else {
 			return -1, nil
 		}
 	}

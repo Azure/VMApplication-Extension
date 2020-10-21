@@ -27,4 +27,3 @@ func exec2(cmd, workdir string, stdout, stderr io.WriteCloser) (int, error) {
 	}
 	return 0, errors.Wrapf(err, "failed to execute command")
 }
-

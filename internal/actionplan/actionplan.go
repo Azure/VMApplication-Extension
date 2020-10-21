@@ -1,8 +1,8 @@
 package actionplan
 
 import (
-	"github.com/Azure/VMApplication-Extension/VmExtensionHelper/handlerenv"
 	"github.com/Azure/VMApplication-Extension/VmExtensionHelper/extensionerrors"
+	"github.com/Azure/VMApplication-Extension/VmExtensionHelper/handlerenv"
 	"github.com/Azure/VMApplication-Extension/internal/downloader"
 	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
 	"github.com/Azure/VMApplication-Extension/pkg/commandhandler"
@@ -164,7 +164,6 @@ func (actionPlan *ActionPlan) Execute(registryHandler packageregistry.IPackageRe
 	return combinedErrors
 }
 
-
 func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPackageRegistry,
 	commandHandler commandhandler.ICommandHandler, registry packageregistry.CurrentPackageRegistry,
 	act *action) (errorMessageToReturn error) {
@@ -197,7 +196,7 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 		downloadPath := act.vmAppPackage.GetWorkingDirectory(actionPlan.environment)
 
 		// download packages now
-		if err := actionPlan.downloader.Download(act.vmAppPackage.PackageLocation, downloadPath); err!= nil {
+		if err := actionPlan.downloader.Download(act.vmAppPackage.PackageLocation, downloadPath); err != nil {
 			return err
 		}
 

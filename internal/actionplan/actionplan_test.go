@@ -1,8 +1,8 @@
 package actionplan
 
 import (
-	"github.com/Azure/VMApplication-Extension/VmExtensionHelper/handlerenv"
 	"github.com/Azure/VMApplication-Extension/VmExtensionHelper/constants"
+	"github.com/Azure/VMApplication-Extension/VmExtensionHelper/handlerenv"
 	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
 	"github.com/Azure/VMApplication-Extension/pkg/commandhandler"
 	"github.com/pkg/errors"
@@ -29,7 +29,7 @@ type CommandHandlerMock struct {
 	Executor CommandExecutor
 }
 
-func NewCommandHandlerMock(executor func(string, string) (int, error)) (*CommandHandlerMock) {
+func NewCommandHandlerMock(executor func(string, string) (int, error)) *CommandHandlerMock {
 	return &CommandHandlerMock{Result: []commandResult{}, Executor: executor}
 }
 
@@ -52,7 +52,7 @@ var mockCommandFailOnDemand CommandExecutor = func(command string, workingDir st
 
 type NoopDownloader struct{}
 
-func (downloader *NoopDownloader) Download(uri, downloadPath string)(error){
+func (downloader *NoopDownloader) Download(uri, downloadPath string) error {
 	return nil
 }
 

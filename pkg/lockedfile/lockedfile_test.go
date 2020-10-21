@@ -18,7 +18,7 @@ var testFilePath = path.Join(testdir, "temp.lockedfile")
 var lastOpenedRegex = regexp.MustCompile("\"LastOpened\":\"([^\\\"]+)\"")
 var lastClosedRegex = regexp.MustCompile("\"LastClosed\":\"([^\\\"]+)\"")
 
-func initializeTest(t *testing.T){
+func initializeTest(t *testing.T) {
 	err := os.MkdirAll(testdir, constants.FilePermissions_UserOnly_ReadWriteExecute)
 	assert.NoError(t, err)
 }

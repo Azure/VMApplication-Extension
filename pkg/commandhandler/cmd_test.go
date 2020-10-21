@@ -9,11 +9,11 @@ import (
 
 var workingDir = path.Join(".", "testdir", "currentWorkingDir")
 
-func cleanupTest(){
+func cleanupTest() {
 	os.RemoveAll(workingDir)
 }
 
-func TestEchoCommand(t *testing.T){
+func TestEchoCommand(t *testing.T) {
 	defer cleanupTest()
 	cmd := New()
 	retCode, err := cmd.Execute("echo 1 2 3 4", workingDir)
