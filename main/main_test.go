@@ -2,9 +2,9 @@ package main
 
 import (
 	"encoding/json"
-	"github.com/D1v38om83r/azure-extension-platform/pkg/handlerenv"
-	handlersettings "github.com/D1v38om83r/azure-extension-platform/pkg/settings"
-	"github.com/D1v38om83r/azure-extension-platform/vmextension"
+	"github.com/Azure/azure-extension-platform/pkg/handlerenv"
+	handlersettings "github.com/Azure/azure-extension-platform/pkg/settings"
+	"github.com/Azure/azure-extension-platform/vmextension"
 	"github.com/go-kit/kit/log"
 	"github.com/stretchr/testify/require"
 	"os"

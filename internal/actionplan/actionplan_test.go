@@ -3,8 +3,8 @@ package actionplan
 import (
 	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
 	"github.com/Azure/VMApplication-Extension/pkg/commandhandler"
-	"github.com/D1v38om83r/azure-extension-platform/pkg/constants"
-	"github.com/D1v38om83r/azure-extension-platform/pkg/handlerenv"
+	"github.com/Azure/azure-extension-platform/pkg/constants"
+	"github.com/Azure/azure-extension-platform/pkg/handlerenv"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"os"

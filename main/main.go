@@ -1,11 +1,15 @@
 package main
 
 import (
-	"encoding/json"
-	"fmt"
-	vmextensionhelper "github.com/D1v38om83r/azure-extension-platform/vmextension"
+	"github.com/Azure/VMApplication-Extension/internal/actionplan"
+	"github.com/Azure/VMApplication-Extension/internal/downloader/hostgadownloader"
+	"github.com/Azure/VMApplication-Extension/internal/hostgacommunicator"
+	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
+	"github.com/Azure/VMApplication-Extension/pkg/commandhandler"
+	vmextensionhelper "github.com/Azure/azure-extension-platform/vmextension"
 	"github.com/go-kit/kit/log"
 	"os"
+	"time"
 )
 
 // Note: not const so test can change them
@@ -19,10 +23,11 @@ var (
 )
 
 const (
-	vmPackagesSetting = "vmPackages"
-	operationInstall  = "install"
-	operationUpdate   = "update"
-	operationRemove   = "remove"
+	vmPackagesSetting       = "vmPackages"
+	operationInstall        = "install"
+	operationUpdate         = "update"
+	operationRemove         = "remove"
+	filelockTimeoutDuration = 15 * time.Minute
 )
 
 type vmPackageData struct {
@@ -40,30 +45,6 @@ type vmPackage struct {
 	ProposedFileNumber int
 }
 
-func (vmp vmPackage) isInstallOrUpdate() bool {
-	if vmp.Operation == operationInstall || vmp.Operation == operationUpdate {
-		return true
-	}
-
-	return false
-}
-
-func (vmp vmPackage) isInstall() bool {
-	if vmp.Operation == operationInstall {
-		return true
-	}
-
-	return false
-}
-
-func (vmp vmPackage) isRemove() bool {
-	if vmp.Operation == operationRemove {
-		return true
-	}
-
-	return false
-}
-
 func main() {
 	err := getExtensionAndRun()
 	if err != nil {
@@ -74,7 +55,7 @@ func main() {
 func getExtensionAndRun() error {
 	logger := log.NewSyncLogger(log.NewLogfmtLogger(os.Stdout))
 	ctx := log.With(log.With(logger, "time", log.DefaultTimestampUTC), "version", VersionString())
-	ii, err := vmextensionhelper.GetInitializationInfo(extensionName, extensionVersion, true, vmAppEnableCallback)
+	ii, err := vmextensionhelper.GetInitializationInfo(extensionName, extensionVersion, false, vmAppEnableCallback)
 	if err != nil {
 		ctx.Log("event", "Failed to create initialization info", "error", err)
 		return err
@@ -95,92 +76,36 @@ func getExtensionAndRun() error {
 
 // Callback indicating the operation is enable and the sequence number has changed
 func vmAppEnableCallback(ctx log.Logger, ext *vmextensionhelper.VMExtension) (string, error) {
-	packageData, err := getVMPackageData(ctx, ext)
+	hostGaCommunicator := hostgacommunicator.HostGaCommunicator{}
+	vmAppIncomingCollection, err := getVMAppIncomingCollection(ext.Settings, &hostGaCommunicator)
 	if err != nil {
-		ctx.Log("message", "Could not read the VM package data")
-		return "", err
+		return "resolving packages failed", err
 	}
-
-	requiresChanges, hasProposedState, err := getPackageStatePlan(ctx, ext, packageData)
+	packageRegistry, err := packageregistry.New(ext.HandlerEnv, filelockTimeoutDuration)
+	defer packageRegistry.Close()
 	if err != nil {
-		ctx.Log("message", "Could not create package state plan")
-		return "", err
+		return "could not create package registry", err
 	}
-
-	if requiresChanges || hasProposedState {
-		return processPackages(ctx, ext)
-	}
-
-	return "Nothing to process", nil
-}
-
-func processPackages(ctx log.Logger, ext *vmextensionhelper.VMExtension) (string, error) {
-	packageToProcess := getNextProposedPackage(ctx, ext)
-	for packageToProcess != nil {
-		err := processPackage(ctx, packageToProcess)
-		if err != nil {
-			ctx.Log("message", "Unable to process package '%s'", packageToProcess.Name)
-		}
-
-		err = markProposedPackageFinished(ctx, ext, packageToProcess)
-		if err != nil {
-			// If we fail to mark a package as finished, then we can no longer guarantee
-			// the state by continuing to process, so game over
-			ctx.Log("message", "Unable to mark package '%s' as finished", packageToProcess.Name)
-			return "Failed to mark package", err
-		}
-
-		packageToProcess = getNextProposedPackage(ctx, ext)
-	}
-
-	return "Complete", nil
-}
-
-func processPackage(ctx log.Logger, packageToProcess *vmPackage) error {
-	return nil
-}
-
-func getVMPackageData(ctx log.Logger, ext *vmextensionhelper.VMExtension) (*vmPackageData, error) {
-	rawVMPackageData, ok := ext.Settings.ProtectedSettings[vmPackagesSetting]
-	if !ok {
-		ctx.Log("message", "operation not specified in settings")
-		return nil, fmt.Errorf("Could not find '%s' in protected settings", vmPackagesSetting)
-	}
-
-	stringPackageData, ok := rawVMPackageData.(string)
-	if !ok {
-		ctx.Log("message", "Could not read package data")
-		return nil, fmt.Errorf("Invalid VM package data")
-	}
-
-	b := []byte(stringPackageData)
-	var packageData vmPackageData
-	err := json.Unmarshal(b, &packageData)
+	currentPackageRegistry, err := packageRegistry.GetExistingPackages()
 	if err != nil {
-		ctx.Log("message", "Could not unmarshal package data")
-		return nil, fmt.Errorf("Invalid VM package data")
+		return "could not read current package registry", err
+	}
+	downloader := hostgadownloader.HostGaDownloader{}
+
+	actionPlan, err := actionplan.New(currentPackageRegistry, vmAppIncomingCollection, ext.HandlerEnv, &downloader)
+	if err != nil {
+		return "could not create action plan", err
 	}
 
-	// Validate the applications
-	for _, app := range packageData.Packages {
-		if app.Name == "" {
-			ctx.Log("message", "Application does not have a name")
-			return nil, fmt.Errorf("Application does not have a name")
-		}
+	commandHandler := commandhandler.CommandHandler{}
 
-		if app.Operation == "" {
-			ctx.Log("message", "Application does not have an operation")
-			return nil, fmt.Errorf("Application does not have an operation")
-		}
+	err = actionPlan.Execute(packageRegistry, &commandHandler)
 
-		if app.Version == "" {
-			ctx.Log("message", "Application does not have a version")
-			return nil, fmt.Errorf("Application does not have a version")
-		}
-
-		// Set the sequence number, which we may serialize to disk. We need this for reporting
-		app.SequenceNumber = ext.RequestedSequenceNumber
+	if err != nil {
+		// actionPlan.Execute can fail partially
+		// return ths string that contains operations that failed, but mark the overall process as success
+		return err.Error(), nil
 	}
 
-	return &packageData, nil
+	return "Operation completed", nil
 }
