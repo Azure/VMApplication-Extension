@@ -55,6 +55,7 @@ func main() {
 func getExtensionAndRun() error {
 	logger := log.NewSyncLogger(log.NewLogfmtLogger(os.Stdout))
 	ctx := log.With(log.With(logger, "time", log.DefaultTimestampUTC), "version", VersionString())
+	// require SeqNoChange is set to false because we want the extension to ensure that the packages are in sync with the desired packages
 	ii, err := vmextensionhelper.GetInitializationInfo(extensionName, extensionVersion, false, vmAppEnableCallback)
 	if err != nil {
 		ctx.Log("event", "Failed to create initialization info", "error", err)
