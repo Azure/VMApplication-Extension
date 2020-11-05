@@ -1,0 +1,10 @@
+
+/.idea/*
+internal/lockedfile/testdir/
+internal/packageregistry/testdir/
+internal/actionplan/testdir/
+/pkg/lockedfile/testdir/
+pkg/commandhandler/testdir/
+.vscode/
+VmExtensionHelper/seqno/flooperflop/
+VmExtensionHelper/status/statustest/
