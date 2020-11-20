@@ -1,17 +1,101 @@
 package hostgacommunicator
 
 import (
+	"encoding/json"
 	"fmt"
-	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
+	"net"
+	"net/url"
+	"os"
+	"strings"
+
+	"github.com/Azure/VMApplication-Extension/internal/requesthelper"
+	"github.com/go-kit/kit/log"
+	"github.com/pkg/errors"
 )
 
-type IHostGaCommunicator interface {
-	GetVMAppInfo(appName string) (*packageregistry.VMAppPackageIncoming, error)
-}
+const hostGaPluginPort = "32526"
 
+// HostGaCommunicator provides methods for retrieving application metadata and packages
+// from the HostGaPlugin
 type HostGaCommunicator struct{}
 
-func (*HostGaCommunicator) GetVMAppInfo(appName string) (*packageregistry.VMAppPackageIncoming, error) {
-	// TODO: implement this
-	return nil, fmt.Errorf("not implemented")
+// GetVMAppInfo returns the metadata for the application
+func (*HostGaCommunicator) GetVMAppInfo(ctx log.Logger, appName string) (*VMAppMetadata, error) {
+	requestManager, err := getMetadataRequestManager(appName)
+	if err != nil {
+		return nil, errors.Wrapf(err, "Could not create the request manager")
+	}
+
+	resp, err := requesthelper.WithRetries(ctx, requestManager, requesthelper.ActualSleep)
+	if err != nil {
+		return nil, errors.Wrapf(err, "Metadata request failed with retries.")
+	}
+
+	body := resp.Body
+	defer body.Close()
+
+	var target VMAppMetadata
+	err = json.NewDecoder(body).Decode(&target)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to decode response body")
+	}
+
+	return &target, nil
+}
+
+// DownloadPackage downloads the application package through HostGaPlugin to the specified
+// file. If the download fails, it automatically retrieves at the last received bytes
+// and rebuilds the file from downloaded parts
+func (*HostGaCommunicator) DownloadPackage(ctx log.Logger, appName string, dst string) error {
+	requestFactory, err := newPackageDownloadRequestFactory(appName)
+	if err != nil {
+		return errors.Wrapf(err, "Could not create the request factory")
+	}
+
+	err = requestFactory.downloadFile(ctx, dst)
+	return err
+}
+
+// DownloadConfig downloads the application config through HostGaPlugin to the specified
+// file. If the download fails, it automatically retrieves at the last received bytes
+// and rebuilds the file from downloaded parts
+func (*HostGaCommunicator) DownloadConfig(ctx log.Logger, appName string, dst string) error {
+	requestFactory, err := newConfigDownloadRequestFactory(appName)
+	if err != nil {
+		return errors.Wrapf(err, "Could not create the request factory")
+	}
+
+	err = requestFactory.downloadFile(ctx, dst)
+	return err
+}
+
+func getHostGaAddress() (string, error) {
+	baseAddress := os.Getenv(WireProtocolAddress)
+	if baseAddress == "" {
+		return "", errors.New("WireProtocolAddress not present in environment")
+	}
+
+	// The tests will already have a port, so don't add another one
+	hostGaURL := baseAddress
+	if strings.Contains(hostGaURL, ":") == false {
+		hostGaURL = net.JoinHostPort(baseAddress, hostGaPluginPort)
+	}
+
+	return hostGaURL, nil
+}
+
+func getOperationURI(appName string, operation string) (string, error) {
+	baseURI, err := getHostGaAddress()
+	if err != nil {
+		return "", errors.Wrapf(err, "failed to obtain the base HostGA address")
+	}
+
+	rawURI := fmt.Sprintf("%s/applications/%s/%s", baseURI, appName, operation)
+
+	u, err := url.Parse(rawURI)
+	if err != nil {
+		return "", errors.New("Could not parse the HostGA URI")
+	}
+
+	return u.String(), nil
 }
