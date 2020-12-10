@@ -2,7 +2,6 @@ package requesthelper
 
 import (
 	"fmt"
-	"io"
 	"math"
 	"net/http"
 	"time"
@@ -31,24 +30,34 @@ const (
 // closed on failures). If the retries do not succeed, the last error is returned.
 //
 // It sleeps in exponentially increasing durations between retries.
-func WithRetries(ctx log.Logger, rm *RequestManager, sf SleepFunc) (io.ReadCloser, error) {
+func WithRetries(ctx log.Logger, rm *RequestManager, sf SleepFunc) (*http.Response, error) {
 	var lastErr error
 
 	for n := 0; n < expRetryN; n++ {
-		status, out, err := rm.MakeRequest()
+		resp, err := rm.MakeRequest()
 		if err == nil {
-			return out, nil
+			return resp, nil
 		}
 
 		lastErr = err
 		ctx.Log("error", err)
 
-		if out != nil { // we are not going to read this response body
-			out.Close()
+		status := -1
+		if resp != nil {
+			if resp.Body != nil { // we are not going to read this response body
+				resp.Body.Close()
+			}
+
+			status = resp.StatusCode
 		}
 
 		// status == -1 the value when there was no http request
-		if status != -1 && !isTransientHTTPStatusCode(status) {
+		if status == -1 {
+			ctx.Log("info", fmt.Sprintf("No response returned, skipping retries"))
+			break
+		}
+
+		if !isTransientHTTPStatusCode(status) {
 			ctx.Log("info", fmt.Sprintf("RequestManager returned %v, skipping retries", status))
 			break
 		}
