@@ -1,0 +1,13 @@
+[{
+  "version": 1.0,
+  "handlerManifest": {
+    "installCommand": "bin/vm-application-manager install",
+    "uninstallCommand": "bin/vm-application-manager uninstall",
+    "updateCommand": "bin/vm-application-manager update",
+    "enableCommand": "bin/vm-application-manager enable",
+    "disableCommand": "bin/vm-application-manager disable",
+    "rebootAfterInstall": false,
+    "reportHeartbeat": false,
+    "updateMode": "UpdateWithInstall"
+  }
+}]

@@ -37,15 +37,13 @@ type DesiredPackageRegistry map[string]*VMAppPackageIncoming
 type VMAppPackageCurrentCollection []*VMAppPackageCurrent
 
 type VMAppPackageCurrent struct {
-	ApplicationName       string     `json:"applicationName"`
-	PackageLocation       string     `json:"location"`
-	ConfigurationLocation string     `json:"config"`
-	Version               string     `json:"version"`
-	InstallCommand        string     `json:"install"`
-	RemoveCommand         string     `json:"remove"`
-	UpdateCommand         string     `json:"update"`
-	DirectDownloadOnly    bool       `json:"directOnly"`
-	OngoingOperation      ActionEnum `json:"ongoingOperation"`
+	ApplicationName    string     `json:"applicationName"`
+	Version            string     `json:"version"`
+	InstallCommand     string     `json:"install"`
+	RemoveCommand      string     `json:"remove"`
+	UpdateCommand      string     `json:"update"`
+	DirectDownloadOnly bool       `json:"directOnly"`
+	OngoingOperation   ActionEnum `json:"ongoingOperation"`
 }
 
 func (vmAppPackageCurrent *VMAppPackageCurrent) GetWorkingDirectory(environment *handlerenv.HandlerEnvironment) string {
@@ -55,15 +53,13 @@ func (vmAppPackageCurrent *VMAppPackageCurrent) GetWorkingDirectory(environment 
 type VMAppPackageIncomingCollection []*VMAppPackageIncoming
 
 type VMAppPackageIncoming struct {
-	ApplicationName       string `json:"applicationName"`
-	PackageLocation       string `json:"location"`
-	ConfigurationLocation string `json:"config"`
-	Version               string `json:"version"`
-	InstallCommand        string `json:"install"`
-	RemoveCommand         string `json:"remove"`
-	UpdateCommand         string `json:"update"`
-	DirectDownloadOnly    bool   `json:"directOnly"`
-	Order                 *int   `json:"order"`
+	ApplicationName    string `json:"applicationName"`
+	Version            string `json:"version"`
+	InstallCommand     string `json:"install"`
+	RemoveCommand      string `json:"remove"`
+	UpdateCommand      string `json:"update"`
+	DirectDownloadOnly bool   `json:"directOnly"`
+	Order              *int   `json:"order"`
 }
 
 type IPackageRegistry interface {

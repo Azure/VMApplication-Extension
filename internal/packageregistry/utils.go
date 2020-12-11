@@ -40,15 +40,13 @@ func (self DesiredPackageRegistry) GetPackageCollection() (collection VMAppPacka
 
 func VMAppPackageIncomingToVmAppPackageCurrent(incoming *VMAppPackageIncoming) (current *VMAppPackageCurrent) {
 	current = &VMAppPackageCurrent{
-		ApplicationName:       incoming.ApplicationName,
-		PackageLocation:       incoming.PackageLocation,
-		ConfigurationLocation: incoming.ConfigurationLocation,
-		Version:               incoming.Version,
-		InstallCommand:        incoming.InstallCommand,
-		RemoveCommand:         incoming.RemoveCommand,
-		UpdateCommand:         incoming.UpdateCommand,
-		DirectDownloadOnly:    incoming.DirectDownloadOnly,
-		OngoingOperation:      NoAction,
+		ApplicationName:    incoming.ApplicationName,
+		Version:            incoming.Version,
+		InstallCommand:     incoming.InstallCommand,
+		RemoveCommand:      incoming.RemoveCommand,
+		UpdateCommand:      incoming.UpdateCommand,
+		DirectDownloadOnly: incoming.DirectDownloadOnly,
+		OngoingOperation:   NoAction,
 	}
 	return current
 }

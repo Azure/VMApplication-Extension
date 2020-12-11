@@ -1,10 +1,12 @@
 package actionplan
 
 import (
+	"github.com/Azure/VMApplication-Extension/internal/hostgacommunicator"
 	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
 	"github.com/Azure/VMApplication-Extension/pkg/commandhandler"
 	"github.com/Azure/azure-extension-platform/pkg/constants"
 	"github.com/Azure/azure-extension-platform/pkg/handlerenv"
+	"github.com/go-kit/kit/log"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"os"
@@ -15,6 +17,7 @@ import (
 )
 
 var one = 1
+var ctx = log.NewSyncLogger(log.NewLogfmtLogger(os.Stdout))
 
 type CommandExecutor func(string, string) (int, error)
 
@@ -50,10 +53,17 @@ var mockCommandFailOnDemand CommandExecutor = func(command string, workingDir st
 	return 0, nil
 }
 
-type NoopDownloader struct{}
+// implements IHostGaCommunicator
+type NoopHostGaComminucator struct{}
 
-func (downloader *NoopDownloader) Download(uri, downloadPath string) error {
+func (downloader *NoopHostGaComminucator) DownloadPackage(ctx log.Logger, appName string, dst string) error {
 	return nil
+}
+func (downloader *NoopHostGaComminucator) DownloadConfig(ctx log.Logger, appName string, dst string) error {
+	return nil
+}
+func (downloader *NoopHostGaComminucator) GetVMAppInfo(ctx log.Logger, appName string) (*hostgacommunicator.VMAppMetadata, error) {
+	return nil, nil
 }
 
 var environment = &handlerenv.HandlerEnvironment{
@@ -414,7 +424,7 @@ func executeActionPlan(t *testing.T,
 	}
 	err = packageReg.WriteToDisk(currentReg)
 	assert.NoError(t, err)
-	actionPlan, err := New(currentReg, incomingPackages, environment, new(NoopDownloader))
+	actionPlan, err := New(currentReg, incomingPackages, environment, new(NoopHostGaComminucator), ctx)
 	assert.NoError(t, err)
 	actionPlan.Execute(packageReg, cmdHandler)
 	currentReg, err = packageReg.GetExistingPackages()
@@ -432,8 +442,6 @@ func assertPackageRegistryHasBeenUpdatedProperly(t *testing.T, pkgReg packagereg
 		assert.EqualValues(t, incomingVMApp.InstallCommand, vmApp.InstallCommand)
 		assert.EqualValues(t, incomingVMApp.RemoveCommand, vmApp.RemoveCommand)
 		assert.EqualValues(t, incomingVMApp.UpdateCommand, vmApp.UpdateCommand)
-		assert.EqualValues(t, incomingVMApp.PackageLocation, vmApp.PackageLocation)
-		assert.EqualValues(t, incomingVMApp.ConfigurationLocation, vmApp.ConfigurationLocation)
 		assert.EqualValues(t, incomingVMApp.DirectDownloadOnly, vmApp.DirectDownloadOnly)
 	}
 }
