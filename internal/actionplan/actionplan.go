@@ -1,12 +1,13 @@
 package actionplan
 
 import (
-	"github.com/Azure/VMApplication-Extension/internal/downloader"
+	"github.com/Azure/VMApplication-Extension/internal/hostgacommunicator"
 	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
 	"github.com/Azure/VMApplication-Extension/pkg/commandhandler"
 	"github.com/Azure/VMApplication-Extension/pkg/utils"
 	"github.com/Azure/azure-extension-platform/pkg/extensionerrors"
 	"github.com/Azure/azure-extension-platform/pkg/handlerenv"
+	"github.com/go-kit/kit/log"
 	"github.com/pkg/errors"
 	"math"
 	"sort"
@@ -31,10 +32,11 @@ type ActionPlan struct {
 	// remember to sort while initializing
 	sortedOrder                 []int
 	unorderedImplicitUninstalls []*action
-	downloader                  downloader.IDownloader
+	hostGaCommunicator          hostgacommunicator.IHostGaCommunicator
+	ctx                         log.Logger
 }
 
-func New(currentPackageRegistry packageregistry.CurrentPackageRegistry, desiredVMAppCollection packageregistry.VMAppPackageIncomingCollection, environment *handlerenv.HandlerEnvironment, downloader downloader.IDownloader) (*ActionPlan, error) {
+func New(currentPackageRegistry packageregistry.CurrentPackageRegistry, desiredVMAppCollection packageregistry.VMAppPackageIncomingCollection, environment *handlerenv.HandlerEnvironment, hostGaCommunicator hostgacommunicator.IHostGaCommunicator, ctx log.Logger) (*ActionPlan, error) {
 
 	actionPlan := &ActionPlan{
 		environment:                 environment,
@@ -42,7 +44,8 @@ func New(currentPackageRegistry packageregistry.CurrentPackageRegistry, desiredV
 		orderedOperations:           make(map[int][]dependentActions),
 		sortedOrder:                 make([]int, 0),
 		unorderedImplicitUninstalls: make([]*action, 0),
-		downloader:                  downloader,
+		hostGaCommunicator:          hostGaCommunicator,
+		ctx:                         ctx,
 	}
 
 	// get list of previously existing applications that don't exist in the new configuration
@@ -196,15 +199,13 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 		downloadPath := act.vmAppPackage.GetWorkingDirectory(actionPlan.environment)
 
 		// download packages now
-		if err := actionPlan.downloader.Download(act.vmAppPackage.PackageLocation, downloadPath); err != nil {
+		if err := actionPlan.hostGaCommunicator.DownloadPackage(actionPlan.ctx, act.vmAppPackage.ApplicationName, downloadPath); err != nil {
 			return err
 		}
 
-		// download configuration if it exists
-		if len(act.vmAppPackage.PackageLocation) != 0 {
-			if err := actionPlan.downloader.Download(act.vmAppPackage.PackageLocation, downloadPath); err != nil {
-				return err
-			}
+		// download configuration
+		if err := actionPlan.hostGaCommunicator.DownloadConfig(actionPlan.ctx, act.vmAppPackage.ApplicationName, downloadPath); err != nil {
+			return err
 		}
 
 		retCode, err := commandHandler.Execute(commandToExecute, downloadPath)

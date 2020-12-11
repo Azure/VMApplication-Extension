@@ -15,6 +15,12 @@ import (
 
 const hostGaPluginPort = "32526"
 
+type IHostGaCommunicator interface {
+	DownloadPackage(ctx log.Logger, appName string, dst string) error
+	DownloadConfig(ctx log.Logger, appName string, dst string) error
+	GetVMAppInfo(ctx log.Logger, appName string) (*VMAppMetadata, error)
+}
+
 // HostGaCommunicator provides methods for retrieving application metadata and packages
 // from the HostGaPlugin
 type HostGaCommunicator struct{}

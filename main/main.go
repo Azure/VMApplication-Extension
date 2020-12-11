@@ -2,7 +2,6 @@ package main
 
 import (
 	"github.com/Azure/VMApplication-Extension/internal/actionplan"
-	"github.com/Azure/VMApplication-Extension/internal/downloader/hostgadownloader"
 	"github.com/Azure/VMApplication-Extension/internal/hostgacommunicator"
 	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
 	"github.com/Azure/VMApplication-Extension/pkg/commandhandler"
@@ -78,7 +77,7 @@ func getExtensionAndRun() error {
 // Callback indicating the operation is enable and the sequence number has changed
 func vmAppEnableCallback(ctx log.Logger, ext *vmextensionhelper.VMExtension) (string, error) {
 	hostGaCommunicator := hostgacommunicator.HostGaCommunicator{}
-	vmAppIncomingCollection, err := getVMAppIncomingCollection(ext.Settings, &hostGaCommunicator)
+	vmAppIncomingCollection, err := getVMAppIncomingCollection(ext.Settings, &hostGaCommunicator, ctx)
 	if err != nil {
 		return "resolving packages failed", err
 	}
@@ -91,9 +90,8 @@ func vmAppEnableCallback(ctx log.Logger, ext *vmextensionhelper.VMExtension) (st
 	if err != nil {
 		return "could not read current package registry", err
 	}
-	downloader := hostgadownloader.HostGaDownloader{}
 
-	actionPlan, err := actionplan.New(currentPackageRegistry, vmAppIncomingCollection, ext.HandlerEnv, &downloader)
+	actionPlan, err := actionplan.New(currentPackageRegistry, vmAppIncomingCollection, ext.HandlerEnv, &hostGaCommunicator, ctx)
 	if err != nil {
 		return "could not create action plan", err
 	}
