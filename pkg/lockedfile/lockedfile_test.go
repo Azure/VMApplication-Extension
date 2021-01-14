@@ -1,14 +1,15 @@
 package lockedfile
 
 import (
-	"github.com/Azure/azure-extension-platform/pkg/constants"
-	"github.com/stretchr/testify/assert"
 	"io/ioutil"
 	"os"
 	"path"
 	"regexp"
 	"testing"
 	"time"
+
+	"github.com/Azure/azure-extension-platform/pkg/constants"
+	"github.com/stretchr/testify/assert"
 )
 
 const testdir = "./testdir"

@@ -2,14 +2,66 @@ package main
 
 import (
 	"encoding/json"
+	"io/ioutil"
+	"os"
+	"path"
+	"testing"
+
+	"github.com/Azure/VMApplication-Extension/internal/hostgacommunicator"
+	"github.com/Azure/azure-extension-platform/pkg/constants"
 	"github.com/Azure/azure-extension-platform/pkg/handlerenv"
 	handlersettings "github.com/Azure/azure-extension-platform/pkg/settings"
 	"github.com/Azure/azure-extension-platform/vmextension"
 	"github.com/go-kit/kit/log"
 	"github.com/stretchr/testify/require"
-	"os"
-	"testing"
 )
+
+// implements IHostGaCommunicator
+type NoopHostGaCommunicator struct {
+	myApp *hostgacommunicator.VMAppMetadata
+}
+
+func (communicator *NoopHostGaCommunicator) DownloadPackage(ctx log.Logger, appName string, dst string) error {
+	return nil
+}
+func (communicator *NoopHostGaCommunicator) DownloadConfig(ctx log.Logger, appName string, dst string) error {
+	return nil
+}
+func (communicator *NoopHostGaCommunicator) GetVMAppInfo(ctx log.Logger, appName string) (*hostgacommunicator.VMAppMetadata, error) {
+	return communicator.myApp, nil
+}
+
+func (communicator *NoopHostGaCommunicator) SetupVMAppInfo(appName string, version string, operation string) {
+	communicator.myApp = &hostgacommunicator.VMAppMetadata{
+		ApplicationName:    appName,
+		DirectDownloadOnly: false,
+		InstallCommand:     "",
+		Operation:          operation,
+		RemoveCommand:      "",
+		UpdateCommand:      "",
+		Version:            version,
+	}
+}
+
+var maintestdir string
+
+func TestMain(m *testing.M) {
+	testdir, err := ioutil.TempDir("", "maintest")
+	if err != nil {
+		return
+	}
+
+	err = os.MkdirAll(testdir, constants.FilePermissions_UserOnly_ReadWriteExecute)
+	if err != nil {
+		return
+	}
+
+	maintestdir = testdir
+	exitVal := m.Run()
+	os.RemoveAll(maintestdir)
+
+	os.Exit(exitVal)
+}
 
 func Test_settingsFailToInit(t *testing.T) {
 	extensionVersion = ""
@@ -26,7 +78,7 @@ func Test_failToCreateExtension(t *testing.T) {
 
 func Test_getVMPackageData_noSettings(t *testing.T) {
 	ctx := log.NewSyncLogger(log.NewLogfmtLogger(os.Stdout))
-	ext := createTestVMExtension(nil)
+	ext := createTestVMExtension(t, nil)
 	_, err := vmAppEnableCallback(ctx, ext)
 	require.Error(t, err)
 }
@@ -35,135 +87,98 @@ func Test_getVMPackageData_cannotDeserialize(t *testing.T) {
 	ctx := log.NewSyncLogger(log.NewLogfmtLogger(os.Stdout))
 	vmPackages := "yabasnarfle {}"
 
-	ext := createTestVMExtension(vmPackages)
+	ext := createTestVMExtension(t, vmPackages)
 	_, err := vmAppEnableCallback(ctx, ext)
 	require.Error(t, err)
 }
 
 func Test_getVMPackageData_noApplications(t *testing.T) {
 	ctx := log.NewSyncLogger(log.NewLogfmtLogger(os.Stdout))
-	vmPackages := vmPackageData{
-		Packages: []vmPackage{},
-	}
+	vmApplications := []VmAppSetting{}
 
-	ext := createTestVMExtension(vmPackages)
+	ext := createTestVMExtension(t, vmApplications)
 	_, err := vmAppEnableCallback(ctx, ext)
 	require.NoError(t, err)
 }
 
 func Test_getVMPackageData_valid(t *testing.T) {
+	order := 1
 	ctx := log.NewSyncLogger(log.NewLogfmtLogger(os.Stdout))
-	vmPackages := vmPackageData{
-		Packages: []vmPackage{
-			{
-				Name:      "iggy",
-				Operation: "install",
-				Version:   "1.0.0",
-			},
+	vmApplications := []VmAppSetting{
+		VmAppSetting{
+			ApplicationName: "iggy",
+			Order:           &order,
 		},
 	}
 
-	ext := createTestVMExtension(vmPackages)
-	_, err := vmAppEnableCallback(ctx, ext)
+	ext := createTestVMExtension(t, vmApplications)
+	hostGaCommunicator := NoopHostGaCommunicator{}
+	hostGaCommunicator.SetupVMAppInfo("iggy", "1.0.1", "install")
+	_, err := doVmAppEnableCallback(ctx, ext, &hostGaCommunicator)
 	require.NoError(t, err)
 }
 
 func Test_getVMPackageData_noVersion(t *testing.T) {
+	order := 1
 	ctx := log.NewSyncLogger(log.NewLogfmtLogger(os.Stdout))
-	vmPackages := vmPackageData{
-		Packages: []vmPackage{
-			{
-				Name:      "iggy",
-				Operation: "install",
-				Version:   "",
-			},
+	vmApplications := []VmAppSetting{
+		VmAppSetting{
+			ApplicationName: "iggy",
+			Order:           &order,
 		},
 	}
 
-	ext := createTestVMExtension(vmPackages)
-	_, err := vmAppEnableCallback(ctx, ext)
+	hostGaCommunicator := NoopHostGaCommunicator{}
+	hostGaCommunicator.SetupVMAppInfo("iggy", "", "install")
+	ext := createTestVMExtension(t, vmApplications)
+	_, err := doVmAppEnableCallback(ctx, ext, &hostGaCommunicator)
 	require.Error(t, err)
 }
 
 func Test_getVMPackageData_noOperationName(t *testing.T) {
+	order := 1
 	ctx := log.NewSyncLogger(log.NewLogfmtLogger(os.Stdout))
-	vmPackages := vmPackageData{
-		Packages: []vmPackage{
-			{
-				Name:      "iggy",
-				Operation: "",
-				Version:   "1.0.0",
-			},
+	vmApplications := []VmAppSetting{
+		VmAppSetting{
+			ApplicationName: "iggy",
+			Order:           &order,
 		},
 	}
 
-	ext := createTestVMExtension(vmPackages)
-	_, err := vmAppEnableCallback(ctx, ext)
+	hostGaCommunicator := NoopHostGaCommunicator{}
+	hostGaCommunicator.SetupVMAppInfo("iggy", "1.0.1", "")
+	ext := createTestVMExtension(t, vmApplications)
+	_, err := doVmAppEnableCallback(ctx, ext, &hostGaCommunicator)
 	require.Error(t, err)
 }
 
 func Test_getVMPackageData_noApplicationName(t *testing.T) {
+	order := 1
 	ctx := log.NewSyncLogger(log.NewLogfmtLogger(os.Stdout))
-	vmPackages := vmPackageData{
-		Packages: []vmPackage{
-			{
-				Name:      "",
-				Operation: "install",
-				Version:   "1.0.0",
-			},
+	vmApplications := []VmAppSetting{
+		VmAppSetting{
+			ApplicationName: "",
+			Order:           &order,
 		},
 	}
 
-	ext := createTestVMExtension(vmPackages)
-	_, err := vmAppEnableCallback(ctx, ext)
+	hostGaCommunicator := NoopHostGaCommunicator{}
+	hostGaCommunicator.SetupVMAppInfo("iggy", "1.0.1", "install")
+	ext := createTestVMExtension(t, vmApplications)
+	_, err := doVmAppEnableCallback(ctx, ext, &hostGaCommunicator)
 	require.Error(t, err)
 }
 
-//func Test_main_getPackageStatePlanFails(t *testing.T) {
-//	ctx := log.NewSyncLogger(log.NewLogfmtLogger(os.Stdout))
-//	vmPackages := createVmPackageData()
-//
-//	ext := createTestVMExtension(vmPackages)
-//	osDependency = NewMockDependencies()
-//	defer resetOSDependency()
-//	_, err := vmAppEnableCallback(ctx, ext)
-//	require.Error(t, err)
-//}
-
 func Test_main_nothingToProcess(t *testing.T) {
 	ctx := log.NewSyncLogger(log.NewLogfmtLogger(os.Stdout))
-	vmPackages := vmPackageData{
-		Packages: []vmPackage{},
-	}
-	ext := createTestVMExtension(vmPackages)
+	vmApplications := []VmAppSetting{}
+	ext := createTestVMExtension(t, vmApplications)
 
-	result, err := vmAppEnableCallback(ctx, ext)
+	hostGaCommunicator := NoopHostGaCommunicator{}
+	result, err := doVmAppEnableCallback(ctx, ext, &hostGaCommunicator)
 	require.NoError(t, err)
-	require.Equal(t, "Nothing to process", result)
+	require.Equal(t, "Operation completed", result)
 }
-
-func Test_main_processPackagesNormal(t *testing.T) {
-	ctx := log.NewSyncLogger(log.NewLogfmtLogger(os.Stdout))
-	vmPackages := createMultipleVmPackageData()
-	ext := createTestVMExtension(vmPackages)
-
-	result, err := vmAppEnableCallback(ctx, ext)
-	require.NoError(t, err)
-	require.Equal(t, "Complete", result)
-}
-
-//func Test_main_processPackagesFailToMark(t *testing.T) {
-//	ctx := log.NewSyncLogger(log.NewLogfmtLogger(os.Stdout))
-//	vmPackages := createMultipleVmPackageData()
-//	ext := createTestVMExtension(vmPackages)
-//
-//	mockDependency := NewBareMockDependencies()
-//	osDependency = mockDependency
-//	mockDependency.UseMockRemoveFile = true
-//	defer resetOSDependency()
-//	_, err := vmAppEnableCallback(ctx, ext)
-//	require.Error(t, err)
-//}
 
 func resetExtensionVersion() {
 	extensionVersion = "1.0.0"
@@ -203,24 +218,29 @@ func createMultipleVmPackageData() vmPackageData {
 }
 
 func createSettings(settings interface{}) *handlersettings.HandlerSettings {
-	publicmap := make(map[string]interface{}, 1)
-	privatemap := make(map[string]interface{}, 2)
-
-	if settings != nil {
+	if settings == nil {
+		return &handlersettings.HandlerSettings{
+			PublicSettings:    "",
+			ProtectedSettings: "",
+		}
+	} else {
 		b, _ := json.Marshal(settings)
-		privatemap[vmPackagesSetting] = string(b)
-	}
 
-	return &handlersettings.HandlerSettings{
-		PublicSettings:    publicmap,
-		ProtectedSettings: privatemap,
+		return &handlersettings.HandlerSettings{
+			PublicSettings:    "",
+			ProtectedSettings: string(b),
+		}
 	}
 }
 
 var one uint = 1
 
-func createTestVMExtension(settings interface{}) *vmextension.VMExtension {
+func createTestVMExtension(t *testing.T, settings interface{}) *vmextension.VMExtension {
 	hs := createSettings(settings)
+
+	configFolder := path.Join(maintestdir, "config/")
+	err := os.MkdirAll(configFolder, constants.FilePermissions_UserOnly_ReadWriteExecute)
+	require.NoError(t, err)
 
 	return &vmextension.VMExtension{
 		Name:                    extensionVersion,
@@ -228,11 +248,11 @@ func createTestVMExtension(settings interface{}) *vmextension.VMExtension {
 		RequestedSequenceNumber: 2,
 		CurrentSequenceNumber:   &one,
 		HandlerEnv: &handlerenv.HandlerEnvironment{
-			HeartbeatFile: "./heartbeat.txt",
-			StatusFolder:  "./status/",
-			ConfigFolder:  "./config/",
-			LogFolder:     "./log/",
-			DataFolder:    "./data/",
+			HeartbeatFile: path.Join(maintestdir, "heartbeat.txt"),
+			StatusFolder:  path.Join(maintestdir, "status/"),
+			ConfigFolder:  configFolder,
+			LogFolder:     path.Join(maintestdir, "log/"),
+			DataFolder:    path.Join(maintestdir, "data/"),
 		},
 		Settings: hs,
 	}
