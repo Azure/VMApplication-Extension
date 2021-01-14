@@ -1,14 +1,15 @@
 package main
 
 import (
+	"os"
+	"time"
+
 	"github.com/Azure/VMApplication-Extension/internal/actionplan"
 	"github.com/Azure/VMApplication-Extension/internal/hostgacommunicator"
 	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
 	"github.com/Azure/VMApplication-Extension/pkg/commandhandler"
 	vmextensionhelper "github.com/Azure/azure-extension-platform/vmextension"
 	"github.com/go-kit/kit/log"
-	"os"
-	"time"
 )
 
 // Note: not const so test can change them
@@ -77,21 +78,25 @@ func getExtensionAndRun() error {
 // Callback indicating the operation is enable and the sequence number has changed
 func vmAppEnableCallback(ctx log.Logger, ext *vmextensionhelper.VMExtension) (string, error) {
 	hostGaCommunicator := hostgacommunicator.HostGaCommunicator{}
-	vmAppIncomingCollection, err := getVMAppIncomingCollection(ext.Settings, &hostGaCommunicator, ctx)
+	return doVmAppEnableCallback(ctx, ext, &hostGaCommunicator)
+}
+
+func doVmAppEnableCallback(ctx log.Logger, ext *vmextensionhelper.VMExtension, hostGaCommunicator hostgacommunicator.IHostGaCommunicator) (string, error) {
+	vmAppIncomingCollection, err := getVMAppIncomingCollection(ext.Settings, hostGaCommunicator, ctx)
 	if err != nil {
 		return "resolving packages failed", err
 	}
 	packageRegistry, err := packageregistry.New(ext.HandlerEnv, filelockTimeoutDuration)
-	defer packageRegistry.Close()
 	if err != nil {
 		return "could not create package registry", err
 	}
+	defer packageRegistry.Close()
 	currentPackageRegistry, err := packageRegistry.GetExistingPackages()
 	if err != nil {
 		return "could not read current package registry", err
 	}
 
-	actionPlan, err := actionplan.New(currentPackageRegistry, vmAppIncomingCollection, ext.HandlerEnv, &hostGaCommunicator, ctx)
+	actionPlan, err := actionplan.New(currentPackageRegistry, vmAppIncomingCollection, ext.HandlerEnv, hostGaCommunicator, ctx)
 	if err != nil {
 		return "could not create action plan", err
 	}

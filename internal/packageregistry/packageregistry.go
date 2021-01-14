@@ -2,13 +2,14 @@ package packageregistry
 
 import (
 	"encoding/json"
-	"github.com/Azure/VMApplication-Extension/pkg/lockedfile"
-	"github.com/Azure/azure-extension-platform/pkg/constants"
-	"github.com/Azure/azure-extension-platform/pkg/handlerenv"
 	"io/ioutil"
 	"os"
 	"path"
 	"time"
+
+	"github.com/Azure/VMApplication-Extension/pkg/lockedfile"
+	"github.com/Azure/azure-extension-platform/pkg/constants"
+	"github.com/Azure/azure-extension-platform/pkg/handlerenv"
 )
 
 const (
@@ -95,17 +96,25 @@ func (self *PackageRegistry) GetExistingPackages() (CurrentPackageRegistry, erro
 	currentPackageRegistry = nil
 	localApplicationRegistryFilePath := self.getLocalApplicationRegistryFilePath()
 
-	fileBytes, err := ioutil.ReadFile(localApplicationRegistryFilePath)
-	if err != nil {
-		return currentPackageRegistry, err
-	}
 	vmAppPackageCurrentCollection := VMAppPackageCurrentCollection{}
-	if len(fileBytes) > 0 {
-		err = json.Unmarshal(fileBytes, &vmAppPackageCurrentCollection)
+	_, err := os.Stat(localApplicationRegistryFilePath)
+	if err == nil {
+		// The file exists
+		fileBytes, err := ioutil.ReadFile(localApplicationRegistryFilePath)
 		if err != nil {
 			return currentPackageRegistry, err
 		}
+
+		if len(fileBytes) > 0 {
+			err = json.Unmarshal(fileBytes, &vmAppPackageCurrentCollection)
+			if err != nil {
+				return currentPackageRegistry, err
+			}
+		}
+	} else if !os.IsNotExist(err) {
+		return currentPackageRegistry, err
 	}
+
 	currentPackageRegistry = make(CurrentPackageRegistry)
 	err = currentPackageRegistry.Populate(vmAppPackageCurrentCollection)
 	return currentPackageRegistry, err
