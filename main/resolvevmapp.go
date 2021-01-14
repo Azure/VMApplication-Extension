@@ -12,7 +12,7 @@ import (
 
 type VmAppSetting struct {
 	ApplicationName string `json:"applicationName"`
-	Order           *int   `json:"order,omitempty"`
+	Order           *int   `json:"order"`
 }
 
 type VmAppProtectedSettings []*VmAppSetting
