@@ -44,6 +44,7 @@ type VMAppPackageCurrent struct {
 	RemoveCommand      string     `json:"remove"`
 	UpdateCommand      string     `json:"update"`
 	DirectDownloadOnly bool       `json:"directOnly"`
+	ConfigExists       bool       `json:"configExists"`
 	OngoingOperation   ActionEnum `json:"ongoingOperation"`
 }
 
@@ -61,6 +62,7 @@ type VMAppPackageIncoming struct {
 	UpdateCommand      string `json:"update"`
 	DirectDownloadOnly bool   `json:"directOnly"`
 	Order              *int   `json:"order"`
+	ConfigExists       bool   `json:"configExists"`
 }
 
 type IPackageRegistry interface {

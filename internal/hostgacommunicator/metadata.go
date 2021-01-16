@@ -25,6 +25,7 @@ type VMAppMetadata struct {
 	UpdateCommand      string `json:"update"`
 	RemoveCommand      string `json:"remove"`
 	DirectDownloadOnly bool   `json:"directOnly"`
+	ConfigExists       bool
 }
 
 type VMAppMetadataReceiver struct {
@@ -34,6 +35,8 @@ type VMAppMetadataReceiver struct {
 	UpdateCommand      string `json:"update"`
 	RemoveCommand      string `json:"remove"`
 	DirectDownloadOnly string `json:"directOnly"`
+	Package            string `json:"package"`
+	Config             string `json:"config"`
 }
 
 func (receiver *VMAppMetadataReceiver) MapToVMAppMetadata() (*VMAppMetadata) {
@@ -42,6 +45,7 @@ func (receiver *VMAppMetadataReceiver) MapToVMAppMetadata() (*VMAppMetadata) {
 		// assume directDownloadOnly is false when parsing fails
 		directDownloadOnly = false
 	}
+	configExists := receiver.Config != ""
 	vmAppMetadata := VMAppMetadata{
 		ApplicationName:    receiver.ApplicationName,
 		Version:            receiver.Version,
@@ -49,6 +53,7 @@ func (receiver *VMAppMetadataReceiver) MapToVMAppMetadata() (*VMAppMetadata) {
 		UpdateCommand:      receiver.UpdateCommand,
 		RemoveCommand:      receiver.RemoveCommand,
 		DirectDownloadOnly: directDownloadOnly,
+		ConfigExists:       configExists,
 	}
 	return &vmAppMetadata
 }

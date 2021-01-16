@@ -13,7 +13,6 @@ import (
 
 // Note: not const so test can change them
 var (
-	extensionName    = "Microsoft.Azure.Extensions.VMApp"
 	extensionVersion = "1.0.0"
 
 	// downloadDir is where we store the downloaded files in the "{downloadDir}/{seqnum}/file"

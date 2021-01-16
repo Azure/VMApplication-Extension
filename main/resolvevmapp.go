@@ -43,6 +43,7 @@ func getVMAppIncomingCollection(settings *settings.HandlerSettings, communicator
 			RemoveCommand:      vmAppInfo.RemoveCommand,
 			UpdateCommand:      vmAppInfo.UpdateCommand,
 			DirectDownloadOnly: vmAppInfo.DirectDownloadOnly,
+			ConfigExists:       vmAppInfo.ConfigExists,
 		}
 		incomingCollection = append(incomingCollection, &incomingPackage)
 	}
