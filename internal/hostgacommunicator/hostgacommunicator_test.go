@@ -90,7 +90,6 @@ func TestGetVmAppInfo_MissingProperties(t *testing.T) {
 	expected := VMAppMetadataReceiver{
 		ApplicationName: "chipmunk",
 		Version:         "42",
-		Operation:       "install",
 		InstallCommand:  "installchipmunk.bat",
 	}
 
@@ -110,7 +109,6 @@ func TestGetVmAppInfo_MissingProperties(t *testing.T) {
 	require.Nil(t, err, "request failed")
 	require.Equal(t, expected.ApplicationName, actual.ApplicationName)
 	require.Equal(t, expected.Version, actual.Version)
-	require.Equal(t, expected.Operation, actual.Operation)
 	require.Equal(t, expected.InstallCommand, actual.InstallCommand)
 }
 
@@ -118,7 +116,6 @@ func TestGetVmAppInfo_ValidResponse(t *testing.T) {
 	expected := VMAppMetadataReceiver{
 		ApplicationName:    "chipmunk",
 		Version:            "42",
-		Operation:          "install",
 		InstallCommand:     "installchipmunk.bat",
 		UpdateCommand:      "updatechipmunk.bat",
 		RemoveCommand:      "removechipmunk.bat",
@@ -141,7 +138,6 @@ func TestGetVmAppInfo_ValidResponse(t *testing.T) {
 	require.Nil(t, err, "request failed")
 	require.Equal(t, expected.ApplicationName, actual.ApplicationName)
 	require.Equal(t, expected.Version, actual.Version)
-	require.Equal(t, expected.Operation, actual.Operation)
 	require.Equal(t, expected.InstallCommand, actual.InstallCommand)
 	require.Equal(t, expected.UpdateCommand, actual.UpdateCommand)
 	require.Equal(t, expected.RemoveCommand, actual.RemoveCommand)

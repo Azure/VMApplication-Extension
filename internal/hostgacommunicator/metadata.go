@@ -21,7 +21,6 @@ var (
 type VMAppMetadata struct {
 	ApplicationName    string `json:"name"`
 	Version            string `json:"version"`
-	Operation          string `json:"operation"`
 	InstallCommand     string `json:"install"`
 	UpdateCommand      string `json:"update"`
 	RemoveCommand      string `json:"remove"`
@@ -31,7 +30,6 @@ type VMAppMetadata struct {
 type VMAppMetadataReceiver struct {
 	ApplicationName    string `json:"name"`
 	Version            string `json:"version"`
-	Operation          string `json:"operation"`
 	InstallCommand     string `json:"install"`
 	UpdateCommand      string `json:"update"`
 	RemoveCommand      string `json:"remove"`
@@ -47,7 +45,6 @@ func (receiver *VMAppMetadataReceiver) MapToVMAppMetadata() (*VMAppMetadata) {
 	vmAppMetadata := VMAppMetadata{
 		ApplicationName:    receiver.ApplicationName,
 		Version:            receiver.Version,
-		Operation:          receiver.Operation,
 		InstallCommand:     receiver.InstallCommand,
 		UpdateCommand:      receiver.UpdateCommand,
 		RemoveCommand:      receiver.RemoveCommand,
