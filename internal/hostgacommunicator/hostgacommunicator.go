@@ -3,14 +3,11 @@ package hostgacommunicator
 import (
 	"encoding/json"
 	"fmt"
-	"net"
-	"net/url"
-	"os"
-	"strings"
-
 	"github.com/Azure/VMApplication-Extension/internal/requesthelper"
 	"github.com/Azure/azure-extension-platform/pkg/logging"
 	"github.com/pkg/errors"
+	"net/url"
+	"os"
 )
 
 const hostGaPluginPort = "32526"
@@ -75,33 +72,39 @@ func (*HostGaCommunicator) DownloadConfig(el *logging.ExtensionLogger, appName s
 	return err
 }
 
-func getHostGaAddress() (string, error) {
+func getOperationURI(appName string, operation string) (string, error) {
 	baseAddress := os.Getenv(WireProtocolAddress)
 	if baseAddress == "" {
 		return "", errors.New("WireProtocolAddress not present in environment")
 	}
 
-	// The tests will already have a port, so don't add another one
-	hostGaURL := baseAddress
-	if strings.Contains(hostGaURL, ":") == false {
-		hostGaURL = net.JoinHostPort(baseAddress, hostGaPluginPort)
-	}
-
-	return hostGaURL, nil
-}
-
-func getOperationURI(appName string, operation string) (string, error) {
-	baseURI, err := getHostGaAddress()
+	uri, err := url.Parse(baseAddress)
 	if err != nil {
-		return "", errors.Wrapf(err, "failed to obtain the base HostGA address")
+		// ip with port 10.0.0.1:1234 will fail otherwise
+		uri, err = url.Parse("//" + baseAddress)
+		if err != nil {
+			return "", errors.Wrap(err, "Could not parse the HostGA URI")
+		}
+	}
+	if uri.Host == ""{
+		// takes care of host names without port like foo.bar.com, 10.0.0.1, these need to be prepended with //
+		uri, err = url.Parse("//" + baseAddress)
+		if err != nil {
+			return "", errors.Wrap(err, "Could not parse the HostGA URI")
+		}
+	}
+	// if port is not specified, set default port
+	if uri.Port() == ""{
+		uri, err = url.Parse("//" + uri.Host + ":" + hostGaPluginPort )
+		if err != nil{
+			return "", errors.Wrap(err, "failed to add default host ga plugin port")
+		}
 	}
 
-	rawURI := fmt.Sprintf("%s/applications/%s/%s", baseURI, appName, operation)
-
-	u, err := url.Parse(rawURI)
-	if err != nil {
-		return "", errors.New("Could not parse the HostGA URI")
+	uri.Path = fmt.Sprintf("applications/%s/%s", appName, operation)
+	if uri.Scheme == ""{
+		uri.Scheme = "http"
 	}
 
-	return u.String(), nil
+	return uri.String(), nil
 }
