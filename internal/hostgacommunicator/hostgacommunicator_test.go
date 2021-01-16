@@ -87,7 +87,7 @@ func TestGetVmAppInfo_CouldNotDecodeResponse(t *testing.T) {
 }
 
 func TestGetVmAppInfo_MissingProperties(t *testing.T) {
-	expected := VMAppMetadata{
+	expected := VMAppMetadataReceiver{
 		ApplicationName: "chipmunk",
 		Version:         "42",
 		Operation:       "install",
@@ -115,14 +115,14 @@ func TestGetVmAppInfo_MissingProperties(t *testing.T) {
 }
 
 func TestGetVmAppInfo_ValidResponse(t *testing.T) {
-	expected := VMAppMetadata{
+	expected := VMAppMetadataReceiver{
 		ApplicationName:    "chipmunk",
 		Version:            "42",
 		Operation:          "install",
 		InstallCommand:     "installchipmunk.bat",
 		UpdateCommand:      "updatechipmunk.bat",
 		RemoveCommand:      "removechipmunk.bat",
-		DirectDownloadOnly: false,
+		DirectDownloadOnly: "false",
 	}
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -145,7 +145,7 @@ func TestGetVmAppInfo_ValidResponse(t *testing.T) {
 	require.Equal(t, expected.InstallCommand, actual.InstallCommand)
 	require.Equal(t, expected.UpdateCommand, actual.UpdateCommand)
 	require.Equal(t, expected.RemoveCommand, actual.RemoveCommand)
-	require.Equal(t, expected.DirectDownloadOnly, actual.DirectDownloadOnly)
+	require.Equal(t, expected.DirectDownloadOnly, fmt.Sprintf("%v", actual.DirectDownloadOnly))
 }
 
 func TestDownloadPackage_NoEnvironmentVariable(t *testing.T) {
@@ -370,6 +370,13 @@ func TestGetOperationUri(t *testing.T){
 	uri, err = getOperationURI(appName, operation)
 	assert.NoError(t, err)
 	assert.Equal(t, fmt.Sprintf("http://foo.bar.com:1568/applications/%s/%s", appName, operation), uri)
+
+	os.Setenv(WireProtocolAddress, "https://foo.bar.com:1568")
+	appName = "myApp"
+	operation = "metadata"
+	uri, err = getOperationURI(appName, operation)
+	assert.NoError(t, err)
+	assert.Equal(t, fmt.Sprintf("https://foo.bar.com:1568/applications/%s/%s", appName, operation), uri)
 
 }
 

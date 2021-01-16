@@ -17,19 +17,15 @@ var hndlEnv = handlerenv.HandlerEnvironment{
 
 var packageRegistry = CurrentPackageRegistry{"package1": &VMAppPackageCurrent{
 	ApplicationName:       "package1",
-	ConfigurationLocation: "some configuration location1",
 	DirectDownloadOnly:    false,
 	InstallCommand:        "install_1.ps1",
-	PackageLocation:       "some package location1",
 	RemoveCommand:         "remove_1.ps1",
 	UpdateCommand:         "update_1.ps1",
 	Version:               "1.2.3.1",
 }, "package2": &VMAppPackageCurrent{
 	ApplicationName:       "package2",
-	ConfigurationLocation: "some configuration location2",
 	DirectDownloadOnly:    true,
 	InstallCommand:        "install_2.ps1",
-	PackageLocation:       "some package location2",
 	RemoveCommand:         "remove_2.ps1",
 	UpdateCommand:         "update_2.ps1",
 	Version:               "1.2.3.2",

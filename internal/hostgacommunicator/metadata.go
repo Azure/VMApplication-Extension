@@ -2,6 +2,7 @@ package hostgacommunicator
 
 import (
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/Azure/VMApplication-Extension/internal/requesthelper"
@@ -25,6 +26,34 @@ type VMAppMetadata struct {
 	UpdateCommand      string `json:"update"`
 	RemoveCommand      string `json:"remove"`
 	DirectDownloadOnly bool   `json:"directOnly"`
+}
+
+type VMAppMetadataReceiver struct {
+	ApplicationName    string `json:"name"`
+	Version            string `json:"version"`
+	Operation          string `json:"operation"`
+	InstallCommand     string `json:"install"`
+	UpdateCommand      string `json:"update"`
+	RemoveCommand      string `json:"remove"`
+	DirectDownloadOnly string `json:"directOnly"`
+}
+
+func (receiver *VMAppMetadataReceiver) MapToVMAppMetadata() (*VMAppMetadata) {
+	directDownloadOnly, err := strconv.ParseBool(receiver.DirectDownloadOnly)
+	if err != nil {
+		// assume directDownloadOnly is false when parsing fails
+		directDownloadOnly = false
+	}
+	vmAppMetadata := VMAppMetadata{
+		ApplicationName:    receiver.ApplicationName,
+		Version:            receiver.Version,
+		Operation:          receiver.Operation,
+		InstallCommand:     receiver.InstallCommand,
+		UpdateCommand:      receiver.UpdateCommand,
+		RemoveCommand:      receiver.RemoveCommand,
+		DirectDownloadOnly: directDownloadOnly,
+	}
+	return &vmAppMetadata
 }
 
 type metadataRequestFactory struct {

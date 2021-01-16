@@ -37,13 +37,13 @@ func (*HostGaCommunicator) GetVMAppInfo(el *logging.ExtensionLogger, appName str
 	body := resp.Body
 	defer body.Close()
 
-	var target VMAppMetadata
+	var target VMAppMetadataReceiver
 	err = json.NewDecoder(body).Decode(&target)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to decode response body")
 	}
 
-	return &target, nil
+	return target.MapToVMAppMetadata(), nil
 }
 
 // DownloadPackage downloads the application package through HostGaPlugin to the specified
@@ -86,7 +86,7 @@ func getOperationURI(appName string, operation string) (string, error) {
 			return "", errors.Wrap(err, "Could not parse the HostGA URI")
 		}
 	}
-	if uri.Host == ""{
+	if uri.Host == "" {
 		// takes care of host names without port like foo.bar.com, 10.0.0.1, these need to be prepended with //
 		uri, err = url.Parse("//" + baseAddress)
 		if err != nil {
@@ -94,15 +94,15 @@ func getOperationURI(appName string, operation string) (string, error) {
 		}
 	}
 	// if port is not specified, set default port
-	if uri.Port() == ""{
-		uri, err = url.Parse("//" + uri.Host + ":" + hostGaPluginPort )
-		if err != nil{
+	if uri.Port() == "" {
+		uri, err = url.Parse("//" + uri.Host + ":" + hostGaPluginPort)
+		if err != nil {
 			return "", errors.Wrap(err, "failed to add default host ga plugin port")
 		}
 	}
 
 	uri.Path = fmt.Sprintf("applications/%s/%s", appName, operation)
-	if uri.Scheme == ""{
+	if uri.Scheme == "" {
 		uri.Scheme = "http"
 	}
 
