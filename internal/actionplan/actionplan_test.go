@@ -1,23 +1,24 @@
 package actionplan
 
 import (
-	"github.com/Azure/VMApplication-Extension/internal/hostgacommunicator"
-	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
-	"github.com/Azure/VMApplication-Extension/pkg/commandhandler"
-	"github.com/Azure/azure-extension-platform/pkg/constants"
-	"github.com/Azure/azure-extension-platform/pkg/handlerenv"
-	"github.com/go-kit/kit/log"
-	"github.com/pkg/errors"
-	"github.com/stretchr/testify/assert"
 	"os"
 	"path"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/Azure/VMApplication-Extension/internal/hostgacommunicator"
+	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
+	"github.com/Azure/VMApplication-Extension/pkg/commandhandler"
+	"github.com/Azure/azure-extension-platform/pkg/constants"
+	"github.com/Azure/azure-extension-platform/pkg/handlerenv"
+	"github.com/Azure/azure-extension-platform/pkg/logging"
+	"github.com/pkg/errors"
+	"github.com/stretchr/testify/assert"
 )
 
 var one = 1
-var ctx = log.NewSyncLogger(log.NewLogfmtLogger(os.Stdout))
+var el = logging.New(nil)
 
 type CommandExecutor func(string, string) (int, error)
 
@@ -56,13 +57,13 @@ var mockCommandFailOnDemand CommandExecutor = func(command string, workingDir st
 // implements IHostGaCommunicator
 type NoopHostGaComminucator struct{}
 
-func (downloader *NoopHostGaComminucator) DownloadPackage(ctx log.Logger, appName string, dst string) error {
+func (downloader *NoopHostGaComminucator) DownloadPackage(logger *logging.ExtensionLogger, appName string, dst string) error {
 	return nil
 }
-func (downloader *NoopHostGaComminucator) DownloadConfig(ctx log.Logger, appName string, dst string) error {
+func (downloader *NoopHostGaComminucator) DownloadConfig(logger *logging.ExtensionLogger, appName string, dst string) error {
 	return nil
 }
-func (downloader *NoopHostGaComminucator) GetVMAppInfo(ctx log.Logger, appName string) (*hostgacommunicator.VMAppMetadata, error) {
+func (downloader *NoopHostGaComminucator) GetVMAppInfo(logger *logging.ExtensionLogger, appName string) (*hostgacommunicator.VMAppMetadata, error) {
 	return nil, nil
 }
 
@@ -424,7 +425,7 @@ func executeActionPlan(t *testing.T,
 	}
 	err = packageReg.WriteToDisk(currentReg)
 	assert.NoError(t, err)
-	actionPlan, err := New(currentReg, incomingPackages, environment, new(NoopHostGaComminucator), ctx)
+	actionPlan, err := New(currentReg, incomingPackages, environment, new(NoopHostGaComminucator), el)
 	assert.NoError(t, err)
 	actionPlan.Execute(packageReg, cmdHandler)
 	currentReg, err = packageReg.GetExistingPackages()

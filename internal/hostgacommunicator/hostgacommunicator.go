@@ -9,16 +9,16 @@ import (
 	"strings"
 
 	"github.com/Azure/VMApplication-Extension/internal/requesthelper"
-	"github.com/go-kit/kit/log"
+	"github.com/Azure/azure-extension-platform/pkg/logging"
 	"github.com/pkg/errors"
 )
 
 const hostGaPluginPort = "32526"
 
 type IHostGaCommunicator interface {
-	DownloadPackage(ctx log.Logger, appName string, dst string) error
-	DownloadConfig(ctx log.Logger, appName string, dst string) error
-	GetVMAppInfo(ctx log.Logger, appName string) (*VMAppMetadata, error)
+	DownloadPackage(el *logging.ExtensionLogger, appName string, dst string) error
+	DownloadConfig(el *logging.ExtensionLogger, appName string, dst string) error
+	GetVMAppInfo(el *logging.ExtensionLogger, appName string) (*VMAppMetadata, error)
 }
 
 // HostGaCommunicator provides methods for retrieving application metadata and packages
@@ -26,13 +26,13 @@ type IHostGaCommunicator interface {
 type HostGaCommunicator struct{}
 
 // GetVMAppInfo returns the metadata for the application
-func (*HostGaCommunicator) GetVMAppInfo(ctx log.Logger, appName string) (*VMAppMetadata, error) {
+func (*HostGaCommunicator) GetVMAppInfo(el *logging.ExtensionLogger, appName string) (*VMAppMetadata, error) {
 	requestManager, err := getMetadataRequestManager(appName)
 	if err != nil {
 		return nil, errors.Wrapf(err, "Could not create the request manager")
 	}
 
-	resp, err := requesthelper.WithRetries(ctx, requestManager, requesthelper.ActualSleep)
+	resp, err := requesthelper.WithRetries(el, requestManager, requesthelper.ActualSleep)
 	if err != nil {
 		return nil, errors.Wrapf(err, "Metadata request failed with retries.")
 	}
@@ -52,26 +52,26 @@ func (*HostGaCommunicator) GetVMAppInfo(ctx log.Logger, appName string) (*VMAppM
 // DownloadPackage downloads the application package through HostGaPlugin to the specified
 // file. If the download fails, it automatically retrieves at the last received bytes
 // and rebuilds the file from downloaded parts
-func (*HostGaCommunicator) DownloadPackage(ctx log.Logger, appName string, dst string) error {
+func (*HostGaCommunicator) DownloadPackage(el *logging.ExtensionLogger, appName string, dst string) error {
 	requestFactory, err := newPackageDownloadRequestFactory(appName)
 	if err != nil {
 		return errors.Wrapf(err, "Could not create the request factory")
 	}
 
-	err = requestFactory.downloadFile(ctx, dst)
+	err = requestFactory.downloadFile(el, dst)
 	return err
 }
 
 // DownloadConfig downloads the application config through HostGaPlugin to the specified
 // file. If the download fails, it automatically retrieves at the last received bytes
 // and rebuilds the file from downloaded parts
-func (*HostGaCommunicator) DownloadConfig(ctx log.Logger, appName string, dst string) error {
+func (*HostGaCommunicator) DownloadConfig(el *logging.ExtensionLogger, appName string, dst string) error {
 	requestFactory, err := newConfigDownloadRequestFactory(appName)
 	if err != nil {
 		return errors.Wrapf(err, "Could not create the request factory")
 	}
 
-	err = requestFactory.downloadFile(ctx, dst)
+	err = requestFactory.downloadFile(el, dst)
 	return err
 }
 

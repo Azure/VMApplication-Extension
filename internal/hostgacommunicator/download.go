@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/Azure/VMApplication-Extension/internal/requesthelper"
-	"github.com/go-kit/kit/log"
+	"github.com/Azure/azure-extension-platform/pkg/logging"
 	"github.com/pkg/errors"
 )
 
@@ -60,7 +60,7 @@ func newConfigDownloadRequestFactory(appName string) (*downloadRequestFactory, e
 	return &drf, nil
 }
 
-func (u downloadRequestFactory) downloadFile(ctx log.Logger, filename string) error {
+func (u downloadRequestFactory) downloadFile(el *logging.ExtensionLogger, filename string) error {
 	// Delete the file if it already exists
 	err := removeFile(filename)
 	if err != nil {
@@ -71,7 +71,7 @@ func (u downloadRequestFactory) downloadFile(ctx log.Logger, filename string) er
 	attempts := 0
 
 	for finished == false && err == nil && attempts < maxDownloadAttempts {
-		finished, err = u.downloadAttempt(ctx, filename)
+		finished, err = u.downloadAttempt(el, filename)
 		if err != nil {
 			return errors.Wrapf(err, "Unrecoverable error while downloading the file")
 		}
@@ -89,7 +89,7 @@ func (u downloadRequestFactory) downloadFile(ctx log.Logger, filename string) er
 // downloadAttempt tries once to download as much of the file as it can
 // It returns true if the download is now complete, or false if it isn't yet
 // complete. It returns an error if a non-recoverable error occurred
-func (u downloadRequestFactory) downloadAttempt(ctx log.Logger, filename string) (bool, error) {
+func (u downloadRequestFactory) downloadAttempt(el *logging.ExtensionLogger, filename string) (bool, error) {
 	requestManager := requesthelper.GetRequestManager(u, downloadRequestTimeout)
 
 	f, err := os.OpenFile(filename, os.O_RDWR|os.O_CREATE, 0666)
@@ -111,7 +111,7 @@ func (u downloadRequestFactory) downloadAttempt(ctx log.Logger, filename string)
 	}
 
 	u.downloadedBytes = fi.Size()
-	resp, err := requesthelper.WithRetries(ctx, requestManager, requesthelper.ActualSleep)
+	resp, err := requesthelper.WithRetries(el, requestManager, requesthelper.ActualSleep)
 	if err != nil {
 		return true, errors.Wrapf(err, "Download request failed with retries.")
 	}
