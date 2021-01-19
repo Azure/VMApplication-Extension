@@ -6,8 +6,8 @@ import (
 
 	"github.com/Azure/VMApplication-Extension/internal/hostgacommunicator"
 	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
+	"github.com/Azure/azure-extension-platform/pkg/logging"
 	"github.com/Azure/azure-extension-platform/pkg/settings"
-	"github.com/go-kit/kit/log"
 )
 
 type VmAppSetting struct {
@@ -17,7 +17,7 @@ type VmAppSetting struct {
 
 type VmAppProtectedSettings []*VmAppSetting
 
-func getVMAppIncomingCollection(settings *settings.HandlerSettings, communicator hostgacommunicator.IHostGaCommunicator, ctx log.Logger) (packageregistry.VMAppPackageIncomingCollection, error) {
+func getVMAppIncomingCollection(settings *settings.HandlerSettings, communicator hostgacommunicator.IHostGaCommunicator, el *logging.ExtensionLogger) (packageregistry.VMAppPackageIncomingCollection, error) {
 	protSettings, err := getVMAppProtectedSettings(settings)
 	if err != nil {
 		return nil, err
@@ -27,7 +27,7 @@ func getVMAppIncomingCollection(settings *settings.HandlerSettings, communicator
 		if app.ApplicationName == "" {
 			return nil, errors.New("Missing application name")
 		}
-		vmAppInfo, err := communicator.GetVMAppInfo(ctx, app.ApplicationName)
+		vmAppInfo, err := communicator.GetVMAppInfo(el, app.ApplicationName)
 		if err != nil {
 			// TODO: ignore errors?
 			return incomingCollection, err

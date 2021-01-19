@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/Azure/VMApplication-Extension/internal/requesthelper"
+	"github.com/Azure/azure-extension-platform/pkg/logging"
 	"github.com/ahmetalpbalkan/go-httpbin"
-	"github.com/go-kit/kit/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -141,6 +141,6 @@ func (h *healingServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func nopLog() log.Logger {
-	return log.NewNopLogger()
+func nopLog() *logging.ExtensionLogger {
+	return logging.New(nil)
 }

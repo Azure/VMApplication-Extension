@@ -1,12 +1,11 @@
 package requesthelper
 
 import (
-	"fmt"
 	"math"
 	"net/http"
 	"time"
 
-	"github.com/go-kit/kit/log"
+	"github.com/Azure/azure-extension-platform/pkg/logging"
 )
 
 // SleepFunc pauses the execution for at least duration d.
@@ -30,7 +29,7 @@ const (
 // closed on failures). If the retries do not succeed, the last error is returned.
 //
 // It sleeps in exponentially increasing durations between retries.
-func WithRetries(ctx log.Logger, rm *RequestManager, sf SleepFunc) (*http.Response, error) {
+func WithRetries(el *logging.ExtensionLogger, rm *RequestManager, sf SleepFunc) (*http.Response, error) {
 	var lastErr error
 
 	for n := 0; n < expRetryN; n++ {
@@ -40,7 +39,7 @@ func WithRetries(ctx log.Logger, rm *RequestManager, sf SleepFunc) (*http.Respon
 		}
 
 		lastErr = err
-		ctx.Log("error", err)
+		el.Warn("error: %v", err)
 
 		status := -1
 		if resp != nil {
@@ -53,19 +52,18 @@ func WithRetries(ctx log.Logger, rm *RequestManager, sf SleepFunc) (*http.Respon
 
 		// status == -1 the value when there was no http request
 		if status == -1 {
-			ctx.Log("info", fmt.Sprintf("No response returned, skipping retries"))
+			el.Info("No response returned, skipping retries")
 			break
 		}
 
 		if !isTransientHTTPStatusCode(status) {
-			ctx.Log("info", fmt.Sprintf("RequestManager returned %v, skipping retries", status))
+			el.Info("RequestManager returned %v, skipping retries", status)
 			break
 		}
 
 		if n != expRetryN-1 {
 			// have more retries to go, sleep before retrying
 			slp := expRetryK * time.Duration(int(math.Pow(float64(expRetryM), float64(n))))
-			ctx.Log("sleep", slp)
 			sf(slp)
 		}
 	}

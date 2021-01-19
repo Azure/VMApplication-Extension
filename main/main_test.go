@@ -10,9 +10,9 @@ import (
 	"github.com/Azure/VMApplication-Extension/internal/hostgacommunicator"
 	"github.com/Azure/azure-extension-platform/pkg/constants"
 	"github.com/Azure/azure-extension-platform/pkg/handlerenv"
+	"github.com/Azure/azure-extension-platform/pkg/logging"
 	handlersettings "github.com/Azure/azure-extension-platform/pkg/settings"
 	"github.com/Azure/azure-extension-platform/vmextension"
-	"github.com/go-kit/kit/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -21,13 +21,13 @@ type NoopHostGaCommunicator struct {
 	myApp *hostgacommunicator.VMAppMetadata
 }
 
-func (communicator *NoopHostGaCommunicator) DownloadPackage(ctx log.Logger, appName string, dst string) error {
+func (communicator *NoopHostGaCommunicator) DownloadPackage(el *logging.ExtensionLogger, appName string, dst string) error {
 	return nil
 }
-func (communicator *NoopHostGaCommunicator) DownloadConfig(ctx log.Logger, appName string, dst string) error {
+func (communicator *NoopHostGaCommunicator) DownloadConfig(el *logging.ExtensionLogger, appName string, dst string) error {
 	return nil
 }
-func (communicator *NoopHostGaCommunicator) GetVMAppInfo(ctx log.Logger, appName string) (*hostgacommunicator.VMAppMetadata, error) {
+func (communicator *NoopHostGaCommunicator) GetVMAppInfo(el *logging.ExtensionLogger, appName string) (*hostgacommunicator.VMAppMetadata, error) {
 	return communicator.myApp, nil
 }
 
@@ -77,33 +77,29 @@ func Test_failToCreateExtension(t *testing.T) {
 }
 
 func Test_getVMPackageData_noSettings(t *testing.T) {
-	ctx := log.NewSyncLogger(log.NewLogfmtLogger(os.Stdout))
 	ext := createTestVMExtension(t, nil)
-	_, err := vmAppEnableCallback(ctx, ext)
+	_, err := vmAppEnableCallback(ext)
 	require.Error(t, err)
 }
 
 func Test_getVMPackageData_cannotDeserialize(t *testing.T) {
-	ctx := log.NewSyncLogger(log.NewLogfmtLogger(os.Stdout))
 	vmPackages := "yabasnarfle {}"
 
 	ext := createTestVMExtension(t, vmPackages)
-	_, err := vmAppEnableCallback(ctx, ext)
+	_, err := vmAppEnableCallback(ext)
 	require.Error(t, err)
 }
 
 func Test_getVMPackageData_noApplications(t *testing.T) {
-	ctx := log.NewSyncLogger(log.NewLogfmtLogger(os.Stdout))
 	vmApplications := []VmAppSetting{}
 
 	ext := createTestVMExtension(t, vmApplications)
-	_, err := vmAppEnableCallback(ctx, ext)
+	_, err := vmAppEnableCallback(ext)
 	require.NoError(t, err)
 }
 
 func Test_getVMPackageData_valid(t *testing.T) {
 	order := 1
-	ctx := log.NewSyncLogger(log.NewLogfmtLogger(os.Stdout))
 	vmApplications := []VmAppSetting{
 		VmAppSetting{
 			ApplicationName: "iggy",
@@ -114,13 +110,12 @@ func Test_getVMPackageData_valid(t *testing.T) {
 	ext := createTestVMExtension(t, vmApplications)
 	hostGaCommunicator := NoopHostGaCommunicator{}
 	hostGaCommunicator.SetupVMAppInfo("iggy", "1.0.1", "install")
-	_, err := doVmAppEnableCallback(ctx, ext, &hostGaCommunicator)
+	_, err := doVmAppEnableCallback(ext, &hostGaCommunicator)
 	require.NoError(t, err)
 }
 
 func Test_getVMPackageData_noVersion(t *testing.T) {
 	order := 1
-	ctx := log.NewSyncLogger(log.NewLogfmtLogger(os.Stdout))
 	vmApplications := []VmAppSetting{
 		VmAppSetting{
 			ApplicationName: "iggy",
@@ -131,13 +126,12 @@ func Test_getVMPackageData_noVersion(t *testing.T) {
 	hostGaCommunicator := NoopHostGaCommunicator{}
 	hostGaCommunicator.SetupVMAppInfo("iggy", "", "install")
 	ext := createTestVMExtension(t, vmApplications)
-	_, err := doVmAppEnableCallback(ctx, ext, &hostGaCommunicator)
+	_, err := doVmAppEnableCallback(ext, &hostGaCommunicator)
 	require.Error(t, err)
 }
 
 func Test_getVMPackageData_noOperationName(t *testing.T) {
 	order := 1
-	ctx := log.NewSyncLogger(log.NewLogfmtLogger(os.Stdout))
 	vmApplications := []VmAppSetting{
 		VmAppSetting{
 			ApplicationName: "iggy",
@@ -148,13 +142,12 @@ func Test_getVMPackageData_noOperationName(t *testing.T) {
 	hostGaCommunicator := NoopHostGaCommunicator{}
 	hostGaCommunicator.SetupVMAppInfo("iggy", "1.0.1", "")
 	ext := createTestVMExtension(t, vmApplications)
-	_, err := doVmAppEnableCallback(ctx, ext, &hostGaCommunicator)
+	_, err := doVmAppEnableCallback(ext, &hostGaCommunicator)
 	require.Error(t, err)
 }
 
 func Test_getVMPackageData_noApplicationName(t *testing.T) {
 	order := 1
-	ctx := log.NewSyncLogger(log.NewLogfmtLogger(os.Stdout))
 	vmApplications := []VmAppSetting{
 		VmAppSetting{
 			ApplicationName: "",
@@ -165,17 +158,16 @@ func Test_getVMPackageData_noApplicationName(t *testing.T) {
 	hostGaCommunicator := NoopHostGaCommunicator{}
 	hostGaCommunicator.SetupVMAppInfo("iggy", "1.0.1", "install")
 	ext := createTestVMExtension(t, vmApplications)
-	_, err := doVmAppEnableCallback(ctx, ext, &hostGaCommunicator)
+	_, err := doVmAppEnableCallback(ext, &hostGaCommunicator)
 	require.Error(t, err)
 }
 
 func Test_main_nothingToProcess(t *testing.T) {
-	ctx := log.NewSyncLogger(log.NewLogfmtLogger(os.Stdout))
 	vmApplications := []VmAppSetting{}
 	ext := createTestVMExtension(t, vmApplications)
 
 	hostGaCommunicator := NoopHostGaCommunicator{}
-	result, err := doVmAppEnableCallback(ctx, ext, &hostGaCommunicator)
+	result, err := doVmAppEnableCallback(ext, &hostGaCommunicator)
 	require.NoError(t, err)
 	require.Equal(t, "Operation completed", result)
 }

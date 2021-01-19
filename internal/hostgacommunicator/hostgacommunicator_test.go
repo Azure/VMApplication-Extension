@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/Azure/VMApplication-Extension/internal/hostgacommunicator"
-	"github.com/go-kit/kit/log"
+	"github.com/Azure/azure-extension-platform/pkg/logging"
 	"github.com/stretchr/testify/require"
 )
 
@@ -347,6 +347,6 @@ func verifyFileContents(t *testing.T, file string, expected string) {
 	require.Equal(t, expected, actual)
 }
 
-func nopLog() log.Logger {
-	return log.NewNopLogger()
+func nopLog() *logging.ExtensionLogger {
+	return logging.New(nil)
 }
