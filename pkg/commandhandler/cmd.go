@@ -28,12 +28,12 @@ func (commandHandler *CommandHandler) Execute(command string, workingDir string)
 //
 // Ideally, we execute commands only once per sequence number in custom-script-extension,
 // and save their output under /var/lib/waagent/<dir>/download/<seqnum>/*.
-func execCmdInDir(cmd, workdir string) (int, error) {
-	err := os.MkdirAll(workdir, constants.FilePermissions_UserOnly_ReadWriteExecute)
+func execCmdInDir(cmd, workingDir string) (int, error) {
+	err := os.MkdirAll(workingDir, constants.FilePermissions_UserOnly_ReadWriteExecute)
 	if err != nil {
-		return -1, errors.Wrapf(err, "error while creating/accessing directory %s", workdir)
+		return -1, errors.Wrapf(err, "error while creating/accessing directory %s", workingDir)
 	}
-	outFn, errFn := logPaths(workdir)
+	outFn, errFn := logPaths(workingDir)
 
 	outF, err := os.OpenFile(outFn, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, constants.FilePermissions_UserOnly_ReadWrite)
 	if err != nil {
@@ -44,12 +44,14 @@ func execCmdInDir(cmd, workdir string) (int, error) {
 		return -1, errors.Wrapf(err, "failed to open stderr file")
 	}
 
-	exitCode, err := exec2(cmd, workdir, outF, errF)
+	exitCode, err := exec2(cmd, workingDir, outF, errF)
 	return exitCode, err
 }
 
 // logPaths returns stdout and stderr file paths for the specified output
 // directory. It does not create the files.
 func logPaths(dir string) (stdout string, stderr string) {
-	return filepath.Join(dir, "stdout"), filepath.Join(dir, "stderr")
+	stdout = filepath.Join(dir, "stdout")
+	stderr = filepath.Join(dir, "stderr")
+	return
 }

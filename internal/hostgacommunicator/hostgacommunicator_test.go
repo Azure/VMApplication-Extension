@@ -40,14 +40,6 @@ func cleanupTestDir() {
 	os.RemoveAll(testDirPath)
 }
 
-func TestGetVmAppInfo_NoEnvironmentVariable(t *testing.T) {
-	os.Setenv(WireProtocolAddress, "")
-	hgc := &HostGaCommunicator{}
-	_, err := hgc.GetVMAppInfo(nopLog(), myAppName)
-	require.NotNil(t, err, "did not fail")
-	require.Contains(t, err.Error(), "WireProtocolAddress not present in environment", "Wrong message for non-existent environment variable")
-}
-
 func TestGetVmAppInfo_InvalidUri(t *testing.T) {
 	os.Setenv(WireProtocolAddress, "h%t!p:notgoingtohappen!")
 	hgc := &HostGaCommunicator{}
@@ -142,14 +134,6 @@ func TestGetVmAppInfo_ValidResponse(t *testing.T) {
 	require.Equal(t, expected.UpdateCommand, actual.UpdateCommand)
 	require.Equal(t, expected.RemoveCommand, actual.RemoveCommand)
 	require.Equal(t, expected.DirectDownloadOnly, fmt.Sprintf("%v", actual.DirectDownloadOnly))
-}
-
-func TestDownloadPackage_NoEnvironmentVariable(t *testing.T) {
-	os.Setenv(WireProtocolAddress, "")
-	hgc := &HostGaCommunicator{}
-	err := hgc.DownloadPackage(nopLog(), myAppName, nonExistentFile)
-	require.NotNil(t, err, "did not fail")
-	require.Contains(t, err.Error(), "WireProtocolAddress not present in environment", "Wrong message for non-existent environment variable")
 }
 
 func TestDownloadPackage_CannotRemoveExistingFile(t *testing.T) {
@@ -309,13 +293,6 @@ func TestDownloadPackage_MultipleCallDownload(t *testing.T) {
 	verifyFileContents(t, filePath, expected)
 }
 
-func TestDownloadConfig_NoEnvironmentVariable(t *testing.T) {
-	os.Setenv(WireProtocolAddress, "")
-	hgc := &HostGaCommunicator{}
-	err := hgc.DownloadConfig(nopLog(), myAppName, nonExistentFile)
-	require.NotNil(t, err, "did not fail")
-	require.Contains(t, err.Error(), "WireProtocolAddress not present in environment", "Wrong message for non-existent environment variable")
-}
 
 func TestDownloadConfig_SingeCallDownload(t *testing.T) {
 	expected := "file contents don't matter"
@@ -339,40 +316,39 @@ func TestDownloadConfig_SingeCallDownload(t *testing.T) {
 }
 
 func TestGetOperationUri(t *testing.T){
-	os.Setenv(WireProtocolAddress, "10.0.0.1")
 	appName := "myApp"
 	operation := "metadata"
+
+	os.Setenv(WireProtocolAddress, "10.0.0.1")
 	uri, err := getOperationURI(appName, operation)
 	assert.NoError(t, err)
 	assert.Equal(t, fmt.Sprintf("http://10.0.0.1:%s/applications/%s/%s", hostGaPluginPort, appName, operation), uri)
 
 	os.Setenv(WireProtocolAddress, "10.0.0.1:1234")
-	appName = "myApp"
-	operation = "metadata"
 	uri, err = getOperationURI(appName, operation)
 	assert.NoError(t, err)
 	assert.Equal(t, fmt.Sprintf("http://10.0.0.1:1234/applications/%s/%s", appName, operation), uri)
 
 	os.Setenv(WireProtocolAddress, "foo.bar.com")
-	appName = "myApp"
-	operation = "metadata"
 	uri, err = getOperationURI(appName, operation)
 	assert.NoError(t, err)
 	assert.Equal(t, fmt.Sprintf("http://foo.bar.com:%s/applications/%s/%s", hostGaPluginPort, appName, operation), uri)
 
 	os.Setenv(WireProtocolAddress, "foo.bar.com:1568")
-	appName = "myApp"
-	operation = "metadata"
 	uri, err = getOperationURI(appName, operation)
 	assert.NoError(t, err)
 	assert.Equal(t, fmt.Sprintf("http://foo.bar.com:1568/applications/%s/%s", appName, operation), uri)
 
 	os.Setenv(WireProtocolAddress, "https://foo.bar.com:1568")
-	appName = "myApp"
-	operation = "metadata"
 	uri, err = getOperationURI(appName, operation)
 	assert.NoError(t, err)
 	assert.Equal(t, fmt.Sprintf("https://foo.bar.com:1568/applications/%s/%s", appName, operation), uri)
+
+	// test fallback address for Wire Server
+	os.Setenv(WireProtocolAddress, "")
+	uri, err = getOperationURI(appName, operation)
+	assert.NoError(t, err)
+	assert.Equal(t, fmt.Sprintf("%s/applications/%s/%s",wireServerFallbackAddress, appName, operation), uri)
 
 }
 

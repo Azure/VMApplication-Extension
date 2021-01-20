@@ -11,6 +11,8 @@ import (
 )
 
 const hostGaPluginPort = "32526"
+const WireProtocolAddress = "AZURE_GUEST_AGENT_WIRE_PROTOCOL_ADDRESS"
+const wireServerFallbackAddress = "http://168.63.129.16:32526"
 
 type IHostGaCommunicator interface {
 	DownloadPackage(el *logging.ExtensionLogger, appName string, dst string) error
@@ -75,7 +77,12 @@ func (*HostGaCommunicator) DownloadConfig(el *logging.ExtensionLogger, appName s
 func getOperationURI(appName string, operation string) (string, error) {
 	baseAddress := os.Getenv(WireProtocolAddress)
 	if baseAddress == "" {
-		return "", errors.New("WireProtocolAddress not present in environment")
+		//TODO: log that we are using fallback address
+		uri, err := url.Parse(wireServerFallbackAddress)
+		if err != nil{
+			return "", errors.New("Failed to set WireProtocol address to the fallback address " + wireServerFallbackAddress)
+		}
+		return uri.String(), nil
 	}
 
 	uri, err := url.Parse(baseAddress)
