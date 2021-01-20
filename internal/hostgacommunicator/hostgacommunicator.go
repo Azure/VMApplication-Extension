@@ -26,7 +26,7 @@ type HostGaCommunicator struct{}
 
 // GetVMAppInfo returns the metadata for the application
 func (*HostGaCommunicator) GetVMAppInfo(el *logging.ExtensionLogger, appName string) (*VMAppMetadata, error) {
-	requestManager, err := getMetadataRequestManager(appName)
+	requestManager, err := getMetadataRequestManager(el, appName)
 	if err != nil {
 		return nil, errors.Wrapf(err, "Could not create the request manager")
 	}
@@ -52,7 +52,7 @@ func (*HostGaCommunicator) GetVMAppInfo(el *logging.ExtensionLogger, appName str
 // file. If the download fails, it automatically retrieves at the last received bytes
 // and rebuilds the file from downloaded parts
 func (*HostGaCommunicator) DownloadPackage(el *logging.ExtensionLogger, appName string, dst string) error {
-	requestFactory, err := newPackageDownloadRequestFactory(appName)
+	requestFactory, err := newPackageDownloadRequestFactory(el, appName)
 	if err != nil {
 		return errors.Wrapf(err, "Could not create the request factory")
 	}
@@ -65,7 +65,7 @@ func (*HostGaCommunicator) DownloadPackage(el *logging.ExtensionLogger, appName 
 // file. If the download fails, it automatically retrieves at the last received bytes
 // and rebuilds the file from downloaded parts
 func (*HostGaCommunicator) DownloadConfig(el *logging.ExtensionLogger, appName string, dst string) error {
-	requestFactory, err := newConfigDownloadRequestFactory(appName)
+	requestFactory, err := newConfigDownloadRequestFactory(el, appName)
 	if err != nil {
 		return errors.Wrapf(err, "Could not create the request factory")
 	}
@@ -74,14 +74,15 @@ func (*HostGaCommunicator) DownloadConfig(el *logging.ExtensionLogger, appName s
 	return err
 }
 
-func getOperationURI(appName string, operation string) (string, error) {
+func getOperationURI(el *logging.ExtensionLogger, appName string, operation string) (string, error) {
 	baseAddress := os.Getenv(WireProtocolAddress)
 	if baseAddress == "" {
-		//TODO: log that we are using fallback address
+		el.Warn("environment variable %s not set, using WireProtocol fallback address %s", WireProtocolAddress, wireServerFallbackAddress)
 		uri, err := url.Parse(wireServerFallbackAddress)
 		if err != nil{
 			return "", errors.New("Failed to set WireProtocol address to the fallback address " + wireServerFallbackAddress)
 		}
+		uri.Path = fmt.Sprintf("applications/%s/%s", appName, operation)
 		return uri.String(), nil
 	}
 

@@ -1,6 +1,7 @@
 package hostgacommunicator
 
 import (
+	"github.com/Azure/azure-extension-platform/pkg/logging"
 	"net/http"
 	"strconv"
 	"time"
@@ -62,8 +63,8 @@ type metadataRequestFactory struct {
 	url string
 }
 
-func newMetadataRequestFactory(appName string) (*metadataRequestFactory, error) {
-	url, err := getOperationURI(appName, metadataOperation)
+func newMetadataRequestFactory(el *logging.ExtensionLogger, appName string) (*metadataRequestFactory, error) {
+	url, err := getOperationURI(el, appName, metadataOperation)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to obtain operationURI")
 	}
@@ -76,8 +77,8 @@ func (u metadataRequestFactory) GetRequest() (*http.Request, error) {
 	return http.NewRequest("GET", u.url, nil)
 }
 
-func getMetadataRequestManager(appName string) (*requesthelper.RequestManager, error) {
-	factory, err := newMetadataRequestFactory(appName)
+func getMetadataRequestManager(el *logging.ExtensionLogger, appName string) (*requesthelper.RequestManager, error) {
+	factory, err := newMetadataRequestFactory(el, appName)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to create request factory")
 	}

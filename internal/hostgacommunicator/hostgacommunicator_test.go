@@ -12,7 +12,6 @@ import (
 	"path"
 	"testing"
 
-	"github.com/Azure/VMApplication-Extension/internal/hostgacommunicator"
 	"github.com/Azure/azure-extension-platform/pkg/logging"
 	"github.com/stretchr/testify/require"
 )
@@ -319,37 +318,37 @@ func TestGetOperationUri(t *testing.T){
 	appName := "myApp"
 	operation := "metadata"
 
+	el := logging.New(nil)
 	os.Setenv(WireProtocolAddress, "10.0.0.1")
-	uri, err := getOperationURI(appName, operation)
+	uri, err := getOperationURI(el, appName, operation)
 	assert.NoError(t, err)
 	assert.Equal(t, fmt.Sprintf("http://10.0.0.1:%s/applications/%s/%s", hostGaPluginPort, appName, operation), uri)
 
 	os.Setenv(WireProtocolAddress, "10.0.0.1:1234")
-	uri, err = getOperationURI(appName, operation)
+	uri, err = getOperationURI(el, appName, operation)
 	assert.NoError(t, err)
 	assert.Equal(t, fmt.Sprintf("http://10.0.0.1:1234/applications/%s/%s", appName, operation), uri)
 
 	os.Setenv(WireProtocolAddress, "foo.bar.com")
-	uri, err = getOperationURI(appName, operation)
+	uri, err = getOperationURI(el, appName, operation)
 	assert.NoError(t, err)
 	assert.Equal(t, fmt.Sprintf("http://foo.bar.com:%s/applications/%s/%s", hostGaPluginPort, appName, operation), uri)
 
 	os.Setenv(WireProtocolAddress, "foo.bar.com:1568")
-	uri, err = getOperationURI(appName, operation)
+	uri, err = getOperationURI(el, appName, operation)
 	assert.NoError(t, err)
 	assert.Equal(t, fmt.Sprintf("http://foo.bar.com:1568/applications/%s/%s", appName, operation), uri)
 
 	os.Setenv(WireProtocolAddress, "https://foo.bar.com:1568")
-	uri, err = getOperationURI(appName, operation)
+	uri, err = getOperationURI(el, appName, operation)
 	assert.NoError(t, err)
 	assert.Equal(t, fmt.Sprintf("https://foo.bar.com:1568/applications/%s/%s", appName, operation), uri)
 
 	// test fallback address for Wire Server
 	os.Setenv(WireProtocolAddress, "")
-	uri, err = getOperationURI(appName, operation)
+	uri, err = getOperationURI(el, appName, operation)
 	assert.NoError(t, err)
 	assert.Equal(t, fmt.Sprintf("%s/applications/%s/%s",wireServerFallbackAddress, appName, operation), uri)
-
 }
 
 func verifyFileContents(t *testing.T, file string, expected string) {
