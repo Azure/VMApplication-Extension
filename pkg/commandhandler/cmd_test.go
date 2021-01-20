@@ -44,6 +44,6 @@ func TestNonExistingCommand(t *testing.T) {
 	defer cleanupTest()
 	cmd := New()
 	retcode, err := cmd.Execute("command_does_not_exist", workingDir)
-	assert.Equal(t, 1, retcode)
+	assert.Equal(t, commandNotExistReturnCode, retcode)
 	assert.Error(t, err)
 }

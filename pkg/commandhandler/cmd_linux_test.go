@@ -1,3 +1,6 @@
 package commandhandler
 
-const lineReturnCharacter = "\n"
+const (
+	lineReturnCharacter = "\n"
+	commandNotExistReturnCode = 127
+)
