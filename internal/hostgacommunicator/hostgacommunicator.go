@@ -77,11 +77,8 @@ func (*HostGaCommunicator) DownloadConfig(el *logging.ExtensionLogger, appName s
 func getOperationURI(el *logging.ExtensionLogger, appName string, operation string) (string, error) {
 	baseAddress := os.Getenv(WireProtocolAddress)
 	if baseAddress == "" {
-		el.Warn("environment variable %s not set, using WireProtocol fallback address %s", WireProtocolAddress, wireServerFallbackAddress)
-		uri, err := url.Parse(wireServerFallbackAddress)
-		if err != nil{
-			return "", errors.New("Failed to set WireProtocol address to the fallback address " + wireServerFallbackAddress)
-		}
+		el.Warn("environment variable %s not set, using WireProtocol fallback address", WireProtocolAddress)
+		uri, _ := url.Parse(wireServerFallbackAddress)
 		uri.Path = fmt.Sprintf("applications/%s/%s", appName, operation)
 		return uri.String(), nil
 	}
