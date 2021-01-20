@@ -3,22 +3,21 @@ package hostgacommunicator
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"github.com/Azure/azure-extension-platform/pkg/logging"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path"
 	"testing"
-
-	"github.com/Azure/azure-extension-platform/pkg/logging"
-	"github.com/stretchr/testify/require"
 )
 
 const (
-	myAppName       = "chipmunkdetector"
-	nonExistentFile = "blarf"
+	myAppName = "chipmunkdetector"
 )
 
 var testDirPath string
@@ -139,8 +138,12 @@ func TestDownloadPackage_CannotRemoveExistingFile(t *testing.T) {
 	createTestDir(t)
 	defer cleanupTestDir()
 	filePath := path.Join(testDirPath, "LockedFile")
-	f, err := os.Create(filePath)
-	defer f.Close()
+	lf, err := os.Create(filePath)
+	defer lf.Close()
+	removeFileFunc = func(filename string) error {
+		return errors.New("Could not remove the existing file")
+	}
+	defer func() { removeFileFunc = removeFile }()
 	require.Nil(t, err, "File creation failed")
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -157,7 +160,7 @@ func TestDownloadPackage_CannotRemoveExistingFile(t *testing.T) {
 }
 
 func TestDownloadPackage_InvalidPath(t *testing.T) {
-	filePath := "aaargh!$(*&#$%)($"
+	filePath := string(make([]byte, 5)) // null characters in file names are invalid in both windows and linux
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -292,7 +295,6 @@ func TestDownloadPackage_MultipleCallDownload(t *testing.T) {
 	verifyFileContents(t, filePath, expected)
 }
 
-
 func TestDownloadConfig_SingeCallDownload(t *testing.T) {
 	expected := "file contents don't matter"
 	createTestDir(t)
@@ -314,7 +316,7 @@ func TestDownloadConfig_SingeCallDownload(t *testing.T) {
 	verifyFileContents(t, filePath, expected)
 }
 
-func TestGetOperationUri(t *testing.T){
+func TestGetOperationUri(t *testing.T) {
 	appName := "myApp"
 	operation := "metadata"
 
@@ -348,7 +350,7 @@ func TestGetOperationUri(t *testing.T){
 	os.Setenv(WireProtocolAddress, "")
 	uri, err = getOperationURI(el, appName, operation)
 	assert.NoError(t, err)
-	assert.Equal(t, fmt.Sprintf("%s/applications/%s/%s",wireServerFallbackAddress, appName, operation), uri)
+	assert.Equal(t, fmt.Sprintf("%s/applications/%s/%s", wireServerFallbackAddress, appName, operation), uri)
 }
 
 func verifyFileContents(t *testing.T, file string, expected string) {

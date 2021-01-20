@@ -25,6 +25,7 @@ const (
 
 var (
 	downloadRequestTimeout = 1 * time.Hour
+	removeFileFunc         = removeFile
 )
 
 type downloadRequestFactory struct {
@@ -62,7 +63,7 @@ func newConfigDownloadRequestFactory(el *logging.ExtensionLogger, appName string
 
 func (u downloadRequestFactory) downloadFile(el *logging.ExtensionLogger, filename string) error {
 	// Delete the file if it already exists
-	err := removeFile(filename)
+	err := removeFileFunc(filename)
 	if err != nil {
 		return errors.Wrapf(err, "Could not remove the existing file")
 	}
