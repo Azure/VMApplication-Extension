@@ -23,7 +23,7 @@ func TestEchoCommand(t *testing.T) {
 	assert.Equal(t, 0, retCode, "return code should be 0")
 	fileBytes, err :=  ioutil.ReadFile(path.Join(workingDir, "stdout"))
 	assert.NoError(t, err)
-	stdoutResult := strings.TrimSuffix(string(fileBytes), lineReturnCharacter)
+	stdoutResult := strings.TrimSuffix(strings.TrimSuffix(string(fileBytes), lineReturnCharacter), " ")
 	assert.Equal(t, "1 2 3 4", stdoutResult)
 }
 
@@ -36,8 +36,8 @@ func TestStderr(t *testing.T) {
 	assert.Equal(t, 0, retCode, "return code should be 0")
 	fileBytes, err :=  ioutil.ReadFile(path.Join(workingDir, "stderr"))
 	assert.NoError(t, err)
-	stdoutResult := strings.TrimSuffix(string(fileBytes), lineReturnCharacter)
-	assert.Equal(t, "1 2 3 4 ", stdoutResult)
+	stdoutResult := strings.TrimSuffix(strings.TrimSuffix(string(fileBytes), lineReturnCharacter), " ")
+	assert.Equal(t, "1 2 3 4", stdoutResult)
 }
 
 func TestNonExistingCommand(t *testing.T) {
