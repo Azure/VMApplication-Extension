@@ -53,7 +53,7 @@ func getHTTPClient(timeout time.Duration) *http.Client {
 func (rm *RequestManager) MakeRequest() (*http.Response, error) {
 	req, err := rm.requestFactory.GetRequest()
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to create http request")
+		return nil, err
 	}
 
 	resp, err := rm.httpClient.Do(req)

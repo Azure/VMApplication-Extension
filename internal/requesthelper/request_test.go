@@ -18,27 +18,63 @@ var (
 	testRequestTimeout = 2 * time.Second
 )
 
-type testUrlRequest struct{ url string }
-type badDownloader struct{ calls int }
+type requestError struct {
+	timeout   bool
+	temporary bool
+}
+
+func (u requestError) Error() string {
+	return "something happened"
+}
+
+func (u requestError) Temporary() bool {
+	return u.temporary
+}
+
+func (u requestError) Timeout() bool {
+	return u.timeout
+}
+
+type testUrlRequest struct {
+	calls int
+	url   string
+}
+
+type badDownloader struct{}
+
+type errorDownloader struct {
+	calls int
+	err   requestError
+}
 
 func (b *badDownloader) GetRequest() (*http.Request, error) {
-	b.calls++
 	return nil, errors.New("expected error")
 }
 
-func NewTestURLRequest(url string) requesthelper.RequestFactory {
-	return testUrlRequest{url}
+func NewTestURLRequest(url string) *testUrlRequest {
+	return &testUrlRequest{0, url}
 }
 
-func (u testUrlRequest) GetRequest() (*http.Request, error) {
+func NewErrorRequest(isTemporary bool, isTimeout bool) *errorDownloader {
+	err := requestError{isTimeout, isTemporary}
+	return &errorDownloader{0, err}
+}
+
+func (u *testUrlRequest) GetRequest() (*http.Request, error) {
+	u.calls++
 	return http.NewRequest("GET", u.url, nil)
+}
+
+func (e *errorDownloader) GetRequest() (*http.Request, error) {
+	e.calls++
+	return nil, e.err
 }
 
 func TestMakeRequest_wrapsGetRequestError(t *testing.T) {
 	rm := requesthelper.GetRequestManager(new(badDownloader), testRequestTimeout)
 	_, err := rm.MakeRequest()
 	require.NotNil(t, err)
-	require.EqualError(t, err, "failed to create http request: expected error")
+	require.EqualError(t, err, "expected error")
 }
 
 func TestMakeRequest_wrapsHTTPError(t *testing.T) {
