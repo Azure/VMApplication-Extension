@@ -40,7 +40,7 @@ type testUrlRequest struct {
 	url   string
 }
 
-type badDownloader struct{}
+type badDownloader struct{ calls int }
 
 type errorDownloader struct {
 	calls int
@@ -48,6 +48,7 @@ type errorDownloader struct {
 }
 
 func (b *badDownloader) GetRequest() (*http.Request, error) {
+	b.calls++
 	return nil, errors.New("expected error")
 }
 
@@ -81,7 +82,7 @@ func TestMakeRequest_wrapsHTTPError(t *testing.T) {
 	rm := requesthelper.GetRequestManager(NewTestURLRequest("bad url"), testRequestTimeout)
 	_, err := rm.MakeRequest()
 	require.NotNil(t, err)
-	require.Contains(t, err.Error(), "http request failed:")
+	require.Contains(t, err.Error(), "unsupported protocol scheme")
 }
 
 func TestMakeRequest_requestTimeout(t *testing.T) {

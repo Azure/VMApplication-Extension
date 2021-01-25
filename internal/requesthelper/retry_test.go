@@ -91,6 +91,16 @@ func TestWithRetries_failing_validateNumberOfCalls(t *testing.T) {
 	require.EqualValues(t, 7, d.calls, "calls exactly expRetryN times")
 }
 
+func TestWithRetries_failedCreateRequest(t *testing.T) {
+	bd := &badDownloader{}
+	rm := requesthelper.GetRequestManager(bd, testRequestTimeout)
+
+	sr := new(sleepRecorder)
+	_, err := requesthelper.WithRetries(nopLog(), rm, sr.Sleep)
+	require.EqualError(t, err, "expected error")
+	require.EqualValues(t, 1, bd.calls, "called exactly one time")
+}
+
 func TestWithRetries_requestFailedTimeout(t *testing.T) {
 	er := NewErrorRequest(false, true)
 	rm := requesthelper.GetRequestManager(er, testRequestTimeout)
@@ -118,7 +128,7 @@ func TestWithRetries_requestFailedOther(t *testing.T) {
 	sr := new(sleepRecorder)
 	_, err := requesthelper.WithRetries(nopLog(), rm, sr.Sleep)
 	require.EqualError(t, err, "something happened")
-	require.EqualValues(t, 1, er.calls, "calls exactly expRetryN times")
+	require.EqualValues(t, 1, er.calls, "called exactly one time")
 }
 
 func TestWithRetries_failingBadStatusCode_validateSleeps(t *testing.T) {

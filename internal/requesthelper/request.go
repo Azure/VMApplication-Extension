@@ -5,8 +5,6 @@ import (
 	"net"
 	"net/http"
 	"time"
-
-	"github.com/pkg/errors"
 )
 
 // RequestFactory describes a method to create HTTP requests.
@@ -58,7 +56,7 @@ func (rm *RequestManager) MakeRequest() (*http.Response, error) {
 
 	resp, err := rm.httpClient.Do(req)
 	if err != nil {
-		return resp, errors.Wrapf(err, "http request failed")
+		return resp, err
 	}
 
 	if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusPartialContent {
