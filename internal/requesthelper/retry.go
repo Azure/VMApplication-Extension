@@ -52,11 +52,27 @@ func WithRetries(el *logging.ExtensionLogger, rm *RequestManager, sf SleepFunc) 
 
 		// status == -1 the value when there was no http request
 		if status == -1 {
-			el.Info("No response returned, skipping retries")
-			break
-		}
+			te, haste := lastErr.(interface {
+				Temporary() bool
+			})
+			to, hasto := lastErr.(interface {
+				Timeout() bool
+			})
 
-		if !isTransientHTTPStatusCode(status) {
+			if haste || hasto {
+				if haste && te.Temporary() {
+					el.Info("Temporary error occurred. Retrying: %v", lastErr)
+				} else if hasto && to.Timeout() {
+					el.Info("Timeout error occurred. Retrying: %v", lastErr)
+				} else {
+					el.Info("Non-timeout, non-temporary error occurred, skipping retries: %v", lastErr)
+					break
+				}
+			} else {
+				el.Info("No response returned and unexpected error, skipping retries")
+				break
+			}
+		} else if !isTransientHTTPStatusCode(status) {
 			el.Info("RequestManager returned %v, skipping retries", status)
 			break
 		}
