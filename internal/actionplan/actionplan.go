@@ -221,7 +221,7 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 			}
 		}
 
-		retCode, err := commandHandler.Execute(commandToExecute, downloadPath)
+		retCode, err := commandHandler.Execute(commandToExecute, downloadPath, actionPlan.logger)
 		if err != nil {
 			errorMessageToReturn = errors.Wrapf(err, "Error executing command %v", commandToExecute)
 		}

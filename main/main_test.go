@@ -230,5 +230,6 @@ func createTestVMExtension(t *testing.T, settings interface{}) *vmextension.VMEx
 			DataFolder:    path.Join(maintestdir, "data/"),
 		},
 		Settings: hs,
+		ExtensionLogger: logging.New(nil),
 	}
 }

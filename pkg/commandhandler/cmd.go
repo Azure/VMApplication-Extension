@@ -2,13 +2,14 @@ package commandhandler
 
 import (
 	"github.com/Azure/azure-extension-platform/pkg/constants"
+	"github.com/Azure/azure-extension-platform/pkg/logging"
 	"github.com/pkg/errors"
 	"os"
 	"path/filepath"
 )
 
 type ICommandHandler interface {
-	Execute(command string, workingDir string) (returnCode int, err error)
+	Execute(command string, workingDir string, el *logging.ExtensionLogger) (returnCode int, err error)
 }
 
 type CommandHandler struct {
@@ -18,8 +19,8 @@ func New() *CommandHandler {
 	return &CommandHandler{}
 }
 
-func (commandHandler *CommandHandler) Execute(command string, workingDir string) (returnCode int, err error) {
-	return execCmdInDir(command, workingDir)
+func (commandHandler *CommandHandler) Execute(command string, workingDir string, el *logging.ExtensionLogger) (returnCode int, err error) {
+	return execCmdInDir(command, workingDir, el)
 }
 
 // execCmdInDir executes the given command in given directory and saves output
@@ -28,7 +29,7 @@ func (commandHandler *CommandHandler) Execute(command string, workingDir string)
 //
 // Ideally, we execute commands only once per sequence number in custom-script-extension,
 // and save their output under /var/lib/waagent/<dir>/download/<seqnum>/*.
-func execCmdInDir(cmd, workingDir string) (int, error) {
+func execCmdInDir(cmd, workingDir string, el *logging.ExtensionLogger) (int, error) {
 	err := os.MkdirAll(workingDir, constants.FilePermissions_UserOnly_ReadWriteExecute)
 	if err != nil {
 		return -1, errors.Wrapf(err, "error while creating/accessing directory %s", workingDir)
@@ -45,6 +46,20 @@ func execCmdInDir(cmd, workingDir string) (int, error) {
 	}
 
 	exitCode, err := exec2(cmd, workingDir, outF, errF)
+
+	// add the output of the command to the log file
+	el.Info("command: %s", cmd)
+	stdOutFile, err2 := os.OpenFile(outFn, os.O_RDONLY, constants.FilePermissions_UserOnly_ReadWrite)
+	if err2 == nil{
+		el.InfoFromStream("stdout:", stdOutFile)
+		stdOutFile.Close()
+	}
+	stdErrFile, err3 := os.OpenFile(errFn, os.O_RDONLY, constants.FilePermissions_UserOnly_ReadWrite)
+	if err3 == nil {
+		el.InfoFromStream("stderr: %s", stdErrFile)
+		stdErrFile.Close()
+	}
+
 	return exitCode, err
 }
 

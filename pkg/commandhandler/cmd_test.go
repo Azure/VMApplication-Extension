@@ -1,6 +1,7 @@
 package commandhandler
 
 import (
+	"github.com/Azure/azure-extension-platform/pkg/logging"
 	"github.com/stretchr/testify/assert"
 	"io/ioutil"
 	"os"
@@ -15,10 +16,12 @@ func cleanupTest() {
 	os.RemoveAll(workingDir)
 }
 
+var extensionLogger = logging.New(nil)
+
 func TestEchoCommand(t *testing.T) {
 	defer cleanupTest()
 	cmd := New()
-	retCode, err := cmd.Execute("echo 1 2 3 4", workingDir)
+	retCode, err := cmd.Execute("echo 1 2 3 4", workingDir, extensionLogger)
 	assert.NoError(t, err)
 	assert.Equal(t, 0, retCode, "return code should be 0")
 	fileBytes, err :=  ioutil.ReadFile(path.Join(workingDir, "stdout"))
@@ -31,7 +34,7 @@ func TestEchoCommand(t *testing.T) {
 func TestStderr(t *testing.T) {
 	defer cleanupTest()
 	cmd := New()
-	retCode, err := cmd.Execute("echo 1 2 3 4 1>&2", workingDir)
+	retCode, err := cmd.Execute("echo 1 2 3 4 1>&2", workingDir, extensionLogger)
 	assert.NoError(t, err)
 	assert.Equal(t, 0, retCode, "return code should be 0")
 	fileBytes, err :=  ioutil.ReadFile(path.Join(workingDir, "stderr"))
@@ -43,7 +46,7 @@ func TestStderr(t *testing.T) {
 func TestNonExistingCommand(t *testing.T) {
 	defer cleanupTest()
 	cmd := New()
-	retcode, err := cmd.Execute("command_does_not_exist", workingDir)
+	retcode, err := cmd.Execute("command_does_not_exist", workingDir, extensionLogger)
 	assert.Equal(t, commandNotExistReturnCode, retcode)
 	assert.Error(t, err)
 }
