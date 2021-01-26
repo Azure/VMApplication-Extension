@@ -82,12 +82,53 @@ func TestWithRetries_failing_validateNumberOfCalls(t *testing.T) {
 	srv := httptest.NewServer(httpbin.GetMux())
 	defer srv.Close()
 
-	bd := new(badDownloader)
-	rm := requesthelper.GetRequestManager(bd, testRequestTimeout)
+	d := NewTestURLRequest(srv.URL + "/status/429")
+	rm := requesthelper.GetRequestManager(d, testRequestTimeout)
+
 	sr := new(sleepRecorder)
 	_, err := requesthelper.WithRetries(nopLog(), rm, sr.Sleep)
-	require.Contains(t, err.Error(), "expected error", "error is preserved")
-	require.EqualValues(t, 7, bd.calls, "calls exactly expRetryN times")
+	require.EqualError(t, err, "unexpected status code: actual=429 expected=200")
+	require.EqualValues(t, 7, d.calls, "calls exactly expRetryN times")
+}
+
+func TestWithRetries_failedCreateRequest(t *testing.T) {
+	bd := &badDownloader{}
+	rm := requesthelper.GetRequestManager(bd, testRequestTimeout)
+
+	sr := new(sleepRecorder)
+	_, err := requesthelper.WithRetries(nopLog(), rm, sr.Sleep)
+	require.EqualError(t, err, "expected error")
+	require.EqualValues(t, 1, bd.calls, "called exactly one time")
+}
+
+func TestWithRetries_requestFailedTimeout(t *testing.T) {
+	er := NewErrorRequest(false, true)
+	rm := requesthelper.GetRequestManager(er, testRequestTimeout)
+
+	sr := new(sleepRecorder)
+	_, err := requesthelper.WithRetries(nopLog(), rm, sr.Sleep)
+	require.EqualError(t, err, "something happened")
+	require.EqualValues(t, 7, er.calls, "calls exactly expRetryN times")
+}
+
+func TestWithRetries_requestFailedTemporary(t *testing.T) {
+	er := NewErrorRequest(true, false)
+	rm := requesthelper.GetRequestManager(er, testRequestTimeout)
+
+	sr := new(sleepRecorder)
+	_, err := requesthelper.WithRetries(nopLog(), rm, sr.Sleep)
+	require.EqualError(t, err, "something happened")
+	require.EqualValues(t, 7, er.calls, "calls exactly expRetryN times")
+}
+
+func TestWithRetries_requestFailedOther(t *testing.T) {
+	er := NewErrorRequest(false, false)
+	rm := requesthelper.GetRequestManager(er, testRequestTimeout)
+
+	sr := new(sleepRecorder)
+	_, err := requesthelper.WithRetries(nopLog(), rm, sr.Sleep)
+	require.EqualError(t, err, "something happened")
+	require.EqualValues(t, 1, er.calls, "called exactly one time")
 }
 
 func TestWithRetries_failingBadStatusCode_validateSleeps(t *testing.T) {
@@ -100,7 +141,6 @@ func TestWithRetries_failingBadStatusCode_validateSleeps(t *testing.T) {
 	sr := new(sleepRecorder)
 	_, err := requesthelper.WithRetries(nopLog(), rm, sr.Sleep)
 	require.EqualError(t, err, "unexpected status code: actual=429 expected=200")
-
 	require.Equal(t, sleepSchedule, []time.Duration(*sr))
 }
 
