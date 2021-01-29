@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"time"
 
@@ -69,8 +70,18 @@ func getExtensionAndRun() error {
 
 // Callback indicating the operation is enable and the sequence number has changed
 func vmAppEnableCallback(ext *vmextensionhelper.VMExtension) (string, error) {
+	ext.ExtensionEvents.LogInformationalEvent("Starting", "VmApplications extension starting")
 	hostGaCommunicator := hostgacommunicator.HostGaCommunicator{}
-	return doVmAppEnableCallback(ext, &hostGaCommunicator)
+	result, err := doVmAppEnableCallback(ext, &hostGaCommunicator)
+	if err == nil {
+		ext.ExtensionEvents.LogInformationalEvent("Completed", "VmApplications extension finished. Result=Success")
+	} else {
+		ext.ExtensionEvents.LogInformationalEvent(
+			"Completed",
+			fmt.Sprintf("VmApplications extension finished. Result=Failure;Reason=%v", err.Error()))
+	}
+
+	return result, err
 }
 
 func doVmAppEnableCallback(ext *vmextensionhelper.VMExtension, hostGaCommunicator hostgacommunicator.IHostGaCommunicator) (string, error) {
@@ -95,7 +106,7 @@ func doVmAppEnableCallback(ext *vmextensionhelper.VMExtension, hostGaCommunicato
 
 	commandHandler := commandhandler.CommandHandler{}
 
-	err = actionPlan.Execute(packageRegistry, &commandHandler)
+	err = actionPlan.Execute(packageRegistry, ext.ExtensionEvents, &commandHandler)
 
 	if err != nil {
 		// actionPlan.Execute can fail partially

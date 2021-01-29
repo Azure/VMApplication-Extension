@@ -1,6 +1,7 @@
 package actionplan
 
 import (
+	"fmt"
 	"math"
 	"os"
 	"path"
@@ -12,6 +13,7 @@ import (
 	"github.com/Azure/VMApplication-Extension/pkg/utils"
 	"github.com/Azure/azure-extension-platform/pkg/constants"
 	"github.com/Azure/azure-extension-platform/pkg/extensionerrors"
+	"github.com/Azure/azure-extension-platform/pkg/extensionevents"
 	"github.com/Azure/azure-extension-platform/pkg/handlerenv"
 	"github.com/Azure/azure-extension-platform/pkg/logging"
 	"github.com/pkg/errors"
@@ -107,7 +109,7 @@ func (actionPlan *ActionPlan) insertOperation(order *int, dependentActions1 ...*
 	}
 }
 
-func (actionPlan *ActionPlan) Execute(registryHandler packageregistry.IPackageRegistry, commandHandler commandhandler.ICommandHandler) error {
+func (actionPlan *ActionPlan) Execute(registryHandler packageregistry.IPackageRegistry, eem *extensionevents.ExtensionEventManager, commandHandler commandhandler.ICommandHandler) error {
 	// registry will be mutated and written to disk so that we can keep track of all the actions that have happened
 	registry, err := registryHandler.GetExistingPackages()
 	if err != nil {
@@ -118,7 +120,7 @@ func (actionPlan *ActionPlan) Execute(registryHandler packageregistry.IPackageRe
 
 	// handle unordered implicit uninstalls
 	for _, act := range actionPlan.unorderedImplicitUninstalls {
-		newError := actionPlan.executeHelper(registryHandler, commandHandler, registry, act)
+		newError := actionPlan.executeHelper(registryHandler, commandHandler, registry, act, eem)
 		combinedErrors = extensionerrors.CombineErrors(combinedErrors, newError)
 	}
 
@@ -144,7 +146,7 @@ func (actionPlan *ActionPlan) Execute(registryHandler packageregistry.IPackageRe
 					break
 				}
 
-				newError := actionPlan.executeHelper(registryHandler, commandHandler, registry, act)
+				newError := actionPlan.executeHelper(registryHandler, commandHandler, registry, act, eem)
 				combinedErrors = extensionerrors.CombineErrors(combinedErrors, newError)
 
 				if newError != nil {
@@ -160,7 +162,7 @@ func (actionPlan *ActionPlan) Execute(registryHandler packageregistry.IPackageRe
 	// handle remaining unordered operations
 	for _, depActions := range actionPlan.unorderedOperations {
 		for _, act := range depActions {
-			newError := actionPlan.executeHelper(registryHandler, commandHandler, registry, act)
+			newError := actionPlan.executeHelper(registryHandler, commandHandler, registry, act, eem)
 			combinedErrors = extensionerrors.CombineErrors(combinedErrors, newError)
 
 			if newError != nil {
@@ -173,9 +175,10 @@ func (actionPlan *ActionPlan) Execute(registryHandler packageregistry.IPackageRe
 
 func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPackageRegistry,
 	commandHandler commandhandler.ICommandHandler, registry packageregistry.CurrentPackageRegistry,
-	act *action) (errorMessageToReturn error) {
+	act *action, eem *extensionevents.ExtensionEventManager) (errorMessageToReturn error) {
 	errorMessageToReturn = nil
 	appName := act.vmAppPackage.ApplicationName
+	version := act.vmAppPackage.Version
 
 	// record new operation in the packageRegistry
 	registry[appName] = act.vmAppPackage
@@ -198,14 +201,17 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 		errorMessageToReturn = errors.Errorf("Unexpected Action to perform encountered %v", act.actionToPerform)
 	}
 
+	eem.LogInformationalEvent(
+		"CommandStarted",
+		fmt.Sprintf("Starting cmd=%v, application=%v, version=%v", commandToExecute, appName, version))
+
 	// try to execute only if you have a valid command to execute
 	if errorMessageToReturn == nil {
 		downloadPath := act.vmAppPackage.GetWorkingDirectory(actionPlan.environment)
 
-		if err := os.MkdirAll(downloadPath, constants.FilePermissions_UserOnly_ReadWriteExecute); err != nil{
+		if err := os.MkdirAll(downloadPath, constants.FilePermissions_UserOnly_ReadWriteExecute); err != nil {
 			errorMessageToReturn = errors.Wrapf(err, "failed to create download directory %s", downloadPath)
 		}
-
 
 		// download packages
 		downloadPackageName := path.Join(downloadPath, act.vmAppPackage.ApplicationName)
@@ -241,7 +247,25 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 	}
 	err = registryHandler.WriteToDisk(registry)
 	if err != nil {
-		return err
+		return markCommandFailed(commandToExecute, appName, version, err, eem)
 	}
-	return errorMessageToReturn
+
+	if errorMessageToReturn == nil {
+		eem.LogInformationalEvent(
+			"CommandCompleted",
+			fmt.Sprintf("Completed cmd=%v, application=%v, version=%v, result=Success", commandToExecute, appName, version))
+		return
+	}
+
+	return markCommandFailed(commandToExecute, appName, version, errorMessageToReturn, eem)
+}
+
+func markCommandFailed(commandToExecute string, appName string, version string, err error, eem *extensionevents.ExtensionEventManager) error {
+	eem.LogInformationalEvent(
+		"CommandCompleted",
+		fmt.Sprintf(
+			"Completed cmd=%v, application=%v, version=%v, result=Failed, reason=%v",
+			commandToExecute, appName, version, err.Error()))
+
+	return err
 }
