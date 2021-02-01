@@ -46,6 +46,7 @@ func VMAppPackageIncomingToVmAppPackageCurrent(incoming *VMAppPackageIncoming) (
 		RemoveCommand:      incoming.RemoveCommand,
 		UpdateCommand:      incoming.UpdateCommand,
 		DirectDownloadOnly: incoming.DirectDownloadOnly,
+		ConfigExists:       incoming.ConfigExists,
 		OngoingOperation:   NoAction,
 	}
 	return current

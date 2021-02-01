@@ -37,7 +37,6 @@ func (communicator *NoopHostGaCommunicator) SetupVMAppInfo(appName string, versi
 		ApplicationName:    appName,
 		DirectDownloadOnly: false,
 		InstallCommand:     "",
-		Operation:          operation,
 		RemoveCommand:      "",
 		UpdateCommand:      "",
 		Version:            version,
@@ -126,22 +125,6 @@ func Test_getVMPackageData_noVersion(t *testing.T) {
 
 	hostGaCommunicator := NoopHostGaCommunicator{}
 	hostGaCommunicator.SetupVMAppInfo("iggy", "", "install")
-	ext := createTestVMExtension(t, vmApplications)
-	_, err := doVmAppEnableCallback(ext, &hostGaCommunicator)
-	require.Error(t, err)
-}
-
-func Test_getVMPackageData_noOperationName(t *testing.T) {
-	order := 1
-	vmApplications := []VmAppSetting{
-		VmAppSetting{
-			ApplicationName: "iggy",
-			Order:           &order,
-		},
-	}
-
-	hostGaCommunicator := NoopHostGaCommunicator{}
-	hostGaCommunicator.SetupVMAppInfo("iggy", "1.0.1", "")
 	ext := createTestVMExtension(t, vmApplications)
 	_, err := doVmAppEnableCallback(ext, &hostGaCommunicator)
 	require.Error(t, err)

@@ -3,12 +3,15 @@ package actionplan
 import (
 	"fmt"
 	"math"
+	"os"
+	"path"
 	"sort"
 
 	"github.com/Azure/VMApplication-Extension/internal/hostgacommunicator"
 	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
 	"github.com/Azure/VMApplication-Extension/pkg/commandhandler"
 	"github.com/Azure/VMApplication-Extension/pkg/utils"
+	"github.com/Azure/azure-extension-platform/pkg/constants"
 	"github.com/Azure/azure-extension-platform/pkg/extensionerrors"
 	"github.com/Azure/azure-extension-platform/pkg/extensionevents"
 	"github.com/Azure/azure-extension-platform/pkg/handlerenv"
@@ -206,17 +209,25 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 	if errorMessageToReturn == nil {
 		downloadPath := act.vmAppPackage.GetWorkingDirectory(actionPlan.environment)
 
-		// download packages now
-		if err := actionPlan.hostGaCommunicator.DownloadPackage(actionPlan.logger, act.vmAppPackage.ApplicationName, downloadPath); err != nil {
-			return markCommandFailed(commandToExecute, appName, version, err, eem)
+		if err := os.MkdirAll(downloadPath, constants.FilePermissions_UserOnly_ReadWriteExecute); err != nil {
+			errorMessageToReturn = errors.Wrapf(err, "failed to create download directory %s", downloadPath)
+		}
+
+		// download packages
+		downloadPackageName := path.Join(downloadPath, act.vmAppPackage.ApplicationName)
+		if err := actionPlan.hostGaCommunicator.DownloadPackage(actionPlan.logger, act.vmAppPackage.ApplicationName, downloadPackageName); err != nil {
+			errorMessageToReturn = errors.Wrapf(err, "failed to download package file %s", downloadPackageName)
 		}
 
 		// download configuration
-		if err := actionPlan.hostGaCommunicator.DownloadConfig(actionPlan.logger, act.vmAppPackage.ApplicationName, downloadPath); err != nil {
-			return markCommandFailed(commandToExecute, appName, version, err, eem)
+		if act.vmAppPackage.ConfigExists {
+			downloadConfigName := path.Join(downloadPath, act.vmAppPackage.ApplicationName+"_config")
+			if err := actionPlan.hostGaCommunicator.DownloadConfig(actionPlan.logger, act.vmAppPackage.ApplicationName, downloadConfigName); err != nil {
+				errorMessageToReturn = errors.Wrapf(err, "failed to download config file %s", downloadConfigName)
+			}
 		}
 
-		retCode, err := commandHandler.Execute(commandToExecute, downloadPath)
+		retCode, err := commandHandler.Execute(commandToExecute, downloadPath, actionPlan.logger)
 		if err != nil {
 			errorMessageToReturn = errors.Wrapf(err, "Error executing command %v", commandToExecute)
 		}

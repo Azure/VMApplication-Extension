@@ -25,6 +25,7 @@ const (
 
 var (
 	downloadRequestTimeout = 1 * time.Hour
+	removeFileFunc         = removeFile
 )
 
 type downloadRequestFactory struct {
@@ -32,8 +33,8 @@ type downloadRequestFactory struct {
 	downloadedBytes int64
 }
 
-func newPackageDownloadRequestFactory(appName string) (*downloadRequestFactory, error) {
-	downloadURL, err := getOperationURI(appName, packageOperation)
+func newPackageDownloadRequestFactory(el *logging.ExtensionLogger, appName string) (*downloadRequestFactory, error) {
+	downloadURL, err := getOperationURI(el, appName, packageOperation)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to obtain operationURI")
 	}
@@ -46,8 +47,8 @@ func newPackageDownloadRequestFactory(appName string) (*downloadRequestFactory, 
 	return &drf, nil
 }
 
-func newConfigDownloadRequestFactory(appName string) (*downloadRequestFactory, error) {
-	downloadURL, err := getOperationURI(appName, configOperation)
+func newConfigDownloadRequestFactory(el *logging.ExtensionLogger, appName string) (*downloadRequestFactory, error) {
+	downloadURL, err := getOperationURI(el, appName, configOperation)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to obtain operationURI")
 	}
@@ -62,7 +63,7 @@ func newConfigDownloadRequestFactory(appName string) (*downloadRequestFactory, e
 
 func (u downloadRequestFactory) downloadFile(el *logging.ExtensionLogger, filename string) error {
 	// Delete the file if it already exists
-	err := removeFile(filename)
+	err := removeFileFunc(filename)
 	if err != nil {
 		return errors.Wrapf(err, "Could not remove the existing file")
 	}

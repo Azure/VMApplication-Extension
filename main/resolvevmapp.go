@@ -32,7 +32,7 @@ func getVMAppIncomingCollection(settings *settings.HandlerSettings, communicator
 			// TODO: ignore errors?
 			return incomingCollection, err
 		}
-		if vmAppInfo.Version == "" || vmAppInfo.Operation == "" {
+		if vmAppInfo.Version == "" {
 			return nil, errors.New("HostGA did not return a valid vmAppInfo")
 		}
 		incomingPackage := packageregistry.VMAppPackageIncoming{
@@ -43,6 +43,7 @@ func getVMAppIncomingCollection(settings *settings.HandlerSettings, communicator
 			RemoveCommand:      vmAppInfo.RemoveCommand,
 			UpdateCommand:      vmAppInfo.UpdateCommand,
 			DirectDownloadOnly: vmAppInfo.DirectDownloadOnly,
+			ConfigExists:       vmAppInfo.ConfigExists,
 		}
 		incomingCollection = append(incomingCollection, &incomingPackage)
 	}
