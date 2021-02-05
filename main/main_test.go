@@ -229,13 +229,15 @@ func createTestVMExtension(t *testing.T, settings interface{}) *vmextension.VMEx
 	eem := extensionevents.New(el, he)
 
 	return &vmextension.VMExtension{
-		Name:                    extensionVersion,
-		Version:                 extensionVersion,
-		RequestedSequenceNumber: 2,
-		CurrentSequenceNumber:   &one,
-		HandlerEnv:              he,
-		Settings:                hs,
-		ExtensionLogger:         el,
-		ExtensionEvents:         eem,
+		Name:                       extensionVersion,
+		Version:                    extensionVersion,
+		GetRequestedSequenceNumber: func() (uint, error) { return 2, nil },
+		CurrentSequenceNumber:      &one,
+		HandlerEnv:                 he,
+		GetSettings: func() (*handlersettings.HandlerSettings, error) {
+			return hs, nil
+		},
+		ExtensionLogger:            el,
+		ExtensionEvents:            eem,
 	}
 }

@@ -85,7 +85,11 @@ func vmAppEnableCallback(ext *vmextensionhelper.VMExtension) (string, error) {
 }
 
 func doVmAppEnableCallback(ext *vmextensionhelper.VMExtension, hostGaCommunicator hostgacommunicator.IHostGaCommunicator) (string, error) {
-	vmAppIncomingCollection, err := getVMAppIncomingCollection(ext.Settings, hostGaCommunicator, ext.ExtensionLogger)
+	settings, err := ext.GetSettings()
+	if err != nil {
+		return "could not get extension settings", err
+	}
+	vmAppIncomingCollection, err := getVMAppIncomingCollection(settings, hostGaCommunicator, ext.ExtensionLogger)
 	if err != nil {
 		return "resolving packages failed", err
 	}
