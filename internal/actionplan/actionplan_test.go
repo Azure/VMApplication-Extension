@@ -167,7 +167,7 @@ func TestSingleRemove(t *testing.T) {
 
 	packageOperationResults, ok := statusMessage.(*PackageOperationResults)
 	assert.True(t, ok)
-	assert.EqualValues(t, (*packageOperationResults)[0], PackageOperationResult{Result: "SUCCESS", Operation: packageregistry.Delete.ToString(), AppVersion: currentVmApp.Version, PackageName: currentVmApp.ApplicationName})
+	assert.EqualValues(t, (*packageOperationResults)[0], PackageOperationResult{Result: "SUCCESS", Operation: packageregistry.Remove.ToString(), AppVersion: currentVmApp.Version, PackageName: currentVmApp.ApplicationName})
 }
 
 func TestUpdateCommandIsCalledWhenPresent(t *testing.T) {
@@ -257,7 +257,7 @@ func TestDependentActionsAreCreatedForUpdatesWithoutUpdateCommand(t *testing.T) 
 
 	packageOperationResults, ok := statusMessage.(*PackageOperationResults)
 	assert.True(t, ok)
-	assert.EqualValues(t, (*packageOperationResults)[0], PackageOperationResult{Result: "SUCCESS", Operation: packageregistry.Delete.ToString(), AppVersion: oldVersion.Version, PackageName: oldVersion.ApplicationName})
+	assert.EqualValues(t, (*packageOperationResults)[0], PackageOperationResult{Result: "SUCCESS", Operation: packageregistry.Remove.ToString(), AppVersion: oldVersion.Version, PackageName: oldVersion.ApplicationName})
 	assert.EqualValues(t, (*packageOperationResults)[1], PackageOperationResult{Result: "SUCCESS", Operation: packageregistry.Install.ToString(), AppVersion: newVersion.Version, PackageName: newVersion.ApplicationName})
 
 	// test the same for ordered actions
@@ -276,7 +276,7 @@ func TestDependentActionsAreCreatedForUpdatesWithoutUpdateCommand(t *testing.T) 
 
 	packageOperationResults, ok = statusMessage.(*PackageOperationResults)
 	assert.True(t, ok)
-	assert.EqualValues(t, (*packageOperationResults)[0], PackageOperationResult{Result: "SUCCESS", Operation: packageregistry.Delete.ToString(), AppVersion: oldVersion.Version, PackageName: oldVersion.ApplicationName})
+	assert.EqualValues(t, (*packageOperationResults)[0], PackageOperationResult{Result: "SUCCESS", Operation: packageregistry.Remove.ToString(), AppVersion: oldVersion.Version, PackageName: oldVersion.ApplicationName})
 	assert.EqualValues(t, (*packageOperationResults)[1], PackageOperationResult{Result: "SUCCESS", Operation: packageregistry.Install.ToString(), AppVersion: newVersion.Version, PackageName: newVersion.ApplicationName})
 }
 
@@ -399,7 +399,7 @@ func TestOrderIsMaintainedAndHigherOrderOperationsAreSkippedOnFailure(t *testing
 
 	packageOperationResults, ok := statusMessage.(*PackageOperationResults)
 	assert.True(t, ok)
-	assert.EqualValues(t, (*packageOperationResults)[0], PackageOperationResult{Result: "SUCCESS", Operation: packageregistry.Delete.ToString(), AppVersion: old3.Version, PackageName: old3.ApplicationName})
+	assert.EqualValues(t, (*packageOperationResults)[0], PackageOperationResult{Result: "SUCCESS", Operation: packageregistry.Remove.ToString(), AppVersion: old3.Version, PackageName: old3.ApplicationName})
 	assert.EqualValues(t, (*packageOperationResults)[1], PackageOperationResult{Result: "SUCCESS", Operation: packageregistry.Update.ToString(), AppVersion: new1.Version, PackageName: new1.ApplicationName})
 	assert.EqualValues(t, (*packageOperationResults)[4], PackageOperationResult{Result: "SUCCESS", Operation: packageregistry.Update.ToString(), AppVersion: new2.Version, PackageName: new2.ApplicationName})
 

@@ -25,7 +25,7 @@ const (
 	NoAction ActionEnum = iota
 	Install
 	Update
-	Delete
+	Remove
 	Failed
 	Skipped
 )
@@ -38,8 +38,8 @@ func (act ActionEnum) ToString() (string) {
 		return "Install"
 	case Update:
 		return "Update"
-	case Delete:
-		return "Delete"
+	case Remove:
+		return "Remove"
 	case Failed:
 		return "Failed"
 	case Skipped:

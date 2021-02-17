@@ -107,7 +107,7 @@ func New(currentPackageRegistry packageregistry.CurrentPackageRegistry, desiredV
 	for _, vmAppCurrent := range vmAppCurrentCollection {
 		_, exists := packageRegistryIncoming[vmAppCurrent.ApplicationName]
 		if !exists {
-			deleteAction := &action{vmAppCurrent, packageregistry.Delete}
+			deleteAction := &action{vmAppCurrent, packageregistry.Remove}
 			actionPlan.unorderedImplicitUninstalls = append(actionPlan.unorderedImplicitUninstalls, deleteAction)
 		}
 	}
@@ -121,7 +121,7 @@ func New(currentPackageRegistry packageregistry.CurrentPackageRegistry, desiredV
 			if !versionsEqual {
 				if len(vmAppIncoming.UpdateCommand) == 0 {
 					// not the same version and there is no update command
-					deleteAction := &action{vmAppCurrent, packageregistry.Delete} // delete current and install incoming
+					deleteAction := &action{vmAppCurrent, packageregistry.Remove} // delete current and install incoming
 					installAction := &action{packageregistry.VMAppPackageIncomingToVmAppPackageCurrent(vmAppIncoming), packageregistry.Install}
 					actionPlan.insertOperation(vmAppIncoming.Order, deleteAction, installAction)
 				} else {
@@ -244,7 +244,7 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 	switch act.actionToPerform {
 	case packageregistry.Install:
 		commandToExecute = act.vmAppPackage.InstallCommand
-	case packageregistry.Delete:
+	case packageregistry.Remove:
 		isDeleteOperation = true
 		commandToExecute = act.vmAppPackage.RemoveCommand
 	case packageregistry.Update:
