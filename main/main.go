@@ -110,7 +110,7 @@ func doVmAppEnableCallback(ext *vmextensionhelper.VMExtension, hostGaCommunicato
 
 	commandHandler := commandhandler.CommandHandler{}
 
-	err = actionPlan.Execute(packageRegistry, ext.ExtensionEvents, &commandHandler)
+	err, executionResult := actionPlan.Execute(packageRegistry, ext.ExtensionEvents, &commandHandler)
 
 	if err != nil {
 		// actionPlan.Execute can fail partially
@@ -118,5 +118,5 @@ func doVmAppEnableCallback(ext *vmextensionhelper.VMExtension, hostGaCommunicato
 		return err.Error(), nil
 	}
 
-	return "Operation completed", nil
+	return executionResult.ToJsonString(), nil
 }

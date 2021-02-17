@@ -30,6 +30,25 @@ const (
 	Skipped
 )
 
+func (act ActionEnum) ToString() (string) {
+	switch act {
+	case NoAction:
+		return "NoAction"
+	case Install:
+		return "Install"
+	case Update:
+		return "Update"
+	case Delete:
+		return "Delete"
+	case Failed:
+		return "Failed"
+	case Skipped:
+		return "Skipped"
+	default:
+		return "UnknownAction"
+	}
+}
+
 // defines a map between the application name and the other properties of the application
 type CurrentPackageRegistry map[string]*VMAppPackageCurrent
 
