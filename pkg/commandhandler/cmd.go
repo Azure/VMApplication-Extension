@@ -56,7 +56,7 @@ func execCmdInDir(cmd, workingDir string, el *logging.ExtensionLogger) (int, err
 	}
 	stdErrFile, err3 := os.OpenFile(errFn, os.O_RDONLY, constants.FilePermissions_UserOnly_ReadWrite)
 	if err3 == nil {
-		el.InfoFromStream("stderr: %s", stdErrFile)
+		el.InfoFromStream("stderr:", stdErrFile)
 		stdErrFile.Close()
 	}
 
