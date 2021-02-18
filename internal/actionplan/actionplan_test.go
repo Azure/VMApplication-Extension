@@ -313,7 +313,7 @@ func TestDependantActionsAreCancelled(t *testing.T) {
 	assert.Equal(t, packageregistry.Failed, newReg[oldVersion.ApplicationName].OngoingOperation, "the package status should be failed")
 	packageOperationResults, ok := statusMessage.(*PackageOperationResults)
 	assert.True(t, ok)
-	assert.Contains(t, (*packageOperationResults)[0].Result, "command failed as expected")
+	assert.Contains(t, (*packageOperationResults)[0].Result, errorString)
 }
 
 func TestOrderIsMaintainedAndHigherOrderOperationsAreSkippedOnFailure(t *testing.T) {
