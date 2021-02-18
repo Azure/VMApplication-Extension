@@ -115,7 +115,7 @@ func doVmAppEnableCallback(ext *vmextensionhelper.VMExtension, hostGaCommunicato
 	if err != nil {
 		// actionPlan.Execute can fail partially
 		// return ths string that contains operations that failed, but mark the overall process as success
-		return err.Error(), nil
+		return "one or more package operation failed: " + executionResult.ToJsonString(), nil
 	}
 
 	return executionResult.ToJsonString(), nil

@@ -25,6 +25,9 @@ type action struct {
 	actionToPerform packageregistry.ActionEnum
 }
 
+const fiveKilo = 5 * 1024
+const Success = "SUCCESS"
+
 // when an update requires an implicit remove and uninstall, the install is dependent on the remove
 // this data structure helps us skip the install if the remove fails
 type dependentActions []*action
@@ -44,12 +47,12 @@ type ActionPlan struct {
 }
 
 type IStatusMessage interface {
-	ToJsonString() (string)
+	ToJsonString() string
 }
 
 type StatusErrorMessage string
 
-func (err StatusErrorMessage) ToJsonString() (string) {
+func (err StatusErrorMessage) ToJsonString() string {
 	return string(err)
 }
 
@@ -62,9 +65,9 @@ func (packageOperationResults *PackageOperationResults) ToJsonString() (message 
 	} else {
 		message = string(jsonBytes)
 	}
-	if len(message) > 5*1024 {
+	if len(message) > fiveKilo {
 		// keep the message smaller than 5KB
-		message = string(message[0 : 5*1024-1])
+		message = string(message[0 : fiveKilo-1])
 	}
 	return
 }
@@ -78,14 +81,14 @@ type PackageOperationResult struct {
 
 func appendExecutionResult(executionResult *PackageOperationResults, act *action, err error) {
 	if err == nil {
-		*executionResult = append(*executionResult, PackageOperationResult{PackageName: act.vmAppPackage.ApplicationName, AppVersion: act.vmAppPackage.Version, Operation: act.actionToPerform.ToString(), Result: "SUCCESS"})
+		*executionResult = append(*executionResult, PackageOperationResult{PackageName: act.vmAppPackage.ApplicationName, AppVersion: act.vmAppPackage.Version, Operation: act.actionToPerform.ToString(), Result: Success})
 	} else {
 		*executionResult = append(*executionResult, PackageOperationResult{PackageName: act.vmAppPackage.ApplicationName, AppVersion: act.vmAppPackage.Version, Operation: act.actionToPerform.ToString(), Result: err.Error()})
 	}
 }
 
-func appendExecutionResultExplicit(executionResult PackageOperationResults, act *action, result string) {
-	executionResult = append(executionResult, PackageOperationResult{PackageName: act.vmAppPackage.ApplicationName, AppVersion: act.vmAppPackage.Version, Operation: act.actionToPerform.ToString(), Result: result})
+func appendExecutionResultExplicit(executionResult *PackageOperationResults, act *action, result string) {
+	*executionResult = append(*executionResult, PackageOperationResult{PackageName: act.vmAppPackage.ApplicationName, AppVersion: act.vmAppPackage.Version, Operation: act.actionToPerform.ToString(), Result: result})
 }
 
 func New(currentPackageRegistry packageregistry.CurrentPackageRegistry, desiredVMAppCollection packageregistry.VMAppPackageIncomingCollection, environment *handlerenv.HandlerEnvironment, hostGaCommunicator hostgacommunicator.IHostGaCommunicator, logger *logging.ExtensionLogger) (*ActionPlan, error) {
@@ -186,7 +189,7 @@ func (actionPlan *ActionPlan) Execute(registryHandler packageregistry.IPackageRe
 					registry[appName] = act.vmAppPackage
 					registry[appName].OngoingOperation = packageregistry.Skipped
 
-					appendExecutionResultExplicit(executionResult, act, "Skipped, lower order operation failed")
+					appendExecutionResultExplicit(&executionResult, act, "Skipped, lower order operation failed")
 
 					err = registryHandler.WriteToDisk(registry)
 					if err != nil {

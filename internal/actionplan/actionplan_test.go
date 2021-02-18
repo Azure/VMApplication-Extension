@@ -18,6 +18,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+const errorString = "command failed as expected"
+
 var one = 1
 var el = logging.New(nil)
 
@@ -50,7 +52,7 @@ var mockCommandExecutorNoError CommandExecutor = func(string, string) (int, erro
 
 var mockCommandFailOnDemand CommandExecutor = func(command string, workingDir string) (int, error) {
 	if strings.HasPrefix(command, "fail") {
-		return -1, errors.Errorf("command failed as expected")
+		return -1, errors.Errorf(errorString)
 	}
 	return 0, nil
 }
@@ -113,7 +115,7 @@ func TestSingleInstallWithOrder(t *testing.T) {
 	assertAllActionsSucceeded(t, newReg)
 	packageOperationResults, ok := statusMessage.(*PackageOperationResults)
 	assert.True(t, ok)
-	assert.EqualValues(t, (*packageOperationResults)[0], PackageOperationResult{Result: "SUCCESS", Operation: "Install", AppVersion: newApp.Version, PackageName: newApp.ApplicationName})
+	assert.EqualValues(t, (*packageOperationResults)[0], PackageOperationResult{Result: Success, Operation: packageregistry.Install.ToString(), AppVersion: newApp.Version, PackageName: newApp.ApplicationName})
 }
 
 func TestSingleInstallWithoutOrder(t *testing.T) {
@@ -139,7 +141,7 @@ func TestSingleInstallWithoutOrder(t *testing.T) {
 
 	packageOperationResults, ok := statusMessage.(*PackageOperationResults)
 	assert.True(t, ok)
-	assert.EqualValues(t, (*packageOperationResults)[0], PackageOperationResult{Result: "SUCCESS", Operation: packageregistry.Install.ToString(), AppVersion: newApp.Version, PackageName: newApp.ApplicationName})
+	assert.EqualValues(t, (*packageOperationResults)[0], PackageOperationResult{Result: Success, Operation: packageregistry.Install.ToString(), AppVersion: newApp.Version, PackageName: newApp.ApplicationName})
 
 }
 
@@ -167,7 +169,7 @@ func TestSingleRemove(t *testing.T) {
 
 	packageOperationResults, ok := statusMessage.(*PackageOperationResults)
 	assert.True(t, ok)
-	assert.EqualValues(t, (*packageOperationResults)[0], PackageOperationResult{Result: "SUCCESS", Operation: packageregistry.Remove.ToString(), AppVersion: currentVmApp.Version, PackageName: currentVmApp.ApplicationName})
+	assert.EqualValues(t, (*packageOperationResults)[0], PackageOperationResult{Result: Success, Operation: packageregistry.Remove.ToString(), AppVersion: currentVmApp.Version, PackageName: currentVmApp.ApplicationName})
 }
 
 func TestUpdateCommandIsCalledWhenPresent(t *testing.T) {
@@ -203,7 +205,7 @@ func TestUpdateCommandIsCalledWhenPresent(t *testing.T) {
 
 	packageOperationResults, ok := statusMessage.(*PackageOperationResults)
 	assert.True(t, ok)
-	assert.EqualValues(t, (*packageOperationResults)[0], PackageOperationResult{Result: "SUCCESS", Operation: packageregistry.Update.ToString(), AppVersion: newVersion.Version, PackageName: newVersion.ApplicationName})
+	assert.EqualValues(t, (*packageOperationResults)[0], PackageOperationResult{Result: Success, Operation: packageregistry.Update.ToString(), AppVersion: newVersion.Version, PackageName: newVersion.ApplicationName})
 
 	// test the same for ordered actions
 	newVersion.Order = &one
@@ -220,7 +222,7 @@ func TestUpdateCommandIsCalledWhenPresent(t *testing.T) {
 
 	packageOperationResults, ok = statusMessage.(*PackageOperationResults)
 	assert.True(t, ok)
-	assert.EqualValues(t, (*packageOperationResults)[0], PackageOperationResult{Result: "SUCCESS", Operation: packageregistry.Update.ToString(), AppVersion: newVersion.Version, PackageName: newVersion.ApplicationName})
+	assert.EqualValues(t, (*packageOperationResults)[0], PackageOperationResult{Result: Success, Operation: packageregistry.Update.ToString(), AppVersion: newVersion.Version, PackageName: newVersion.ApplicationName})
 }
 
 func TestDependentActionsAreCreatedForUpdatesWithoutUpdateCommand(t *testing.T) {
@@ -257,8 +259,8 @@ func TestDependentActionsAreCreatedForUpdatesWithoutUpdateCommand(t *testing.T) 
 
 	packageOperationResults, ok := statusMessage.(*PackageOperationResults)
 	assert.True(t, ok)
-	assert.EqualValues(t, (*packageOperationResults)[0], PackageOperationResult{Result: "SUCCESS", Operation: packageregistry.Remove.ToString(), AppVersion: oldVersion.Version, PackageName: oldVersion.ApplicationName})
-	assert.EqualValues(t, (*packageOperationResults)[1], PackageOperationResult{Result: "SUCCESS", Operation: packageregistry.Install.ToString(), AppVersion: newVersion.Version, PackageName: newVersion.ApplicationName})
+	assert.EqualValues(t, (*packageOperationResults)[0], PackageOperationResult{Result: Success, Operation: packageregistry.Remove.ToString(), AppVersion: oldVersion.Version, PackageName: oldVersion.ApplicationName})
+	assert.EqualValues(t, (*packageOperationResults)[1], PackageOperationResult{Result: Success, Operation: packageregistry.Install.ToString(), AppVersion: newVersion.Version, PackageName: newVersion.ApplicationName})
 
 	// test the same for ordered actions
 	newVersion.Order = &one
@@ -276,8 +278,8 @@ func TestDependentActionsAreCreatedForUpdatesWithoutUpdateCommand(t *testing.T) 
 
 	packageOperationResults, ok = statusMessage.(*PackageOperationResults)
 	assert.True(t, ok)
-	assert.EqualValues(t, (*packageOperationResults)[0], PackageOperationResult{Result: "SUCCESS", Operation: packageregistry.Remove.ToString(), AppVersion: oldVersion.Version, PackageName: oldVersion.ApplicationName})
-	assert.EqualValues(t, (*packageOperationResults)[1], PackageOperationResult{Result: "SUCCESS", Operation: packageregistry.Install.ToString(), AppVersion: newVersion.Version, PackageName: newVersion.ApplicationName})
+	assert.EqualValues(t, (*packageOperationResults)[0], PackageOperationResult{Result: Success, Operation: packageregistry.Remove.ToString(), AppVersion: oldVersion.Version, PackageName: oldVersion.ApplicationName})
+	assert.EqualValues(t, (*packageOperationResults)[1], PackageOperationResult{Result: Success, Operation: packageregistry.Install.ToString(), AppVersion: newVersion.Version, PackageName: newVersion.ApplicationName})
 }
 
 func TestDependantActionsAreCancelled(t *testing.T) {
@@ -311,7 +313,7 @@ func TestDependantActionsAreCancelled(t *testing.T) {
 	assert.Equal(t, packageregistry.Failed, newReg[oldVersion.ApplicationName].OngoingOperation, "the package status should be failed")
 	packageOperationResults, ok := statusMessage.(*PackageOperationResults)
 	assert.True(t, ok)
-	assert.Contains(t, (*packageOperationResults)[0].Result, "command failed as expected", )
+	assert.Contains(t, (*packageOperationResults)[0].Result, "command failed as expected")
 }
 
 func TestOrderIsMaintainedAndHigherOrderOperationsAreSkippedOnFailure(t *testing.T) {
@@ -399,9 +401,9 @@ func TestOrderIsMaintainedAndHigherOrderOperationsAreSkippedOnFailure(t *testing
 
 	packageOperationResults, ok := statusMessage.(*PackageOperationResults)
 	assert.True(t, ok)
-	assert.EqualValues(t, (*packageOperationResults)[0], PackageOperationResult{Result: "SUCCESS", Operation: packageregistry.Remove.ToString(), AppVersion: old3.Version, PackageName: old3.ApplicationName})
-	assert.EqualValues(t, (*packageOperationResults)[1], PackageOperationResult{Result: "SUCCESS", Operation: packageregistry.Update.ToString(), AppVersion: new1.Version, PackageName: new1.ApplicationName})
-	assert.EqualValues(t, (*packageOperationResults)[4], PackageOperationResult{Result: "SUCCESS", Operation: packageregistry.Update.ToString(), AppVersion: new2.Version, PackageName: new2.ApplicationName})
+	assert.EqualValues(t, (*packageOperationResults)[0], PackageOperationResult{Result: Success, Operation: packageregistry.Remove.ToString(), AppVersion: old3.Version, PackageName: old3.ApplicationName})
+	assert.EqualValues(t, (*packageOperationResults)[1], PackageOperationResult{Result: Success, Operation: packageregistry.Update.ToString(), AppVersion: new1.Version, PackageName: new1.ApplicationName})
+	assert.EqualValues(t, (*packageOperationResults)[4], PackageOperationResult{Result: Success, Operation: packageregistry.Update.ToString(), AppVersion: new2.Version, PackageName: new2.ApplicationName})
 
 	// test that failure skips higher order
 	newFail6 := packageregistry.VMAppPackageIncoming{
@@ -432,7 +434,7 @@ func TestOrderIsMaintainedAndHigherOrderOperationsAreSkippedOnFailure(t *testing
 	}
 	incomingApps = append(incomingApps, &newFail6, &new7, &new8)
 	cmdHandler = NewCommandHandlerMock(mockCommandFailOnDemand)
-	newReg, actionPlan, _ = executeActionPlan(t, existingApps, incomingApps, cmdHandler)
+	newReg, actionPlan, statusMessage = executeActionPlan(t, existingApps, incomingApps, cmdHandler)
 	assert.Equal(t, 5, len(actionPlan.orderedOperations), "5 orders expected")
 	assert.Equal(t, 3, len(actionPlan.orderedOperations[2]), "3 operation of order 2")
 	assert.Equal(t, 5, len(cmdHandler.Result), "5 total command executions are expected")
@@ -440,6 +442,52 @@ func TestOrderIsMaintainedAndHigherOrderOperationsAreSkippedOnFailure(t *testing
 	assert.Equal(t, packageregistry.Skipped, newReg[new2.ApplicationName].OngoingOperation, "We expect the app2 update to be skipped")
 	assert.Equal(t, packageregistry.Skipped, newReg[new7.ApplicationName].OngoingOperation, "We expect the app7 install to be skipped")
 	assert.Equal(t, packageregistry.Skipped, newReg[new8.ApplicationName].OngoingOperation, "We expect the app8 install to be skipped")
+
+	// compare the status message and the new app registry
+	packageOperationResults, ok = statusMessage.(*PackageOperationResults)
+	assert.True(t, ok)
+	successCountFromStatus := 0
+	failCountFromStatus := 0
+	skipCountFromStatus := 0
+	for _, sMessage := range *packageOperationResults {
+		app, exists := newReg[sMessage.PackageName]
+		if sMessage.Operation == packageregistry.Remove.ToString() {
+			assert.False(t, exists, "removed applications shouldn't be a part of the new application registry")
+			continue
+		}
+		assert.Equal(t, app.ApplicationName, sMessage.PackageName)
+		assert.Equal(t, app.Version, sMessage.AppVersion)
+		if sMessage.Result == Success {
+			assert.Equal(t, app.OngoingOperation, packageregistry.NoAction)
+			successCountFromStatus++
+		} else if strings.Contains(sMessage.Result, packageregistry.Skipped.ToString()) {
+			assert.Equal(t, app.OngoingOperation, packageregistry.Skipped)
+			skipCountFromStatus++
+
+		} else if strings.Contains(sMessage.Result, errorString) {
+			assert.Equal(t, app.OngoingOperation, packageregistry.Failed)
+			failCountFromStatus++
+		}
+	}
+
+	successCountFromRegistry := 0
+	failCountFromRegistry := 0
+	skipCountFromRegistry := 0
+
+	for _, appInRegistry := range newReg{
+		switch appInRegistry.OngoingOperation{
+		case packageregistry.NoAction:
+			successCountFromRegistry++
+		case packageregistry.Failed:
+			failCountFromRegistry++
+		case packageregistry.Skipped:
+			skipCountFromRegistry++
+		}
+	}
+
+	assert.Equal(t, successCountFromRegistry, successCountFromStatus, "the success count should match")
+	assert.Equal(t, failCountFromRegistry, failCountFromStatus, "the fail count should match")
+	assert.Equal(t, skipCountFromRegistry, skipCountFromStatus, "the skip count should match")
 
 	// we have tested the apps that were supposed to fail above, we need to assert that the remaining succeeded
 	delete(newReg, newFail6.ApplicationName)
