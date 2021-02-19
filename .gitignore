@@ -8,3 +8,4 @@ pkg/commandhandler/testdir/
 .vscode/
 VmExtensionHelper/seqno/flooperflop/
 VmExtensionHelper/status/statustest/
+vm-application-manager

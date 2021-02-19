@@ -1,6 +1,7 @@
 package actionplan
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 	"os"
@@ -24,6 +25,9 @@ type action struct {
 	actionToPerform packageregistry.ActionEnum
 }
 
+const fiveKilo = 5 * 1024
+const Success = "SUCCESS"
+
 // when an update requires an implicit remove and uninstall, the install is dependent on the remove
 // this data structure helps us skip the install if the remove fails
 type dependentActions []*action
@@ -40,6 +44,51 @@ type ActionPlan struct {
 	unorderedImplicitUninstalls []*action
 	hostGaCommunicator          hostgacommunicator.IHostGaCommunicator
 	logger                      *logging.ExtensionLogger
+}
+
+type IStatusMessage interface {
+	ToJsonString() string
+}
+
+type StatusErrorMessage string
+
+func (err StatusErrorMessage) ToJsonString() string {
+	return string(err)
+}
+
+type PackageOperationResults []PackageOperationResult
+
+func (packageOperationResults *PackageOperationResults) ToJsonString() (message string) {
+	jsonBytes, err := json.Marshal(packageOperationResults)
+	if err != nil {
+		message = fmt.Sprintf("%v", packageOperationResults)
+	} else {
+		message = string(jsonBytes)
+	}
+	if len(message) > fiveKilo {
+		// keep the message smaller than 5KB
+		message = string(message[0 : fiveKilo-1])
+	}
+	return
+}
+
+type PackageOperationResult struct {
+	PackageName string `json:"package"`
+	AppVersion  string `json:"version"`
+	Operation   string `json:"operation"`
+	Result      string `json:"result"`
+}
+
+func appendExecutionResult(executionResult *PackageOperationResults, act *action, err error) {
+	if err == nil {
+		*executionResult = append(*executionResult, PackageOperationResult{PackageName: act.vmAppPackage.ApplicationName, AppVersion: act.vmAppPackage.Version, Operation: act.actionToPerform.ToString(), Result: Success})
+	} else {
+		*executionResult = append(*executionResult, PackageOperationResult{PackageName: act.vmAppPackage.ApplicationName, AppVersion: act.vmAppPackage.Version, Operation: act.actionToPerform.ToString(), Result: err.Error()})
+	}
+}
+
+func appendExecutionResultExplicit(executionResult *PackageOperationResults, act *action, result string) {
+	*executionResult = append(*executionResult, PackageOperationResult{PackageName: act.vmAppPackage.ApplicationName, AppVersion: act.vmAppPackage.Version, Operation: act.actionToPerform.ToString(), Result: result})
 }
 
 func New(currentPackageRegistry packageregistry.CurrentPackageRegistry, desiredVMAppCollection packageregistry.VMAppPackageIncomingCollection, environment *handlerenv.HandlerEnvironment, hostGaCommunicator hostgacommunicator.IHostGaCommunicator, logger *logging.ExtensionLogger) (*ActionPlan, error) {
@@ -61,7 +110,7 @@ func New(currentPackageRegistry packageregistry.CurrentPackageRegistry, desiredV
 	for _, vmAppCurrent := range vmAppCurrentCollection {
 		_, exists := packageRegistryIncoming[vmAppCurrent.ApplicationName]
 		if !exists {
-			deleteAction := &action{vmAppCurrent, packageregistry.Delete}
+			deleteAction := &action{vmAppCurrent, packageregistry.Remove}
 			actionPlan.unorderedImplicitUninstalls = append(actionPlan.unorderedImplicitUninstalls, deleteAction)
 		}
 	}
@@ -75,7 +124,7 @@ func New(currentPackageRegistry packageregistry.CurrentPackageRegistry, desiredV
 			if !versionsEqual {
 				if len(vmAppIncoming.UpdateCommand) == 0 {
 					// not the same version and there is no update command
-					deleteAction := &action{vmAppCurrent, packageregistry.Delete} // delete current and install incoming
+					deleteAction := &action{vmAppCurrent, packageregistry.Remove} // delete current and install incoming
 					installAction := &action{packageregistry.VMAppPackageIncomingToVmAppPackageCurrent(vmAppIncoming), packageregistry.Install}
 					actionPlan.insertOperation(vmAppIncoming.Order, deleteAction, installAction)
 				} else {
@@ -109,18 +158,20 @@ func (actionPlan *ActionPlan) insertOperation(order *int, dependentActions1 ...*
 	}
 }
 
-func (actionPlan *ActionPlan) Execute(registryHandler packageregistry.IPackageRegistry, eem *extensionevents.ExtensionEventManager, commandHandler commandhandler.ICommandHandler) error {
+func (actionPlan *ActionPlan) Execute(registryHandler packageregistry.IPackageRegistry, eem *extensionevents.ExtensionEventManager, commandHandler commandhandler.ICommandHandler) (error, IStatusMessage) {
 	// registry will be mutated and written to disk so that we can keep track of all the actions that have happened
 	registry, err := registryHandler.GetExistingPackages()
 	if err != nil {
-		return err
+		return err, StatusErrorMessage(err.Error())
 	}
 
 	var combinedErrors error = nil
+	executionResult := make(PackageOperationResults, 0)
 
 	// handle unordered implicit uninstalls
 	for _, act := range actionPlan.unorderedImplicitUninstalls {
 		newError := actionPlan.executeHelper(registryHandler, commandHandler, registry, act, eem)
+		appendExecutionResult(&executionResult, act, newError)
 		combinedErrors = extensionerrors.CombineErrors(combinedErrors, newError)
 	}
 
@@ -138,16 +189,19 @@ func (actionPlan *ActionPlan) Execute(registryHandler packageregistry.IPackageRe
 					registry[appName] = act.vmAppPackage
 					registry[appName].OngoingOperation = packageregistry.Skipped
 
+					appendExecutionResultExplicit(&executionResult, act, "Skipped, lower order operation failed")
+
 					err = registryHandler.WriteToDisk(registry)
 					if err != nil {
 						combinedErrors = extensionerrors.CombineErrors(combinedErrors, err)
-						return combinedErrors
+						return combinedErrors, &executionResult
 					}
 					break
 				}
 
 				newError := actionPlan.executeHelper(registryHandler, commandHandler, registry, act, eem)
 				combinedErrors = extensionerrors.CombineErrors(combinedErrors, newError)
+				appendExecutionResult(&executionResult, act, newError)
 
 				if newError != nil {
 					atLeastOneActionFailed = true
@@ -164,13 +218,14 @@ func (actionPlan *ActionPlan) Execute(registryHandler packageregistry.IPackageRe
 		for _, act := range depActions {
 			newError := actionPlan.executeHelper(registryHandler, commandHandler, registry, act, eem)
 			combinedErrors = extensionerrors.CombineErrors(combinedErrors, newError)
+			appendExecutionResult(&executionResult, act, newError)
 
 			if newError != nil {
 				break // will skip the remaining dependant actions
 			}
 		}
 	}
-	return combinedErrors
+	return combinedErrors, &executionResult
 }
 
 func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPackageRegistry,
@@ -192,7 +247,7 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 	switch act.actionToPerform {
 	case packageregistry.Install:
 		commandToExecute = act.vmAppPackage.InstallCommand
-	case packageregistry.Delete:
+	case packageregistry.Remove:
 		isDeleteOperation = true
 		commandToExecute = act.vmAppPackage.RemoveCommand
 	case packageregistry.Update:

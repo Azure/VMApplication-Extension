@@ -151,46 +151,12 @@ func Test_main_nothingToProcess(t *testing.T) {
 	ext := createTestVMExtension(t, vmApplications)
 
 	hostGaCommunicator := NoopHostGaCommunicator{}
-	result, err := doVmAppEnableCallback(ext, &hostGaCommunicator)
+	_, err := doVmAppEnableCallback(ext, &hostGaCommunicator)
 	require.NoError(t, err)
-	require.Equal(t, "Operation completed", result)
 }
 
 func resetExtensionVersion() {
 	extensionVersion = "1.0.0"
-}
-
-func createVmPackageData() vmPackageData {
-	vmPackages := vmPackageData{
-		Packages: []vmPackage{
-			{
-				Name:      "yaba",
-				Operation: "install",
-				Version:   "1.0.0",
-			},
-		},
-	}
-
-	return vmPackages
-}
-
-func createMultipleVmPackageData() vmPackageData {
-	vmPackages := vmPackageData{
-		Packages: []vmPackage{
-			{
-				Name:      "yaba",
-				Operation: "install",
-				Version:   "1.0.0",
-			},
-			{
-				Name:      "flipmonster",
-				Operation: "enable",
-				Version:   "1.0.0",
-			},
-		},
-	}
-
-	return vmPackages
 }
 
 func createSettings(settings interface{}) *handlersettings.HandlerSettings {
@@ -237,7 +203,7 @@ func createTestVMExtension(t *testing.T, settings interface{}) *vmextension.VMEx
 		GetSettings: func() (*handlersettings.HandlerSettings, error) {
 			return hs, nil
 		},
-		ExtensionLogger:            el,
-		ExtensionEvents:            eem,
+		ExtensionLogger: el,
+		ExtensionEvents: eem,
 	}
 }

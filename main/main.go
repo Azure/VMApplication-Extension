@@ -14,7 +14,7 @@ import (
 
 // Note: not const so test can change them
 var (
-	extensionVersion = "1.0.1"
+	extensionVersion = "1.0.2"
 
 	// downloadDir is where we store the downloaded files in the "{downloadDir}/{seqnum}/file"
 	// format and the logs as "{downloadDir}/{seqnum}/std(out|err)". Stored under dataDir
@@ -110,13 +110,13 @@ func doVmAppEnableCallback(ext *vmextensionhelper.VMExtension, hostGaCommunicato
 
 	commandHandler := commandhandler.CommandHandler{}
 
-	err = actionPlan.Execute(packageRegistry, ext.ExtensionEvents, &commandHandler)
+	err, executionResult := actionPlan.Execute(packageRegistry, ext.ExtensionEvents, &commandHandler)
 
 	if err != nil {
 		// actionPlan.Execute can fail partially
 		// return ths string that contains operations that failed, but mark the overall process as success
-		return err.Error(), nil
+		return "one or more package operation failed: " + executionResult.ToJsonString(), nil
 	}
 
-	return "Operation completed", nil
+	return executionResult.ToJsonString(), nil
 }
