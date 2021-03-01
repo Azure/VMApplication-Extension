@@ -32,7 +32,7 @@ const (
 
 const defaultConfigFileNameSuffix = "_config"
 
-func (act ActionEnum) ToString() (string) {
+func (act ActionEnum) ToString() string {
 	switch act {
 	case NoAction:
 		return "NoAction"

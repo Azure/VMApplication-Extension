@@ -3,6 +3,9 @@ package actionplan
 import (
 	"encoding/json"
 	"fmt"
+	"math"
+	"sort"
+
 	"github.com/Azure/VMApplication-Extension/internal/hostgacommunicator"
 	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
 	"github.com/Azure/VMApplication-Extension/pkg/commandhandler"
@@ -11,8 +14,6 @@ import (
 	"github.com/Azure/azure-extension-platform/pkg/extensionevents"
 	"github.com/Azure/azure-extension-platform/pkg/handlerenv"
 	"github.com/Azure/azure-extension-platform/pkg/logging"
-	"math"
-	"sort"
 )
 
 type action struct {
@@ -222,4 +223,3 @@ func (actionPlan *ActionPlan) Execute(registryHandler packageregistry.IPackageRe
 	}
 	return combinedErrors, &executionResult
 }
-

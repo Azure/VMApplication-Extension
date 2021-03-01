@@ -137,7 +137,7 @@ func TestCommandExecutorCanHandleProcessBeingKilled(t *testing.T) {
 		*newReg, _, *statusMessage = executeActionPlan(t, existingApps, incomingApps, cmdHandler)
 		done <- true
 	}(&newReg, &statusMessage)
-	<- done
+	<-done
 	assert.EqualValues(t, newApp.InstallCommand, cmdHandler.Result[0].command, "Install command must be invoked")
 	assertPackageRegistryHasBeenUpdatedProperly(t, newReg, incomingApps)
 	assertAllActionsSucceeded(t, newReg)
