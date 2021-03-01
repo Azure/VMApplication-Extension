@@ -30,6 +30,18 @@ func TestEchoCommand(t *testing.T) {
 	assert.Equal(t, "1 2 3 4", stdoutResult)
 }
 
+func TestEchoCommand2(t *testing.T) {
+	defer cleanupTest()
+	cmd := New()
+	retCode, err := cmd.Execute("echo \"Hello 1\" \"Hello 2\"", workingDir, extensionLogger)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, retCode, "return code should be 0")
+	fileBytes, err :=  ioutil.ReadFile(path.Join(workingDir, "stdout"))
+	assert.NoError(t, err)
+	stdoutResult := strings.TrimSuffix(strings.TrimSuffix(string(fileBytes), lineReturnCharacter), " ")
+	assert.Equal(t, "\"Hello 1\" \"Hello 2\"", stdoutResult)
+}
+
 
 func TestStderr(t *testing.T) {
 	defer cleanupTest()

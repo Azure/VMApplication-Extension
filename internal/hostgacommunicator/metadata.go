@@ -27,6 +27,8 @@ type VMAppMetadata struct {
 	RemoveCommand      string `json:"remove"`
 	DirectDownloadOnly bool   `json:"directOnly"`
 	ConfigExists       bool
+	PackageFileName    string `json:"packageFileName"`
+	ConfigFileName     string `json:"configFileName"`
 }
 
 type VMAppMetadataReceiver struct {
@@ -38,6 +40,8 @@ type VMAppMetadataReceiver struct {
 	DirectDownloadOnly string `json:"directOnly"`
 	Package            string `json:"package"`
 	Config             string `json:"config"`
+	PackageFileName    string `json:"packageFileName"`
+	ConfigFileName     string `json:"configFileName"`
 }
 
 func (receiver *VMAppMetadataReceiver) MapToVMAppMetadata() (*VMAppMetadata) {

@@ -4,6 +4,7 @@ import (
 	"github.com/Azure/azure-extension-platform/pkg/constants"
 	"github.com/Azure/azure-extension-platform/pkg/logging"
 	"github.com/pkg/errors"
+	"io"
 	"os"
 	"path/filepath"
 )
@@ -22,6 +23,10 @@ func New() *CommandHandler {
 func (commandHandler *CommandHandler) Execute(command string, workingDir string, el *logging.ExtensionLogger) (returnCode int, err error) {
 	return execCmdInDir(command, workingDir, el)
 }
+
+type internalExecFunction func (cmd string, workdir string, stdout, stderr io.WriteCloser) (int, error)
+
+var internalExecFunctionToCall internalExecFunction = exec2
 
 // execCmdInDir executes the given command in given directory and saves output
 // to ./stdout and ./stderr files (truncates files if exists, creates them if not
@@ -45,7 +50,7 @@ func execCmdInDir(cmd, workingDir string, el *logging.ExtensionLogger) (int, err
 		return -1, errors.Wrapf(err, "failed to open stderr file")
 	}
 
-	exitCode, err := exec2(cmd, workingDir, outF, errF)
+	exitCode, err := internalExecFunctionToCall(cmd, workingDir, outF, errF)
 
 	// add the output of the command to the log file
 	el.Info("command: %s", cmd)

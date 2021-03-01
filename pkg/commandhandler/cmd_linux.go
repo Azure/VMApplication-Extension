@@ -25,5 +25,8 @@ func exec2(cmd, workdir string, stdout, stderr io.WriteCloser) (int, error) {
 			return code, fmt.Errorf("command terminated with exit status=%d", code)
 		}
 	}
-	return 0, errors.Wrapf(err, "failed to execute command")
+	if err != nil {
+		return 1, errors.Wrapf(err, "failed to execute command")
+	}
+	return 0, nil
 }

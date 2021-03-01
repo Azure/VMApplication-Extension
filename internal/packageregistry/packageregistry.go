@@ -30,6 +30,8 @@ const (
 	Skipped
 )
 
+const defaultConfigFileNameSuffix = "_config"
+
 func (act ActionEnum) ToString() (string) {
 	switch act {
 	case NoAction:
@@ -57,14 +59,19 @@ type DesiredPackageRegistry map[string]*VMAppPackageIncoming
 type VMAppPackageCurrentCollection []*VMAppPackageCurrent
 
 type VMAppPackageCurrent struct {
-	ApplicationName    string     `json:"applicationName"`
-	Version            string     `json:"version"`
-	InstallCommand     string     `json:"install"`
-	RemoveCommand      string     `json:"remove"`
-	UpdateCommand      string     `json:"update"`
-	DirectDownloadOnly bool       `json:"directOnly"`
-	ConfigExists       bool       `json:"configExists"`
-	OngoingOperation   ActionEnum `json:"ongoingOperation"`
+	ApplicationName        string     `json:"applicationName"`
+	Version                string     `json:"version"`
+	InstallCommand         string     `json:"install"`
+	RemoveCommand          string     `json:"remove"`
+	UpdateCommand          string     `json:"update"`
+	DirectDownloadOnly     bool       `json:"directOnly"`
+	ConfigExists           bool       `json:"configExists"`
+	OngoingOperation       ActionEnum `json:"ongoingOperation"`
+	DownloadDir            string     `json:"downloadDir"`
+	PackageFileName        string     `json:"installerPackageFileName"`
+	ConfigFileName         string     `json:"installerConfigFileName"`
+	PackageFileMD5Checksum []byte     `json:"packageFileMD5Checksum"`
+	ConfigFileMD5Checksum  []byte     `json:"configFileMD5Checksum"`
 }
 
 func (vmAppPackageCurrent *VMAppPackageCurrent) GetWorkingDirectory(environment *handlerenv.HandlerEnvironment) string {
@@ -82,6 +89,8 @@ type VMAppPackageIncoming struct {
 	DirectDownloadOnly bool   `json:"directOnly"`
 	Order              *int   `json:"order"`
 	ConfigExists       bool   `json:"configExists"`
+	PackageFileName    string `json:"installerPackageFileName"`
+	ConfigFileName     string `json:"installerConfigFileName"`
 }
 
 type IPackageRegistry interface {
