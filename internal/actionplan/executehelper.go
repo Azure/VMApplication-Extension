@@ -147,6 +147,7 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 			switch act.actionToPerform {
 			case packageregistry.Install, packageregistry.Update:
 				registry[appName].OngoingOperation = packageregistry.NoAction
+				registry[appName].Result = "reboot detected during install, marking operation as success"
 			case packageregistry.Remove:
 				delete(registry, appName)
 				os.RemoveAll(act.vmAppPackage.DownloadDir)
@@ -160,6 +161,7 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 
 	if errorMessageToReturn != nil {
 		registry[appName].OngoingOperation = packageregistry.Failed
+		registry[appName].Result = errorMessageToReturn.Error()
 	} else {
 		if isDeleteOperation {
 			delete(registry, appName)
@@ -168,6 +170,7 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 			errorMessageToReturn = extensionerrors.CombineErrors(errorMessageToReturn, deleteErr)
 		} else {
 			registry[appName].OngoingOperation = packageregistry.NoAction
+			registry[appName].Result = Success
 		}
 	}
 	err = registryHandler.WriteToDisk(registry)
