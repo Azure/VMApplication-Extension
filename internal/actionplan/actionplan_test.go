@@ -1,17 +1,15 @@
 package actionplan
 
 import (
-	"fmt"
 	"os"
 	"path"
 	"strings"
-	"syscall"
 	"testing"
 	"time"
 
 	"github.com/Azure/VMApplication-Extension/internal/hostgacommunicator"
 	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
-	"github.com/Azure/VMApplication-Extension/pkg/commandhandler"
+	"github.com/Azure/azure-extension-platform/pkg/commandhandler"
 	"github.com/Azure/azure-extension-platform/pkg/constants"
 	"github.com/Azure/azure-extension-platform/pkg/extensionevents"
 	"github.com/Azure/azure-extension-platform/pkg/handlerenv"
@@ -42,25 +40,13 @@ func NewCommandHandlerMock(executor func(string, string) (int, error)) *CommandH
 	return &CommandHandlerMock{Result: []commandResult{}, Executor: executor}
 }
 
-func (commandHandlerMock *CommandHandlerMock) Execute(command string, workingDir string, el *logging.ExtensionLogger) (returnCode int, err error) {
+func (commandHandlerMock *CommandHandlerMock) Execute(command string, workingDir, logDir string, waitForCompletion bool, el *logging.ExtensionLogger) (returnCode int, err error) {
 	returnCode, err = commandHandlerMock.Executor(command, workingDir)
 	commandHandlerMock.Result = append(commandHandlerMock.Result, commandResult{command, returnCode, err})
 	return
 }
 
-var mockCommandExecutorKillProcess CommandExecutor = func(s string, s2 string) (int, error) {
-	proc, err := os.FindProcess(os.Getpid())
-	if err != nil {
-		fmt.Print("could not find process")
-	} else {
-		err = proc.Signal(syscall.SIGTERM)
-		if err != nil {
-			fmt.Printf("could not kill process %s", err.Error())
-		}
-	}
-	time.Sleep(10 * time.Second)
-	return 0, nil
-}
+
 
 var mockCommandExecutorNoError CommandExecutor = func(string, string) (int, error) {
 	return 0, nil
@@ -87,8 +73,8 @@ func (downloader *NoopHostGaComminucator) GetVMAppInfo(logger *logging.Extension
 }
 
 var environment = &handlerenv.HandlerEnvironment{
-	DataFolder:   path.Join(".", "testdir", "data"),
-	ConfigFolder: path.Join(".", "testdir", "config"),
+	DataFolder:   path.Join(testdir, "data"),
+	ConfigFolder: path.Join(testdir, "config"),
 }
 
 func initializeTest(t *testing.T) {
@@ -106,8 +92,7 @@ func initializeTest(t *testing.T) {
 }
 
 func cleanupTest() {
-	os.RemoveAll(environment.ConfigFolder)
-	os.RemoveAll(environment.DataFolder)
+	os.RemoveAll(testdir)
 }
 
 // On windows, to actually run this test, you have to CTRL-C the process running the test then verify the package registry file
@@ -115,36 +100,6 @@ func cleanupTest() {
 // CTRL_CLOSE_EVENT, CTRL_LOGOFF_EVENT or CTRL_SHUTDOWN_EVENT and do the cleanup before exiting
 // the test wouldn't fail if you fail to terminate it, but it wouldn't exercise the code that is meant to deal with reboots after installing
 // a VMApp
-func TestCommandExecutorCanHandleProcessBeingKilled(t *testing.T) {
-	initializeTest(t)
-	defer cleanupTest()
-	newApp := packageregistry.VMAppPackageIncoming{
-		ApplicationName: "app1",
-		Order:           &one,
-		Version:         "1.0",
-		InstallCommand:  "install app1",
-		RemoveCommand:   "remove app1",
-		UpdateCommand:   "update app1",
-	}
-	existingApps := packageregistry.VMAppPackageCurrentCollection{}
-	incomingApps := packageregistry.VMAppPackageIncomingCollection{&newApp}
-	cmdHandler := NewCommandHandlerMock(mockCommandExecutorKillProcess)
-
-	var newReg packageregistry.CurrentPackageRegistry
-	var statusMessage IStatusMessage
-	done := make(chan bool, 1)
-	go func(newReg *packageregistry.CurrentPackageRegistry, statusMessage *IStatusMessage) {
-		*newReg, _, *statusMessage = executeActionPlan(t, existingApps, incomingApps, cmdHandler)
-		done <- true
-	}(&newReg, &statusMessage)
-	<-done
-	assert.EqualValues(t, newApp.InstallCommand, cmdHandler.Result[0].command, "Install command must be invoked")
-	assertPackageRegistryHasBeenUpdatedProperly(t, newReg, incomingApps)
-	assertAllActionsSucceeded(t, newReg)
-	packageOperationResults, ok := statusMessage.(*PackageOperationResults)
-	assert.True(t, ok)
-	assert.EqualValues(t, (*packageOperationResults)[0], PackageOperationResult{Result: Success, Operation: packageregistry.Install.ToString(), AppVersion: newApp.Version, PackageName: newApp.ApplicationName})
-}
 
 func TestSingleInstallWithOrder(t *testing.T) {
 	initializeTest(t)

@@ -157,7 +157,7 @@ func TestExecuteHelper(t *testing.T){
 
 func TestChecksum(t *testing.T){
 	initTest(t)
-	defer cleanupTest()
+	defer cleanTest()
 	checksum, err := getMD5CheckSum(mhgCommunicator.pkgFileSourcePath)
 	assert.NotNil(t, checksum, "checksum should not be nil")
 	assert.NoError(t, err, "we should be able to get checksum")

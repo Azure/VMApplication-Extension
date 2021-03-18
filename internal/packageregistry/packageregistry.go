@@ -7,7 +7,7 @@ import (
 	"path"
 	"time"
 
-	"github.com/Azure/VMApplication-Extension/pkg/lockedfile"
+	"github.com/Azure/azure-extension-platform/pkg/lockedfile"
 	"github.com/Azure/azure-extension-platform/pkg/constants"
 	"github.com/Azure/azure-extension-platform/pkg/handlerenv"
 )
@@ -68,8 +68,8 @@ type VMAppPackageCurrent struct {
 	ConfigExists           bool       `json:"configExists"`
 	OngoingOperation       ActionEnum `json:"ongoingOperation"`
 	DownloadDir            string     `json:"downloadDir"`
-	PackageFileName        string     `json:"installerPackageFileName"`
-	ConfigFileName         string     `json:"installerConfigFileName"`
+	PackageFileName        string     `json:"packageFileName"`
+	ConfigFileName         string     `json:"configFileName"`
 	PackageFileMD5Checksum []byte     `json:"packageFileMD5Checksum"`
 	ConfigFileMD5Checksum  []byte     `json:"configFileMD5Checksum"`
 }

@@ -5,7 +5,7 @@ import (
 	"crypto/md5"
 	"fmt"
 	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
-	"github.com/Azure/VMApplication-Extension/pkg/commandhandler"
+	"github.com/Azure/azure-extension-platform/pkg/commandhandler"
 	"github.com/Azure/azure-extension-platform/pkg/constants"
 	"github.com/Azure/azure-extension-platform/pkg/exithelper"
 	"github.com/Azure/azure-extension-platform/pkg/extensionerrors"
@@ -59,30 +59,36 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 			act.vmAppPackage.DownloadDir = downloadPath
 
 			if err := os.MkdirAll(downloadPath, constants.FilePermissions_UserOnly_ReadWriteExecute); err != nil {
-				errorMessageToReturn = errors.Wrapf(err, "failed to create download directory %s", downloadPath)
+				errorMessageToReturn = extensionerrors.CombineErrors(errorMessageToReturn, errors.Wrapf(err, "failed to create download directory %s", downloadPath))
 			}
-
-			// download packages
-			downloadPackageFileName := path.Join(downloadPath, act.vmAppPackage.PackageFileName)
-			if err := actionPlan.hostGaCommunicator.DownloadPackage(actionPlan.logger, act.vmAppPackage.ApplicationName, downloadPackageFileName); err != nil {
-				errorMessageToReturn = errors.Wrapf(err, "failed to download package file %s", downloadPackageFileName)
-			}
-			if packageFileChecksum, err := getMD5CheckSum(downloadPackageFileName); err == nil {
-				act.vmAppPackage.PackageFileMD5Checksum = packageFileChecksum
-			} else {
-				eem.LogWarningEvent("calculate checksum", fmt.Sprintf("could not get checksum for file %s, error: %s", downloadPackageFileName, err.Error()))
-			}
-
-			// download configuration
-			if act.vmAppPackage.ConfigExists {
-				downloadConfigFileName := path.Join(downloadPath, act.vmAppPackage.ConfigFileName)
-				if err := actionPlan.hostGaCommunicator.DownloadConfig(actionPlan.logger, act.vmAppPackage.ApplicationName, downloadConfigFileName); err != nil {
-					errorMessageToReturn = errors.Wrapf(err, "failed to download config file %s", downloadConfigFileName)
+			// proceed only if there was no error in the previous operation
+			if err == nil {
+				// download packages
+				downloadPackageFileName := path.Join(downloadPath, act.vmAppPackage.PackageFileName)
+				if err := actionPlan.hostGaCommunicator.DownloadPackage(actionPlan.logger, act.vmAppPackage.ApplicationName, downloadPackageFileName); err != nil {
+					errorMessageToReturn =  extensionerrors.CombineErrors(errorMessageToReturn, errors.Wrapf(err, "failed to download package file %s", downloadPackageFileName))
 				}
-				if configFileChecksum, err := getMD5CheckSum(downloadConfigFileName); err == nil {
-					act.vmAppPackage.ConfigFileMD5Checksum = configFileChecksum
-				} else {
-					eem.LogWarningEvent("calculate checksum", fmt.Sprintf("could not get checksum for file %s, error: %s", downloadConfigFileName, err.Error()))
+				if err == nil {
+					if packageFileChecksum, err := getMD5CheckSum(downloadPackageFileName); err == nil {
+						act.vmAppPackage.PackageFileMD5Checksum = packageFileChecksum
+					} else {
+						eem.LogWarningEvent("calculate checksum", fmt.Sprintf("could not get checksum for file %s, error: %s", downloadPackageFileName, err.Error()))
+					}
+				}
+
+				// download configuration
+				if act.vmAppPackage.ConfigExists {
+					downloadConfigFileName := path.Join(downloadPath, act.vmAppPackage.ConfigFileName)
+					if err := actionPlan.hostGaCommunicator.DownloadConfig(actionPlan.logger, act.vmAppPackage.ApplicationName, downloadConfigFileName); err != nil {
+						errorMessageToReturn = extensionerrors.CombineErrors(errorMessageToReturn, errors.Wrapf(err, "failed to download config file %s", downloadConfigFileName))
+					}
+					if err == nil {
+						if configFileChecksum, err := getMD5CheckSum(downloadConfigFileName); err == nil {
+							act.vmAppPackage.ConfigFileMD5Checksum = configFileChecksum
+						} else {
+							eem.LogWarningEvent("calculate checksum", fmt.Sprintf("could not get checksum for file %s, error: %s", downloadConfigFileName, err.Error()))
+						}
+					}
 				}
 			}
 		} else {
@@ -119,7 +125,7 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 		signal.Notify(interruptSignal, syscall.SIGTERM, syscall.SIGINT)
 
 		go func() {
-			rCode, err := commandHandler.Execute(commandToExecute, act.vmAppPackage.DownloadDir, actionPlan.logger)
+			rCode, err := commandHandler.Execute(commandToExecute, act.vmAppPackage.DownloadDir, act.vmAppPackage.DownloadDir, true, actionPlan.logger)
 			completionSignal <- ExecutionResult{retCode: rCode, err: err}
 			close(completionSignal)
 		}()
@@ -127,7 +133,7 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 		select {
 		case compSignal := <-completionSignal:
 			if compSignal.err != nil {
-				errorMessageToReturn = errors.Wrapf(compSignal.err, "Error executing command %v", commandToExecute)
+				errorMessageToReturn = extensionerrors.CombineErrors(errorMessageToReturn, errors.Wrapf(compSignal.err, "Error executing command %v", commandToExecute))
 			} else if compSignal.retCode != 0 {
 				errorMessageToReturn = extensionerrors.CombineErrors(errorMessageToReturn, errors.Errorf("Command %v exited with non-zero error code", commandToExecute))
 			}

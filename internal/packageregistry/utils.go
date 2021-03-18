@@ -40,20 +40,17 @@ func (self DesiredPackageRegistry) GetPackageCollection() (collection VMAppPacka
 
 func VMAppPackageIncomingToVmAppPackageCurrent(incoming *VMAppPackageIncoming) (current *VMAppPackageCurrent) {
 	var packageFileName, configFileName string
-
-
 	if incoming.PackageFileName == "" {
 		packageFileName = incoming.ApplicationName
 	} else {
-		packageFileName = incoming.ConfigFileName
+		packageFileName = incoming.PackageFileName
 	}
 
-	if incoming.PackageFileName == "" {
+	if incoming.ConfigFileName == "" {
 		configFileName = incoming.ApplicationName + defaultConfigFileNameSuffix
 	} else {
 		configFileName = incoming.ConfigFileName
 	}
-
 
 	current = &VMAppPackageCurrent{
 		ApplicationName:    incoming.ApplicationName,

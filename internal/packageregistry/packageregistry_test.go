@@ -1,7 +1,7 @@
 package packageregistry
 
 import (
-	"github.com/Azure/VMApplication-Extension/pkg/lockedfile"
+	"github.com/Azure/azure-extension-platform/pkg/lockedfile"
 	"github.com/Azure/azure-extension-platform/pkg/constants"
 	"github.com/Azure/azure-extension-platform/pkg/handlerenv"
 	"github.com/stretchr/testify/assert"
