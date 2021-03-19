@@ -1,0 +1,13 @@
+[{
+  "version": 1.0,
+  "handlerManifest": {
+    "installCommand": "bin\\vm-application-manager.exe install",
+    "uninstallCommand": "bin\\vm-application-manager.exe uninstall",
+    "updateCommand": "bin\\vm-application-manager.exe update",
+    "enableCommand": "bin\\extension-launcher.exe -extensionname 'Microsoft.CPlat.Core.VMApplicationWindows' -extensionversion '1.0.2' -exename .\\vm-application-manager.exe -operation enable",
+    "disableCommand": "bin\\vm-application-manager.exe disable",
+    "rebootAfterInstall": false,
+    "reportHeartbeat": false,
+    "updateMode": "UpdateWithInstall"
+  }
+}]
