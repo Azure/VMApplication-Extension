@@ -18,7 +18,6 @@ import (
 	"time"
 )
 
-const LaunchedFromAnotherProcessEnvVariable = "LAUNCHED_FROM_ANOTHER_PROCESS"
 
 var mockCommandExecutorSleepForAnHour CommandExecutor = func(s string, s2 string) (int, error) {
 	fmt.Sprint("sleeping for 1 hour")
