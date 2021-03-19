@@ -15,7 +15,7 @@ import (
 
 // Note: not const so test can change them
 var (
-	extensionVersion = "1.0.2"
+	extensionVersion = "1.0.3"
 
 	// downloadDir is where we store the downloaded files in the "{downloadDir}/{seqnum}/file"
 	// format and the logs as "{downloadDir}/{seqnum}/std(out|err)". Stored under dataDir
