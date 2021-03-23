@@ -75,7 +75,7 @@ type VMAppPackageCurrent struct {
 	ConfigFileName         string     `json:"configFileName"`
 	PackageFileMD5Checksum []byte     `json:"packageFileMD5Checksum"`
 	ConfigFileMD5Checksum  []byte     `json:"configFileMD5Checksum"`
-	Result                 string     `json"result"`
+	Result                 string     `json:"result"`
 }
 
 func (vmAppPackageCurrent *VMAppPackageCurrent) GetWorkingDirectory(environment *handlerenv.HandlerEnvironment) string {

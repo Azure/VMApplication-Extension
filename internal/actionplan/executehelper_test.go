@@ -134,7 +134,7 @@ func cleanTest(){
 func TestExecuteHelper(t *testing.T){
 	initTest(t)
 	defer cleanTest()
-	action := action{&vmAppPackageCurrent, packageregistry.Install}
+	action := action{vmAppPackageCurrent, packageregistry.Install}
 	err := actionPlan.executeHelper(packageRegistry, commandHandler, packageregistry.CurrentPackageRegistry{}, &action, extensionEventManager)
 	assert.NoError(t, err)
 	assert.EqualValues(t, 1, mhgCommunicator.DownloadPackageCount, "download package count should be 1")

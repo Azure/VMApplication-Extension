@@ -26,11 +26,12 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 	version := act.vmAppPackage.Version
 	
 	// record new operation in the packageRegistry
-	registry[appName] = act.vmAppPackage
-	registry[appName].OngoingOperation = act.actionToPerform
+	vmAppPackageCurrent := act.vmAppPackage
+	registry[appName] = &vmAppPackageCurrent
+	vmAppPackageCurrent.OngoingOperation = act.actionToPerform
 
 	// return early for Cleanup operation
-	if registry[appName].OngoingOperation == packageregistry.Cleanup {
+	if vmAppPackageCurrent.OngoingOperation == packageregistry.Cleanup {
 		delete(registry, appName)
 		return registryHandler.WriteToDisk(registry)
 	}
@@ -152,9 +153,12 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 					commandToExecute, appName, version))
 			// depending on the action to perform, we either mark than no additional action needs to be taken, or in case of remove action, mark the app as removed
 			switch act.actionToPerform {
-			case packageregistry.Install, packageregistry.Update:
-				registry[appName].OngoingOperation = packageregistry.NoAction
-				registry[appName].Result = "reboot detected during install, marking operation as success"
+			case packageregistry.Install:
+				vmAppPackageCurrent.OngoingOperation = packageregistry.NoAction
+				vmAppPackageCurrent.Result = "reboot detected during install, marking operation as success"
+			case packageregistry.Update:
+				vmAppPackageCurrent.OngoingOperation = packageregistry.NoAction
+				vmAppPackageCurrent.Result = "reboot detected during update, marking operation as success"
 			case packageregistry.Remove:
 				delete(registry, appName)
 				os.RemoveAll(act.vmAppPackage.DownloadDir)
@@ -167,8 +171,8 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 	}
 
 	if errorMessageToReturn != nil {
-		registry[appName].OngoingOperation = packageregistry.Failed
-		registry[appName].Result = errorMessageToReturn.Error()
+		vmAppPackageCurrent.Result = fmt.Sprintf("%s %s %s", vmAppPackageCurrent.OngoingOperation.ToString(), Failed, errorMessageToReturn.Error())
+		vmAppPackageCurrent.OngoingOperation = packageregistry.Failed
 	} else {
 		if isDeleteOperation {
 			delete(registry, appName)
@@ -176,8 +180,8 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 			deleteErr := os.RemoveAll(act.vmAppPackage.DownloadDir)
 			errorMessageToReturn = extensionerrors.CombineErrors(errorMessageToReturn, deleteErr)
 		} else {
-			registry[appName].OngoingOperation = packageregistry.NoAction
-			registry[appName].Result = Success
+			vmAppPackageCurrent.Result = fmt.Sprintf("%s %s", vmAppPackageCurrent.OngoingOperation.ToString(), Success)
+			vmAppPackageCurrent.OngoingOperation = packageregistry.NoAction
 		}
 	}
 	err = registryHandler.WriteToDisk(registry)

@@ -551,7 +551,7 @@ func TestSkippedPackagesAreCleanedUpWhenRemovedFromApplicationProfile(t *testing
 func executeActionPlan(t *testing.T,
 	currentPackages packageregistry.VMAppPackageCurrentCollection,
 	incomingPackages packageregistry.VMAppPackageIncomingCollection,
-	cmdHandler commandhandler.ICommandHandler) (packageregistry.CurrentPackageRegistry, *ActionPlan, IStatusMessage) {
+	cmdHandler commandhandler.ICommandHandler) (packageregistry.CurrentPackageRegistry, *ActionPlan, IResult) {
 
 	currentReg := packageregistry.CurrentPackageRegistry{}
 	currentReg.Populate(currentPackages)
@@ -604,5 +604,6 @@ func assertPackageRegistryHasBeenUpdatedProperly(t *testing.T, pkgReg packagereg
 func assertAllActionsSucceeded(t *testing.T, pkgReg packageregistry.CurrentPackageRegistry) {
 	for _, vmApp := range pkgReg {
 		assert.Equal(t, packageregistry.NoAction, vmApp.OngoingOperation)
+		assert.Contains(t, vmApp.Result, Success)
 	}
 }

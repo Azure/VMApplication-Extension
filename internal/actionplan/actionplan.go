@@ -17,12 +17,12 @@ import (
 )
 
 type action struct {
-	vmAppPackage    *packageregistry.VMAppPackageCurrent
+	// vmAppPackage is not a pointer type on purpose, we don't want it to be mutated
+	vmAppPackage    packageregistry.VMAppPackageCurrent
 	actionToPerform packageregistry.ActionEnum
 }
-
-const fiveKilo = 5 * 1024
 const Success = "SUCCESS"
+const Failed = "FAILED"
 
 // when an update requires an implicit remove and uninstall, the install is dependent on the remove
 // this data structure helps us skip the install if the remove fails
@@ -42,7 +42,7 @@ type ActionPlan struct {
 	logger                      *logging.ExtensionLogger
 }
 
-type IStatusMessage interface {
+type IResult interface {
 	ToJsonString() string
 }
 
@@ -60,10 +60,6 @@ func (packageOperationResults *PackageOperationResults) ToJsonString() (message 
 		message = fmt.Sprintf("%v", packageOperationResults)
 	} else {
 		message = string(jsonBytes)
-	}
-	if len(message) > fiveKilo {
-		// keep the message smaller than 5KB
-		message = string(message[0 : fiveKilo-1])
 	}
 	return
 }
@@ -107,11 +103,11 @@ func New(currentPackageRegistry packageregistry.CurrentPackageRegistry, desiredV
 		_, existsInNewConfiguration := packageRegistryIncoming[vmAppCurrent.ApplicationName]
 		if !existsInNewConfiguration {
 			if vmAppCurrent.OngoingOperation != packageregistry.Skipped {
-				deleteAction := &action{vmAppCurrent, packageregistry.Remove}
+				deleteAction := &action{*vmAppCurrent, packageregistry.Remove}
 				actionPlan.unorderedImplicitUninstalls = append(actionPlan.unorderedImplicitUninstalls, deleteAction)
 			} else {
 				// remove the package without from the registry without calling the remove command
-				deleteAction := &action{vmAppCurrent, packageregistry.Cleanup}
+				deleteAction := &action{*vmAppCurrent, packageregistry.Cleanup}
 				actionPlan.unorderedImplicitUninstalls = append(actionPlan.unorderedImplicitUninstalls, deleteAction)
 			}
 		}
@@ -126,17 +122,17 @@ func New(currentPackageRegistry packageregistry.CurrentPackageRegistry, desiredV
 			if !versionsEqual {
 				if len(vmAppIncoming.UpdateCommand) == 0 {
 					// not the same version and there is no update command
-					deleteAction := &action{vmAppCurrent, packageregistry.Remove} // delete current and install incoming
-					installAction := &action{packageregistry.VMAppPackageIncomingToVmAppPackageCurrent(vmAppIncoming), packageregistry.Install}
+					deleteAction := &action{*vmAppCurrent, packageregistry.Remove} // delete current and install incoming
+					installAction := &action{*packageregistry.VMAppPackageIncomingToVmAppPackageCurrent(vmAppIncoming), packageregistry.Install}
 					actionPlan.insertOperation(vmAppIncoming.Order, deleteAction, installAction)
 				} else {
-					updateAction := &action{packageregistry.VMAppPackageIncomingToVmAppPackageCurrent(vmAppIncoming), packageregistry.Update}
+					updateAction := &action{*packageregistry.VMAppPackageIncomingToVmAppPackageCurrent(vmAppIncoming), packageregistry.Update}
 					actionPlan.insertOperation(vmAppIncoming.Order, updateAction)
 				}
 			}
 		} else {
 			// installs
-			installAction := &action{packageregistry.VMAppPackageIncomingToVmAppPackageCurrent(vmAppIncoming), packageregistry.Install}
+			installAction := &action{*packageregistry.VMAppPackageIncomingToVmAppPackageCurrent(vmAppIncoming), packageregistry.Install}
 			actionPlan.insertOperation(vmAppIncoming.Order, installAction)
 		}
 	}
@@ -160,7 +156,7 @@ func (actionPlan *ActionPlan) insertOperation(order *int, dependentActions1 ...*
 	}
 }
 
-func (actionPlan *ActionPlan) Execute(registryHandler packageregistry.IPackageRegistry, eem *extensionevents.ExtensionEventManager, commandHandler commandhandler.ICommandHandler) (error, IStatusMessage) {
+func (actionPlan *ActionPlan) Execute(registryHandler packageregistry.IPackageRegistry, eem *extensionevents.ExtensionEventManager, commandHandler commandhandler.ICommandHandler) (error, IResult) {
 	// registry will be mutated and written to disk so that we can keep track of all the actions that have happened
 	registry, err := registryHandler.GetExistingPackages()
 	if err != nil {
@@ -187,10 +183,10 @@ func (actionPlan *ActionPlan) Execute(registryHandler packageregistry.IPackageRe
 				// if we encountered and error in the past, skip all the operations for a higher order
 				if atLeastOneActionFailed && order > actionFailedAtOrder {
 					appName := act.vmAppPackage.ApplicationName
-
-					registry[appName] = act.vmAppPackage
-					registry[appName].OngoingOperation = packageregistry.Skipped
-					registry[appName].Result = "skipped, lower order operation failed"
+					currentVmApp := act.vmAppPackage
+					registry[appName] = &currentVmApp
+					currentVmApp.OngoingOperation = packageregistry.Skipped
+					currentVmApp.Result = "skipped, lower order operation failed"
 
 					appendExecutionResultExplicit(&executionResult, act, "Skipped, lower order operation failed")
 

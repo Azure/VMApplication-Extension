@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"time"
@@ -113,17 +112,12 @@ func doVmAppEnableCallback(ext *vmextensionhelper.VMExtension, hostGaCommunicato
 
 	// actionPlan.Execute can fail partially, but we mark the overall process as success
 	// errors are sent in the status message
-	actionPlan.Execute(packageRegistry, ext.ExtensionEvents, &commandHandler)
+	_, result := actionPlan.Execute(packageRegistry, ext.ExtensionEvents, &commandHandler)
 
 	currentPackageRegistry, err = packageRegistry.GetExistingPackages()
 	if err != nil {
 		return "could not read current package registry", err
 	}
 
-	currentPackagesJson, err := json.Marshal(currentPackageRegistry)
-	if err != nil {
-		return "could not serialize current package registry to json", err
-	}
-
-	return string(currentPackagesJson), nil
+	return getStatusMessage(currentPackageRegistry.GetPackageCollection(), result), nil
 }
