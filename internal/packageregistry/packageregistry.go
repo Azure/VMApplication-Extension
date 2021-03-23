@@ -28,6 +28,7 @@ const (
 	Remove
 	Failed
 	Skipped
+	Cleanup
 )
 
 const defaultConfigFileNameSuffix = "_config"
@@ -46,6 +47,8 @@ func (act ActionEnum) ToString() string {
 		return "Failed"
 	case Skipped:
 		return "Skipped"
+	case Cleanup:
+		return "Cleanup"
 	default:
 		return "UnknownAction"
 	}

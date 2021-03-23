@@ -506,6 +506,48 @@ func TestOrderIsMaintainedAndHigherOrderOperationsAreSkippedOnFailure(t *testing
 	assertAllActionsSucceeded(t, newReg)
 }
 
+func TestSkippedPackagesAreCleanedUpWhenRemovedFromApplicationProfile(t *testing.T){
+	initializeTest(t)
+	defer cleanupTest()
+	old1 := packageregistry.VMAppPackageCurrent{
+		ApplicationName:  "app1",
+		Version:          "1.0",
+		InstallCommand:   "install app1 1.0",
+		RemoveCommand:    "remove app1 1.0",
+		UpdateCommand:    "update app1 1.0",
+		OngoingOperation: packageregistry.NoAction,
+	}
+	old2 := packageregistry.VMAppPackageCurrent{
+		ApplicationName:  "app2",
+		Version:          "1.0",
+		InstallCommand:   "install app2 1.0",
+		RemoveCommand:    "remove app2 1.0",
+		UpdateCommand:    "update app2 1.0",
+		OngoingOperation: packageregistry.Skipped,
+	}
+	old3 := packageregistry.VMAppPackageCurrent{
+		ApplicationName:  "app3",
+		Version:          "1.0",
+		InstallCommand:   "install app3 1.0",
+		RemoveCommand:    "remove app3 1.0",
+		UpdateCommand:    "update app3 1.0",
+		OngoingOperation: packageregistry.NoAction,
+	}
+	existingApps := packageregistry.VMAppPackageCurrentCollection{&old1, &old2, &old3}
+	incomingApps := packageregistry.VMAppPackageIncomingCollection{}
+	cmdHandler := NewCommandHandlerMock(mockCommandFailOnDemand)
+	newReg, actionPlan, statusMessage := executeActionPlan(t, existingApps, incomingApps, cmdHandler)
+	assertAllActionsSucceeded(t, newReg)
+	assertPackageRegistryHasBeenUpdatedProperly(t, newReg, incomingApps)
+	assert.Equal(t, 3, len(actionPlan.unorderedImplicitUninstalls), "we are expecting 3 uninstall operations")
+	assert.Equal(t,2,  len(cmdHandler.Result), "only 2 commands should be invoked")
+
+	packageOperationResults, ok := statusMessage.(*PackageOperationResults)
+	assert.True(t, ok)
+	assert.Contains(t, *packageOperationResults, PackageOperationResult{Result: Success, Operation: packageregistry.Cleanup.ToString(), AppVersion: old2.Version, PackageName: old2.ApplicationName})
+
+}
+
 func executeActionPlan(t *testing.T,
 	currentPackages packageregistry.VMAppPackageCurrentCollection,
 	incomingPackages packageregistry.VMAppPackageIncomingCollection,

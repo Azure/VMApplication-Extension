@@ -24,10 +24,17 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 	errorMessageToReturn = nil
 	appName := act.vmAppPackage.ApplicationName
 	version := act.vmAppPackage.Version
-
+	
 	// record new operation in the packageRegistry
 	registry[appName] = act.vmAppPackage
 	registry[appName].OngoingOperation = act.actionToPerform
+
+	// return early for Cleanup operation
+	if registry[appName].OngoingOperation == packageregistry.Cleanup {
+		delete(registry, appName)
+		return registryHandler.WriteToDisk(registry)
+	}
+
 	err := registryHandler.WriteToDisk(registry)
 	if err != nil {
 		return err

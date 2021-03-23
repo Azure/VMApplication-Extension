@@ -104,10 +104,16 @@ func New(currentPackageRegistry packageregistry.CurrentPackageRegistry, desiredV
 	packageRegistryIncoming.Populate(desiredVMAppCollection)
 	vmAppCurrentCollection := currentPackageRegistry.GetPackageCollection()
 	for _, vmAppCurrent := range vmAppCurrentCollection {
-		_, exists := packageRegistryIncoming[vmAppCurrent.ApplicationName]
-		if !exists {
-			deleteAction := &action{vmAppCurrent, packageregistry.Remove}
-			actionPlan.unorderedImplicitUninstalls = append(actionPlan.unorderedImplicitUninstalls, deleteAction)
+		_, existsInNewConfiguration := packageRegistryIncoming[vmAppCurrent.ApplicationName]
+		if !existsInNewConfiguration {
+			if vmAppCurrent.OngoingOperation != packageregistry.Skipped {
+				deleteAction := &action{vmAppCurrent, packageregistry.Remove}
+				actionPlan.unorderedImplicitUninstalls = append(actionPlan.unorderedImplicitUninstalls, deleteAction)
+			} else {
+				// remove the package without from the registry without calling the remove command
+				deleteAction := &action{vmAppCurrent, packageregistry.Cleanup}
+				actionPlan.unorderedImplicitUninstalls = append(actionPlan.unorderedImplicitUninstalls, deleteAction)
+			}
 		}
 	}
 
