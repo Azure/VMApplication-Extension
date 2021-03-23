@@ -28,6 +28,9 @@ const (
 	Remove
 	Failed
 	Skipped
+	// cleanup happens when a VMApp was previously skipped due to failure of an operation with lower order
+	// and the VMApp has been subsequently removed from the VM/VMSS application profile
+	// we need not call the remove command
 	Cleanup
 )
 
@@ -93,8 +96,8 @@ type VMAppPackageIncoming struct {
 	DirectDownloadOnly bool   `json:"directOnly"`
 	Order              *int   `json:"order"`
 	ConfigExists       bool   `json:"configExists"`
-	PackageFileName    string `json:"installerPackageFileName"`
-	ConfigFileName     string `json:"installerConfigFileName"`
+	PackageFileName    string `json:"packageFileName"`
+	ConfigFileName     string `json:"configFileName"`
 }
 
 type IPackageRegistry interface {
