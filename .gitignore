@@ -10,3 +10,4 @@ VmExtensionHelper/seqno/flooperflop/
 VmExtensionHelper/status/statustest/
 vm-application-manager
 internal/actionplan/test.ps1
+vm-application-manager.exe

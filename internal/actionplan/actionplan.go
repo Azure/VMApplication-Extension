@@ -184,6 +184,7 @@ func (actionPlan *ActionPlan) Execute(registryHandler packageregistry.IPackageRe
 
 					registry[appName] = act.vmAppPackage
 					registry[appName].OngoingOperation = packageregistry.Skipped
+					registry[appName].Result = "skipped, lower order operation failed"
 
 					appendExecutionResultExplicit(&executionResult, act, "Skipped, lower order operation failed")
 
