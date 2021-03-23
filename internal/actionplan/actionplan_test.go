@@ -96,12 +96,6 @@ func cleanupTest() {
 	os.RemoveAll(testdir)
 }
 
-// On windows, to actually run this test, you have to CTRL-C the process running the test then verify the package registry file
-// in the testdir manually. Go cannot send SIGTERM to a process running in windows, but it can catch the interrupts like
-// CTRL_CLOSE_EVENT, CTRL_LOGOFF_EVENT or CTRL_SHUTDOWN_EVENT and do the cleanup before exiting
-// the test wouldn't fail if you fail to terminate it, but it wouldn't exercise the code that is meant to deal with reboots after installing
-// a VMApp
-
 func TestSingleInstallWithOrder(t *testing.T) {
 	initializeTest(t)
 	defer cleanupTest()
