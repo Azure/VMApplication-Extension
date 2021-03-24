@@ -45,12 +45,12 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 	var isDeleteOperation = false
 	switch act.actionToPerform {
 	case packageregistry.Install:
-		commandToExecute = act.vmAppPackage.InstallCommand
+		commandToExecute = vmAppPackageCurrent.InstallCommand
 	case packageregistry.Remove:
 		isDeleteOperation = true
-		commandToExecute = act.vmAppPackage.RemoveCommand
+		commandToExecute = vmAppPackageCurrent.RemoveCommand
 	case packageregistry.Update:
-		commandToExecute = act.vmAppPackage.UpdateCommand
+		commandToExecute = vmAppPackageCurrent.UpdateCommand
 	default:
 		errorMessageToReturn = errors.Errorf("Unexpected Action to perform encountered %v", act.actionToPerform)
 	}
@@ -63,8 +63,8 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 
 	if errorMessageToReturn == nil {
 		if !isDeleteOperation {
-			downloadPath := act.vmAppPackage.GetWorkingDirectory(actionPlan.environment)
-			act.vmAppPackage.DownloadDir = downloadPath
+			downloadPath := vmAppPackageCurrent.GetWorkingDirectory(actionPlan.environment)
+			vmAppPackageCurrent.DownloadDir = downloadPath
 
 			if err := os.MkdirAll(downloadPath, constants.FilePermissions_UserOnly_ReadWriteExecute); err != nil {
 				errorMessageToReturn = extensionerrors.CombineErrors(errorMessageToReturn, errors.Wrapf(err, "failed to create download directory %s", downloadPath))
@@ -72,27 +72,27 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 			// proceed only if there was no error in the previous operation
 			if err == nil {
 				// download packages
-				downloadPackageFileName := path.Join(downloadPath, act.vmAppPackage.PackageFileName)
-				if err := actionPlan.hostGaCommunicator.DownloadPackage(actionPlan.logger, act.vmAppPackage.ApplicationName, downloadPackageFileName); err != nil {
+				downloadPackageFileName := path.Join(downloadPath, vmAppPackageCurrent.PackageFileName)
+				if err := actionPlan.hostGaCommunicator.DownloadPackage(actionPlan.logger, vmAppPackageCurrent.ApplicationName, downloadPackageFileName); err != nil {
 					errorMessageToReturn =  extensionerrors.CombineErrors(errorMessageToReturn, errors.Wrapf(err, "failed to download package file %s", downloadPackageFileName))
 				}
 				if err == nil {
 					if packageFileChecksum, err := getMD5CheckSum(downloadPackageFileName); err == nil {
-						act.vmAppPackage.PackageFileMD5Checksum = packageFileChecksum
+						vmAppPackageCurrent.PackageFileMD5Checksum = packageFileChecksum
 					} else {
 						eem.LogWarningEvent("calculate checksum", fmt.Sprintf("could not get checksum for file %s, error: %s", downloadPackageFileName, err.Error()))
 					}
 				}
 
 				// download configuration
-				if act.vmAppPackage.ConfigExists {
-					downloadConfigFileName := path.Join(downloadPath, act.vmAppPackage.ConfigFileName)
-					if err := actionPlan.hostGaCommunicator.DownloadConfig(actionPlan.logger, act.vmAppPackage.ApplicationName, downloadConfigFileName); err != nil {
+				if vmAppPackageCurrent.ConfigExists {
+					downloadConfigFileName := path.Join(downloadPath, vmAppPackageCurrent.ConfigFileName)
+					if err := actionPlan.hostGaCommunicator.DownloadConfig(actionPlan.logger, vmAppPackageCurrent.ApplicationName, downloadConfigFileName); err != nil {
 						errorMessageToReturn = extensionerrors.CombineErrors(errorMessageToReturn, errors.Wrapf(err, "failed to download config file %s", downloadConfigFileName))
 					}
 					if err == nil {
 						if configFileChecksum, err := getMD5CheckSum(downloadConfigFileName); err == nil {
-							act.vmAppPackage.ConfigFileMD5Checksum = configFileChecksum
+							vmAppPackageCurrent.ConfigFileMD5Checksum = configFileChecksum
 						} else {
 							eem.LogWarningEvent("calculate checksum", fmt.Sprintf("could not get checksum for file %s, error: %s", downloadConfigFileName, err.Error()))
 						}
@@ -102,18 +102,18 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 		} else {
 			// this is a delete operation, refrain from downloading anything just load existing packages
 			// verify checksum
-			packageFilePath := path.Join(act.vmAppPackage.DownloadDir, act.vmAppPackage.PackageFileName)
-			if act.vmAppPackage.PackageFileMD5Checksum != nil {
-				isMatch, err := verifyMD5CheckSum(packageFilePath, act.vmAppPackage.PackageFileMD5Checksum)
+			packageFilePath := path.Join(vmAppPackageCurrent.DownloadDir, vmAppPackageCurrent.PackageFileName)
+			if vmAppPackageCurrent.PackageFileMD5Checksum != nil {
+				isMatch, err := verifyMD5CheckSum(packageFilePath, vmAppPackageCurrent.PackageFileMD5Checksum)
 				if err != nil {
 					eem.LogWarningEvent("verify checksum", fmt.Sprintf("could not get checksum for file %s, error: %s", packageFilePath, err.Error()))
 				} else if !isMatch {
 					eem.LogWarningEvent("verify checksum", fmt.Sprintf("the checksum for file %s does not match", packageFilePath))
 				}
 			}
-			if act.vmAppPackage.ConfigExists && act.vmAppPackage.ConfigFileMD5Checksum != nil {
-				configFilePath := path.Join(act.vmAppPackage.DownloadDir, act.vmAppPackage.ConfigFileName)
-				isMatch, err := verifyMD5CheckSum(configFilePath, act.vmAppPackage.ConfigFileMD5Checksum)
+			if vmAppPackageCurrent.ConfigExists && vmAppPackageCurrent.ConfigFileMD5Checksum != nil {
+				configFilePath := path.Join(vmAppPackageCurrent.DownloadDir, vmAppPackageCurrent.ConfigFileName)
+				isMatch, err := verifyMD5CheckSum(configFilePath, vmAppPackageCurrent.ConfigFileMD5Checksum)
 				if err != nil {
 					eem.LogWarningEvent("verify checksum", fmt.Sprintf("could not get checksum for file %s, error: %s", configFilePath, err.Error()))
 				} else if !isMatch {
@@ -133,7 +133,7 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 		signal.Notify(interruptSignal, syscall.SIGTERM, syscall.SIGINT)
 
 		go func() {
-			rCode, err := commandHandler.Execute(commandToExecute, act.vmAppPackage.DownloadDir, act.vmAppPackage.DownloadDir, true, actionPlan.logger)
+			rCode, err := commandHandler.Execute(commandToExecute, vmAppPackageCurrent.DownloadDir, vmAppPackageCurrent.DownloadDir, true, actionPlan.logger)
 			completionSignal <- ExecutionResult{retCode: rCode, err: err}
 			close(completionSignal)
 		}()
@@ -161,7 +161,7 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 				vmAppPackageCurrent.Result = "reboot detected during update, marking operation as success"
 			case packageregistry.Remove:
 				delete(registry, appName)
-				os.RemoveAll(act.vmAppPackage.DownloadDir)
+				os.RemoveAll(vmAppPackageCurrent.DownloadDir)
 			}
 
 			registryHandler.WriteToDisk(registry)
@@ -177,7 +177,7 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 		if isDeleteOperation {
 			delete(registry, appName)
 			// also cleanup directory
-			deleteErr := os.RemoveAll(act.vmAppPackage.DownloadDir)
+			deleteErr := os.RemoveAll(vmAppPackageCurrent.DownloadDir)
 			errorMessageToReturn = extensionerrors.CombineErrors(errorMessageToReturn, deleteErr)
 		} else {
 			vmAppPackageCurrent.Result = fmt.Sprintf("%s %s", vmAppPackageCurrent.OngoingOperation.ToString(), Success)
