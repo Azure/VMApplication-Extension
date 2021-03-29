@@ -7,7 +7,7 @@ import (
 	"path"
 	"time"
 
-	"github.com/Azure/VMApplication-Extension/pkg/lockedfile"
+	"github.com/Azure/azure-extension-platform/pkg/lockedfile"
 	"github.com/Azure/azure-extension-platform/pkg/constants"
 	"github.com/Azure/azure-extension-platform/pkg/handlerenv"
 )
@@ -28,9 +28,15 @@ const (
 	Remove
 	Failed
 	Skipped
+	// cleanup happens when a VMApp was previously skipped due to failure of an operation with lower order
+	// and the VMApp has been subsequently removed from the VM/VMSS application profile
+	// we need not call the remove command
+	Cleanup
 )
 
-func (act ActionEnum) ToString() (string) {
+const defaultConfigFileNameSuffix = "_config"
+
+func (act ActionEnum) ToString() string {
 	switch act {
 	case NoAction:
 		return "NoAction"
@@ -44,6 +50,8 @@ func (act ActionEnum) ToString() (string) {
 		return "Failed"
 	case Skipped:
 		return "Skipped"
+	case Cleanup:
+		return "Cleanup"
 	default:
 		return "UnknownAction"
 	}
@@ -57,14 +65,20 @@ type DesiredPackageRegistry map[string]*VMAppPackageIncoming
 type VMAppPackageCurrentCollection []*VMAppPackageCurrent
 
 type VMAppPackageCurrent struct {
-	ApplicationName    string     `json:"applicationName"`
-	Version            string     `json:"version"`
-	InstallCommand     string     `json:"install"`
-	RemoveCommand      string     `json:"remove"`
-	UpdateCommand      string     `json:"update"`
-	DirectDownloadOnly bool       `json:"directOnly"`
-	ConfigExists       bool       `json:"configExists"`
-	OngoingOperation   ActionEnum `json:"ongoingOperation"`
+	ApplicationName        string     `json:"applicationName"`
+	Version                string     `json:"version"`
+	InstallCommand         string     `json:"install"`
+	RemoveCommand          string     `json:"remove"`
+	UpdateCommand          string     `json:"update"`
+	DirectDownloadOnly     bool       `json:"directOnly"`
+	ConfigExists           bool       `json:"configExists"`
+	OngoingOperation       ActionEnum `json:"ongoingOperation"`
+	DownloadDir            string     `json:"downloadDir"`
+	PackageFileName        string     `json:"packageFileName"`
+	ConfigFileName         string     `json:"configFileName"`
+	PackageFileMD5Checksum []byte     `json:"packageFileMD5Checksum"`
+	ConfigFileMD5Checksum  []byte     `json:"configFileMD5Checksum"`
+	Result                 string     `json:"result"`
 }
 
 func (vmAppPackageCurrent *VMAppPackageCurrent) GetWorkingDirectory(environment *handlerenv.HandlerEnvironment) string {
@@ -82,6 +96,8 @@ type VMAppPackageIncoming struct {
 	DirectDownloadOnly bool   `json:"directOnly"`
 	Order              *int   `json:"order"`
 	ConfigExists       bool   `json:"configExists"`
+	PackageFileName    string `json:"packageFileName"`
+	ConfigFileName     string `json:"configFileName"`
 }
 
 type IPackageRegistry interface {

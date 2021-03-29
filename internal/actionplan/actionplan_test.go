@@ -9,7 +9,7 @@ import (
 
 	"github.com/Azure/VMApplication-Extension/internal/hostgacommunicator"
 	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
-	"github.com/Azure/VMApplication-Extension/pkg/commandhandler"
+	"github.com/Azure/azure-extension-platform/pkg/commandhandler"
 	"github.com/Azure/azure-extension-platform/pkg/constants"
 	"github.com/Azure/azure-extension-platform/pkg/extensionevents"
 	"github.com/Azure/azure-extension-platform/pkg/handlerenv"
@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+const LaunchedFromAnotherProcessEnvVariable = "LAUNCHED_FROM_ANOTHER_PROCESS"
 const errorString = "command failed as expected"
 
 var one = 1
@@ -40,11 +41,13 @@ func NewCommandHandlerMock(executor func(string, string) (int, error)) *CommandH
 	return &CommandHandlerMock{Result: []commandResult{}, Executor: executor}
 }
 
-func (commandHandlerMock *CommandHandlerMock) Execute(command string, workingDir string, el *logging.ExtensionLogger) (returnCode int, err error) {
-	retCode, err := commandHandlerMock.Executor(command, workingDir)
-	commandHandlerMock.Result = append(commandHandlerMock.Result, commandResult{command, retCode, err})
+func (commandHandlerMock *CommandHandlerMock) Execute(command string, workingDir, logDir string, waitForCompletion bool, el *logging.ExtensionLogger) (returnCode int, err error) {
+	returnCode, err = commandHandlerMock.Executor(command, workingDir)
+	commandHandlerMock.Result = append(commandHandlerMock.Result, commandResult{command, returnCode, err})
 	return
 }
+
+
 
 var mockCommandExecutorNoError CommandExecutor = func(string, string) (int, error) {
 	return 0, nil
@@ -71,8 +74,8 @@ func (downloader *NoopHostGaComminucator) GetVMAppInfo(logger *logging.Extension
 }
 
 var environment = &handlerenv.HandlerEnvironment{
-	DataFolder:   path.Join(".", "testdir", "data"),
-	ConfigFolder: path.Join(".", "testdir", "config"),
+	DataFolder:   path.Join(testdir, "data"),
+	ConfigFolder: path.Join(testdir, "config"),
 }
 
 func initializeTest(t *testing.T) {
@@ -90,8 +93,7 @@ func initializeTest(t *testing.T) {
 }
 
 func cleanupTest() {
-	os.RemoveAll(environment.ConfigFolder)
-	os.RemoveAll(environment.DataFolder)
+	os.RemoveAll(testdir)
 }
 
 func TestSingleInstallWithOrder(t *testing.T) {
@@ -474,8 +476,8 @@ func TestOrderIsMaintainedAndHigherOrderOperationsAreSkippedOnFailure(t *testing
 	failCountFromRegistry := 0
 	skipCountFromRegistry := 0
 
-	for _, appInRegistry := range newReg{
-		switch appInRegistry.OngoingOperation{
+	for _, appInRegistry := range newReg {
+		switch appInRegistry.OngoingOperation {
 		case packageregistry.NoAction:
 			successCountFromRegistry++
 		case packageregistry.Failed:
@@ -498,10 +500,52 @@ func TestOrderIsMaintainedAndHigherOrderOperationsAreSkippedOnFailure(t *testing
 	assertAllActionsSucceeded(t, newReg)
 }
 
+func TestSkippedPackagesAreCleanedUpWhenRemovedFromApplicationProfile(t *testing.T){
+	initializeTest(t)
+	defer cleanupTest()
+	old1 := packageregistry.VMAppPackageCurrent{
+		ApplicationName:  "app1",
+		Version:          "1.0",
+		InstallCommand:   "install app1 1.0",
+		RemoveCommand:    "remove app1 1.0",
+		UpdateCommand:    "update app1 1.0",
+		OngoingOperation: packageregistry.NoAction,
+	}
+	old2 := packageregistry.VMAppPackageCurrent{
+		ApplicationName:  "app2",
+		Version:          "1.0",
+		InstallCommand:   "install app2 1.0",
+		RemoveCommand:    "remove app2 1.0",
+		UpdateCommand:    "update app2 1.0",
+		OngoingOperation: packageregistry.Skipped,
+	}
+	old3 := packageregistry.VMAppPackageCurrent{
+		ApplicationName:  "app3",
+		Version:          "1.0",
+		InstallCommand:   "install app3 1.0",
+		RemoveCommand:    "remove app3 1.0",
+		UpdateCommand:    "update app3 1.0",
+		OngoingOperation: packageregistry.NoAction,
+	}
+	existingApps := packageregistry.VMAppPackageCurrentCollection{&old1, &old2, &old3}
+	incomingApps := packageregistry.VMAppPackageIncomingCollection{}
+	cmdHandler := NewCommandHandlerMock(mockCommandFailOnDemand)
+	newReg, actionPlan, statusMessage := executeActionPlan(t, existingApps, incomingApps, cmdHandler)
+	assertAllActionsSucceeded(t, newReg)
+	assertPackageRegistryHasBeenUpdatedProperly(t, newReg, incomingApps)
+	assert.Equal(t, 3, len(actionPlan.unorderedImplicitUninstalls), "we are expecting 3 uninstall operations")
+	assert.Equal(t,2,  len(cmdHandler.Result), "only 2 commands should be invoked")
+
+	packageOperationResults, ok := statusMessage.(*PackageOperationResults)
+	assert.True(t, ok)
+	assert.Contains(t, *packageOperationResults, PackageOperationResult{Result: Success, Operation: packageregistry.Cleanup.ToString(), AppVersion: old2.Version, PackageName: old2.ApplicationName})
+
+}
+
 func executeActionPlan(t *testing.T,
 	currentPackages packageregistry.VMAppPackageCurrentCollection,
 	incomingPackages packageregistry.VMAppPackageIncomingCollection,
-	cmdHandler commandhandler.ICommandHandler) (packageregistry.CurrentPackageRegistry, *ActionPlan, IStatusMessage) {
+	cmdHandler commandhandler.ICommandHandler) (packageregistry.CurrentPackageRegistry, *ActionPlan, IResult) {
 
 	currentReg := packageregistry.CurrentPackageRegistry{}
 	currentReg.Populate(currentPackages)
@@ -554,5 +598,6 @@ func assertPackageRegistryHasBeenUpdatedProperly(t *testing.T, pkgReg packagereg
 func assertAllActionsSucceeded(t *testing.T, pkgReg packageregistry.CurrentPackageRegistry) {
 	for _, vmApp := range pkgReg {
 		assert.Equal(t, packageregistry.NoAction, vmApp.OngoingOperation)
+		assert.Contains(t, vmApp.Result, Success)
 	}
 }

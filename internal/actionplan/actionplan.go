@@ -4,29 +4,25 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
-	"os"
-	"path"
 	"sort"
 
 	"github.com/Azure/VMApplication-Extension/internal/hostgacommunicator"
 	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
-	"github.com/Azure/VMApplication-Extension/pkg/commandhandler"
 	"github.com/Azure/VMApplication-Extension/pkg/utils"
-	"github.com/Azure/azure-extension-platform/pkg/constants"
+	"github.com/Azure/azure-extension-platform/pkg/commandhandler"
 	"github.com/Azure/azure-extension-platform/pkg/extensionerrors"
 	"github.com/Azure/azure-extension-platform/pkg/extensionevents"
 	"github.com/Azure/azure-extension-platform/pkg/handlerenv"
 	"github.com/Azure/azure-extension-platform/pkg/logging"
-	"github.com/pkg/errors"
 )
 
 type action struct {
-	vmAppPackage    *packageregistry.VMAppPackageCurrent
+	// vmAppPackage is not a pointer type on purpose, we don't want it to be mutated
+	vmAppPackage    packageregistry.VMAppPackageCurrent
 	actionToPerform packageregistry.ActionEnum
 }
-
-const fiveKilo = 5 * 1024
 const Success = "SUCCESS"
+const Failed = "FAILED"
 
 // when an update requires an implicit remove and uninstall, the install is dependent on the remove
 // this data structure helps us skip the install if the remove fails
@@ -46,7 +42,7 @@ type ActionPlan struct {
 	logger                      *logging.ExtensionLogger
 }
 
-type IStatusMessage interface {
+type IResult interface {
 	ToJsonString() string
 }
 
@@ -64,10 +60,6 @@ func (packageOperationResults *PackageOperationResults) ToJsonString() (message 
 		message = fmt.Sprintf("%v", packageOperationResults)
 	} else {
 		message = string(jsonBytes)
-	}
-	if len(message) > fiveKilo {
-		// keep the message smaller than 5KB
-		message = string(message[0 : fiveKilo-1])
 	}
 	return
 }
@@ -108,10 +100,16 @@ func New(currentPackageRegistry packageregistry.CurrentPackageRegistry, desiredV
 	packageRegistryIncoming.Populate(desiredVMAppCollection)
 	vmAppCurrentCollection := currentPackageRegistry.GetPackageCollection()
 	for _, vmAppCurrent := range vmAppCurrentCollection {
-		_, exists := packageRegistryIncoming[vmAppCurrent.ApplicationName]
-		if !exists {
-			deleteAction := &action{vmAppCurrent, packageregistry.Remove}
-			actionPlan.unorderedImplicitUninstalls = append(actionPlan.unorderedImplicitUninstalls, deleteAction)
+		_, existsInNewConfiguration := packageRegistryIncoming[vmAppCurrent.ApplicationName]
+		if !existsInNewConfiguration {
+			if vmAppCurrent.OngoingOperation != packageregistry.Skipped {
+				deleteAction := &action{*vmAppCurrent, packageregistry.Remove}
+				actionPlan.unorderedImplicitUninstalls = append(actionPlan.unorderedImplicitUninstalls, deleteAction)
+			} else {
+				// remove the package without from the registry without calling the remove command
+				deleteAction := &action{*vmAppCurrent, packageregistry.Cleanup}
+				actionPlan.unorderedImplicitUninstalls = append(actionPlan.unorderedImplicitUninstalls, deleteAction)
+			}
 		}
 	}
 
@@ -124,17 +122,17 @@ func New(currentPackageRegistry packageregistry.CurrentPackageRegistry, desiredV
 			if !versionsEqual {
 				if len(vmAppIncoming.UpdateCommand) == 0 {
 					// not the same version and there is no update command
-					deleteAction := &action{vmAppCurrent, packageregistry.Remove} // delete current and install incoming
-					installAction := &action{packageregistry.VMAppPackageIncomingToVmAppPackageCurrent(vmAppIncoming), packageregistry.Install}
+					deleteAction := &action{*vmAppCurrent, packageregistry.Remove} // delete current and install incoming
+					installAction := &action{*packageregistry.VMAppPackageIncomingToVmAppPackageCurrent(vmAppIncoming), packageregistry.Install}
 					actionPlan.insertOperation(vmAppIncoming.Order, deleteAction, installAction)
 				} else {
-					updateAction := &action{packageregistry.VMAppPackageIncomingToVmAppPackageCurrent(vmAppIncoming), packageregistry.Update}
+					updateAction := &action{*packageregistry.VMAppPackageIncomingToVmAppPackageCurrent(vmAppIncoming), packageregistry.Update}
 					actionPlan.insertOperation(vmAppIncoming.Order, updateAction)
 				}
 			}
 		} else {
 			// installs
-			installAction := &action{packageregistry.VMAppPackageIncomingToVmAppPackageCurrent(vmAppIncoming), packageregistry.Install}
+			installAction := &action{*packageregistry.VMAppPackageIncomingToVmAppPackageCurrent(vmAppIncoming), packageregistry.Install}
 			actionPlan.insertOperation(vmAppIncoming.Order, installAction)
 		}
 	}
@@ -158,7 +156,7 @@ func (actionPlan *ActionPlan) insertOperation(order *int, dependentActions1 ...*
 	}
 }
 
-func (actionPlan *ActionPlan) Execute(registryHandler packageregistry.IPackageRegistry, eem *extensionevents.ExtensionEventManager, commandHandler commandhandler.ICommandHandler) (error, IStatusMessage) {
+func (actionPlan *ActionPlan) Execute(registryHandler packageregistry.IPackageRegistry, eem *extensionevents.ExtensionEventManager, commandHandler commandhandler.ICommandHandler) (error, IResult) {
 	// registry will be mutated and written to disk so that we can keep track of all the actions that have happened
 	registry, err := registryHandler.GetExistingPackages()
 	if err != nil {
@@ -185,9 +183,10 @@ func (actionPlan *ActionPlan) Execute(registryHandler packageregistry.IPackageRe
 				// if we encountered and error in the past, skip all the operations for a higher order
 				if atLeastOneActionFailed && order > actionFailedAtOrder {
 					appName := act.vmAppPackage.ApplicationName
-
-					registry[appName] = act.vmAppPackage
-					registry[appName].OngoingOperation = packageregistry.Skipped
+					currentVmApp := act.vmAppPackage
+					registry[appName] = &currentVmApp
+					currentVmApp.OngoingOperation = packageregistry.Skipped
+					currentVmApp.Result = "skipped, lower order operation failed"
 
 					appendExecutionResultExplicit(&executionResult, act, "Skipped, lower order operation failed")
 
@@ -226,101 +225,4 @@ func (actionPlan *ActionPlan) Execute(registryHandler packageregistry.IPackageRe
 		}
 	}
 	return combinedErrors, &executionResult
-}
-
-func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPackageRegistry,
-	commandHandler commandhandler.ICommandHandler, registry packageregistry.CurrentPackageRegistry,
-	act *action, eem *extensionevents.ExtensionEventManager) (errorMessageToReturn error) {
-	errorMessageToReturn = nil
-	appName := act.vmAppPackage.ApplicationName
-	version := act.vmAppPackage.Version
-
-	// record new operation in the packageRegistry
-	registry[appName] = act.vmAppPackage
-	err := registryHandler.WriteToDisk(registry)
-	if err != nil {
-		return err
-	}
-
-	var commandToExecute string
-	var isDeleteOperation = false
-	switch act.actionToPerform {
-	case packageregistry.Install:
-		commandToExecute = act.vmAppPackage.InstallCommand
-	case packageregistry.Remove:
-		isDeleteOperation = true
-		commandToExecute = act.vmAppPackage.RemoveCommand
-	case packageregistry.Update:
-		commandToExecute = act.vmAppPackage.UpdateCommand
-	default:
-		errorMessageToReturn = errors.Errorf("Unexpected Action to perform encountered %v", act.actionToPerform)
-	}
-
-	eem.LogInformationalEvent(
-		"CommandStarted",
-		fmt.Sprintf("Starting cmd=%v, application=%v, version=%v", commandToExecute, appName, version))
-
-	// try to execute only if you have a valid command to execute
-	if errorMessageToReturn == nil {
-		downloadPath := act.vmAppPackage.GetWorkingDirectory(actionPlan.environment)
-
-		if err := os.MkdirAll(downloadPath, constants.FilePermissions_UserOnly_ReadWriteExecute); err != nil {
-			errorMessageToReturn = errors.Wrapf(err, "failed to create download directory %s", downloadPath)
-		}
-
-		// download packages
-		downloadPackageName := path.Join(downloadPath, act.vmAppPackage.ApplicationName)
-		if err := actionPlan.hostGaCommunicator.DownloadPackage(actionPlan.logger, act.vmAppPackage.ApplicationName, downloadPackageName); err != nil {
-			errorMessageToReturn = errors.Wrapf(err, "failed to download package file %s", downloadPackageName)
-		}
-
-		// download configuration
-		if act.vmAppPackage.ConfigExists {
-			downloadConfigName := path.Join(downloadPath, act.vmAppPackage.ApplicationName+"_config")
-			if err := actionPlan.hostGaCommunicator.DownloadConfig(actionPlan.logger, act.vmAppPackage.ApplicationName, downloadConfigName); err != nil {
-				errorMessageToReturn = errors.Wrapf(err, "failed to download config file %s", downloadConfigName)
-			}
-		}
-
-		retCode, err := commandHandler.Execute(commandToExecute, downloadPath, actionPlan.logger)
-		if err != nil {
-			errorMessageToReturn = errors.Wrapf(err, "Error executing command %v", commandToExecute)
-		}
-		if retCode != 0 {
-			errorMessageToReturn = errors.Errorf("Command %v exited with non-zero error code", commandToExecute)
-		}
-	}
-
-	if errorMessageToReturn != nil {
-		registry[appName].OngoingOperation = packageregistry.Failed
-	} else {
-		if isDeleteOperation {
-			delete(registry, appName)
-		} else {
-			registry[appName].OngoingOperation = packageregistry.NoAction
-		}
-	}
-	err = registryHandler.WriteToDisk(registry)
-	if err != nil {
-		return markCommandFailed(commandToExecute, appName, version, err, eem)
-	}
-
-	if errorMessageToReturn == nil {
-		eem.LogInformationalEvent(
-			"CommandCompleted",
-			fmt.Sprintf("Completed cmd=%v, application=%v, version=%v, result=Success", commandToExecute, appName, version))
-		return
-	}
-
-	return markCommandFailed(commandToExecute, appName, version, errorMessageToReturn, eem)
-}
-
-func markCommandFailed(commandToExecute string, appName string, version string, err error, eem *extensionevents.ExtensionEventManager) error {
-	eem.LogInformationalEvent(
-		"CommandCompleted",
-		fmt.Sprintf(
-			"Completed cmd=%v, application=%v, version=%v, result=Failed, reason=%v",
-			commandToExecute, appName, version, err.Error()))
-
-	return err
 }

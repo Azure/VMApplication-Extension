@@ -8,13 +8,13 @@ import (
 	"github.com/Azure/VMApplication-Extension/internal/actionplan"
 	"github.com/Azure/VMApplication-Extension/internal/hostgacommunicator"
 	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
-	"github.com/Azure/VMApplication-Extension/pkg/commandhandler"
+	"github.com/Azure/azure-extension-platform/pkg/commandhandler"
 	vmextensionhelper "github.com/Azure/azure-extension-platform/vmextension"
 )
 
 // Note: not const so test can change them
 var (
-	extensionVersion = "1.0.2"
+	extensionVersion = "1.0.3"
 
 	// downloadDir is where we store the downloaded files in the "{downloadDir}/{seqnum}/file"
 	// format and the logs as "{downloadDir}/{seqnum}/std(out|err)". Stored under dataDir
@@ -110,13 +110,14 @@ func doVmAppEnableCallback(ext *vmextensionhelper.VMExtension, hostGaCommunicato
 
 	commandHandler := commandhandler.CommandHandler{}
 
-	err, executionResult := actionPlan.Execute(packageRegistry, ext.ExtensionEvents, &commandHandler)
+	// actionPlan.Execute can fail partially, but we mark the overall process as success
+	// errors are sent in the status message
+	_, result := actionPlan.Execute(packageRegistry, ext.ExtensionEvents, &commandHandler)
 
+	currentPackageRegistry, err = packageRegistry.GetExistingPackages()
 	if err != nil {
-		// actionPlan.Execute can fail partially
-		// return ths string that contains operations that failed, but mark the overall process as success
-		return "one or more package operation failed: " + executionResult.ToJsonString(), nil
+		return "could not read current package registry", err
 	}
 
-	return executionResult.ToJsonString(), nil
+	return getStatusMessage(currentPackageRegistry.GetPackageCollection(), result), nil
 }

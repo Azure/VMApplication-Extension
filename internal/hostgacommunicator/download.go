@@ -2,6 +2,7 @@ package hostgacommunicator
 
 import (
 	"fmt"
+	"github.com/Azure/azure-extension-platform/pkg/constants"
 	"io"
 	"net/http"
 	"os"
@@ -93,7 +94,7 @@ func (u downloadRequestFactory) downloadFile(el *logging.ExtensionLogger, filena
 func (u downloadRequestFactory) downloadAttempt(el *logging.ExtensionLogger, filename string) (bool, error) {
 	requestManager := requesthelper.GetRequestManager(u, downloadRequestTimeout)
 
-	f, err := os.OpenFile(filename, os.O_RDWR|os.O_CREATE, 0666)
+	f, err := os.OpenFile(filename, os.O_RDWR|os.O_CREATE, constants.FilePermissions_UserOnly_ReadWriteExecute)
 	if err != nil {
 		return true, err
 	}
