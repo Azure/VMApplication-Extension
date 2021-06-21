@@ -89,7 +89,12 @@ func doVmAppEnableCallback(ext *vmextensionhelper.VMExtension, hostGaCommunicato
 	if err != nil {
 		return "could not get extension settings", err
 	}
-	vmAppIncomingCollection, err := getVMAppIncomingCollection(settings, hostGaCommunicator, ext.ExtensionLogger)
+
+	protSettings, err := getVMAppProtectedSettings(settings)
+	if err != nil {
+		return "Could not deserialize protected settings", err
+	}
+	vmAppIncomingCollection, err := getVMAppIncomingCollection(protSettings, hostGaCommunicator, ext.ExtensionLogger)
 	if err != nil {
 		return "resolving packages failed", err
 	}

@@ -114,6 +114,17 @@ func Test_getVMPackageData_valid(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func Test_getVMAppProtectedSettings_valid(t *testing.T) {
+	testSettings := handlersettings.HandlerSettings {
+		PublicSettings: "{}",
+		ProtectedSettings: "[{\"applicationName\": \"iggy\", \"order\": 1, \"actions\": [{\"actionName\": \"logging\",\"actionScript\": \"echo $blobURL\",\"timestamp\": \"20210604T155300Z\",\"parameters\": [{\"name\": \"blobURL\",\"value\": \"myaccount.blob.core.windows.net\"}],\"tickCount\": 10193113}]}]",
+	}
+
+	_, err := getVMAppProtectedSettings(&testSettings)
+
+	require.NoError(t, err)
+}
+
 func Test_getVMPackageData_noVersion(t *testing.T) {
 	order := 1
 	vmApplications := []VmAppSetting{
