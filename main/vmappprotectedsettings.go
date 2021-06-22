@@ -18,12 +18,10 @@ type ActionSetting struct {
 	TickCount    uint64            `json:"tickCount"`
 }
 
-type ActionSettingCollection []*ActionSetting
-
 type VmAppSetting struct {
 	ApplicationName string          `json:"applicationName"`
 	Order           *int            `json:"order"`
-	Actions         ActionSettingCollection `json:"actions"`
+	Actions         []*ActionSetting `json:"actions"`
 }
 
 type VmAppProtectedSettings []*VmAppSetting
@@ -35,17 +33,4 @@ func getVMAppProtectedSettings(settings *settings.HandlerSettings) (VmAppProtect
 		return nil, err
 	}
 	return vmAppProtectedSettings, err
-}
-
-
-func (a ActionSettingCollection) Len() int {
-	return len(a)
-}
-
-func (a ActionSettingCollection) Less(i, j int) bool {
-	return a[i].TickCount > a[j].TickCount
-}
-
-func (a ActionSettingCollection) Swap (i,j int) {
-	a[i], a[j] = a[j], a[i]
 }
