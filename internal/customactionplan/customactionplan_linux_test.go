@@ -1,5 +1,15 @@
 package customactionplan
 
+import (
+	"fmt"
+	"github.com/Azure/VMApplication-Extension/internal/actionplan"
+	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
+	"github.com/stretchr/testify/assert"
+	"strconv"
+	"testing"
+	"time"
+)
+
 func TestSingleCustomActionWithParameterLinux(t *testing.T) {
 	initializeTest(t)
 	defer cleanupTest()
