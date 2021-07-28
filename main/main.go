@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/Azure/VMApplication-Extension/internal/customactionplan"
 	"os"
 	"time"
 
@@ -119,10 +120,17 @@ func doVmAppEnableCallback(ext *vmextensionhelper.VMExtension, hostGaCommunicato
 	// errors are sent in the status message
 	_, result := actionPlan.Execute(packageRegistry, ext.ExtensionEvents, &commandHandler)
 
-	currentPackageRegistry, err = packageRegistry.GetExistingPackages()
-	if err != nil {
-		return "could not read current package registry", err
+	//check result
+	vmAppResults, ok := result.(*actionplan.PackageOperationResults)
+	if !ok {
+		return getStatusMessage(currentPackageRegistry.GetPackageCollection(), result), nil
 	}
 
-	return getStatusMessage(currentPackageRegistry.GetPackageCollection(), result), nil
+	customActionPlan, err := customactionplan.New(protSettings, currentPackageRegistry, ext.HandlerEnv, ext.ExtensionLogger)
+	if err != nil {
+		return "could not create custom action action plan", err
+	}
+	_, customActionResults := customActionPlan.Execute(packageRegistry, ext.ExtensionEvents, &commandHandler, vmAppResults)
+
+	return getStatusMessage(currentPackageRegistry.GetPackageCollection(), customActionResults), nil
 }

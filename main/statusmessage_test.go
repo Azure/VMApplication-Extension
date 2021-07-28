@@ -2,9 +2,11 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/Azure/VMApplication-Extension/internal/actionplan"
 	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
 	"github.com/stretchr/testify/assert"
+
 	"math/rand"
 	"strings"
 	"testing"
@@ -39,11 +41,19 @@ func TestGetStatusMessage01(t *testing.T) {
 			Operation:   "Install",
 			Result:      "install succeeded",
 		},
+		actionplan.PackageOperationResult{
+			PackageName: "app1",
+			AppVersion:  "0.1.1",
+			Operation:   "GetLogs",
+			Result:      "Success",
+		},
 	}
+
 	statusMessage := getStatusMessage(vmAppCurrentCollection, &actionsPerformed)
 	statusMessage1 := new(StatusMessage1)
 	err := json.Unmarshal([]byte(statusMessage), statusMessage1)
 	assert.NoError(t, err)
+	fmt.Println(statusMessage)
 	assertCollectionsMatch(t, vmAppCurrentCollection, statusMessage1.CurrentState)
 	assert.EqualValues(t, actionsPerformed, statusMessage1.ActionsPerformed)
 }

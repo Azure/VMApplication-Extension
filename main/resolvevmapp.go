@@ -10,10 +10,7 @@ import (
 
 
 func getVMAppIncomingCollection(settings VmAppProtectedSettings, communicator hostgacommunicator.IHostGaCommunicator, el *logging.ExtensionLogger) (packageregistry.VMAppPackageIncomingCollection, error) {
-	//protSettings, err := getVMAppProtectedSettings(settings)
-	//if err != nil {
-	//	return nil, err
-	//}
+
 	incomingCollection := make(packageregistry.VMAppPackageIncomingCollection, 0)
 	for _, app := range settings {
 		if app.ApplicationName == "" {

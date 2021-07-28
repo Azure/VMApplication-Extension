@@ -1,6 +1,7 @@
 package main
 
 import (
+	//"fmt"
 	"encoding/json"
 	"io/ioutil"
 	"os"
@@ -8,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/Azure/VMApplication-Extension/internal/hostgacommunicator"
+	"github.com/Azure/VMApplication-Extension/internal/customactionplan"
 	"github.com/Azure/azure-extension-platform/pkg/constants"
 	"github.com/Azure/azure-extension-platform/pkg/extensionevents"
 	"github.com/Azure/azure-extension-platform/pkg/handlerenv"
@@ -91,7 +93,7 @@ func Test_getVMPackageData_cannotDeserialize(t *testing.T) {
 }
 
 func Test_getVMPackageData_noApplications(t *testing.T) {
-	vmApplications := []VmAppSetting{}
+	vmApplications := []customactionplan.VmAppSetting{}
 
 	ext := createTestVMExtension(t, vmApplications)
 	_, err := vmAppEnableCallback(ext)
@@ -100,8 +102,8 @@ func Test_getVMPackageData_noApplications(t *testing.T) {
 
 func Test_getVMPackageData_valid(t *testing.T) {
 	order := 1
-	vmApplications := []VmAppSetting{
-		VmAppSetting{
+	vmApplications := []customactionplan.VmAppSetting{
+		customactionplan.VmAppSetting{
 			ApplicationName: "iggy",
 			Order:           &order,
 		},
@@ -120,15 +122,24 @@ func Test_getVMAppProtectedSettings_valid(t *testing.T) {
 		ProtectedSettings: "[{\"applicationName\": \"iggy\", \"order\": 1, \"actions\": [{\"actionName\": \"logging\",\"actionScript\": \"echo $blobURL\",\"timestamp\": \"20210604T155300Z\",\"parameters\": [{\"name\": \"blobURL\",\"value\": \"myaccount.blob.core.windows.net\"}],\"tickCount\": 10193113}]}]",
 	}
 
-	_, err := getVMAppProtectedSettings(&testSettings)
-
+	out, err := getVMAppProtectedSettings(&testSettings)
+	//jsonBytes, _ := json.Marshal(p)
 	require.NoError(t, err)
+	//if err != nil {
+	//
+	//	fmt.Sprintf("%v", p)
+	//
+	//} else {
+	//	fmt.Println(string("CUSTOMACTION_"+p.ParameterName+"="+p.ParameterValue))
+	//	fmt.Print(string(jsonBytes))
+	//}
+
 }
 
 func Test_getVMPackageData_noVersion(t *testing.T) {
 	order := 1
-	vmApplications := []VmAppSetting{
-		VmAppSetting{
+	vmApplications := []customactionplan.VmAppSetting{
+		customactionplan.VmAppSetting{
 			ApplicationName: "iggy",
 			Order:           &order,
 		},
@@ -143,8 +154,8 @@ func Test_getVMPackageData_noVersion(t *testing.T) {
 
 func Test_getVMPackageData_noApplicationName(t *testing.T) {
 	order := 1
-	vmApplications := []VmAppSetting{
-		VmAppSetting{
+	vmApplications := []customactionplan.VmAppSetting{
+		customactionplan.VmAppSetting{
 			ApplicationName: "",
 			Order:           &order,
 		},
@@ -158,7 +169,7 @@ func Test_getVMPackageData_noApplicationName(t *testing.T) {
 }
 
 func Test_main_nothingToProcess(t *testing.T) {
-	vmApplications := []VmAppSetting{}
+	vmApplications := []customactionplan.VmAppSetting{}
 	ext := createTestVMExtension(t, vmApplications)
 
 	hostGaCommunicator := NoopHostGaCommunicator{}
