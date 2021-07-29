@@ -76,7 +76,7 @@ func appendExecutionResult(executionResult *actionplan.PackageOperationResults ,
 
 func New(settings []*VmAppSetting, appPackage packageregistry.CurrentPackageRegistry, environment *handlerenv.HandlerEnvironment, logger *logging.ExtensionLogger) (*ActionPlan, error) {
 
-	actionPlan := &ActionPlan{
+	actionPlan := ActionPlan{
 		environment:                 environment,
 		sortedOrder:                 make([]*action, 0),
 		logger:                      logger,
@@ -88,16 +88,12 @@ func New(settings []*VmAppSetting, appPackage packageregistry.CurrentPackageRegi
 
 		tickCount, err := ioutil.ReadFile(tickCountFile)
 		tc, err = strconv.ParseInt(string(tickCount), 10, 64)
-		//fmt.Println(tc)
 		if err != nil {
 			tc = 0
-			//fmt.Println(tc)
 		}
 
 	}
-	//fmt.Println(tc)
 
-	//var newAction action
 	for _, app := range settings {
 		_, containsApp := appPackage[app.ApplicationName]
 		if app.Actions != nil && len(app.Actions) != 0 && containsApp{
@@ -113,7 +109,7 @@ func New(settings []*VmAppSetting, appPackage packageregistry.CurrentPackageRegi
 		}
 	}
 	sort.Sort(actionPlan.sortedOrder)
-	return actionPlan, nil
+	return &actionPlan, nil
 }
 
 func (actionPlan *ActionPlan) Execute(eem *extensionevents.ExtensionEventManager, commandHandler commandhandler.ICommandHandlerWithEnvVariables, result *actionplan.PackageOperationResults) (error, actionplan.IResult) {
@@ -124,7 +120,6 @@ func (actionPlan *ActionPlan) Execute(eem *extensionevents.ExtensionEventManager
 		newError := actionPlan.executeHelper(commandHandler, *actionRegistry, act, eem)
 		combinedErrors = extensionerrors.CombineErrors(combinedErrors, newError)
 		appendExecutionResult(result, act, newError)
-
 	}
 
 	return combinedErrors, result

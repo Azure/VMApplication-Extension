@@ -105,6 +105,7 @@ func doVmAppEnableCallback(ext *vmextensionhelper.VMExtension, hostGaCommunicato
 	}
 	defer packageRegistry.Close()
 	currentPackageRegistry, err := packageRegistry.GetExistingPackages()
+
 	if err != nil {
 		return "could not read current package registry", err
 	}
@@ -122,6 +123,7 @@ func doVmAppEnableCallback(ext *vmextensionhelper.VMExtension, hostGaCommunicato
 
 	//check result
 	vmAppResults, ok := result.(*actionplan.PackageOperationResults)
+	currentPackageRegistry, err = packageRegistry.GetExistingPackages()
 	if !ok {
 		return getStatusMessage(currentPackageRegistry.GetPackageCollection(), result), nil
 	}
@@ -130,7 +132,7 @@ func doVmAppEnableCallback(ext *vmextensionhelper.VMExtension, hostGaCommunicato
 	if err != nil {
 		return "could not create custom action action plan", err
 	}
-	_, customActionResults := customActionPlan.Execute(packageRegistry, ext.ExtensionEvents, &commandHandler, vmAppResults)
+	_, customActionResults := customActionPlan.Execute(ext.ExtensionEvents, &commandHandler, vmAppResults)
 
 	return getStatusMessage(currentPackageRegistry.GetPackageCollection(), customActionResults), nil
 }

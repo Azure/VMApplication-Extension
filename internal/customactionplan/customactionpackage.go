@@ -6,7 +6,7 @@ type ActionParameter struct {
 }
 
 type ActionSetting struct {
-	ActionName   string            `json:"name"`
+	ActionName   string            `json:"actionName"`
 	ActionScript string            `json:"actionScript"`
 	Timestamp    string            `json:"timestamp"`
 	Parameters   []ActionParameter `json:"parameters"`

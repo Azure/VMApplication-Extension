@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"github.com/Azure/VMApplication-Extension/internal/actionplan"
 	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
 	"github.com/stretchr/testify/assert"
@@ -53,7 +52,6 @@ func TestGetStatusMessage01(t *testing.T) {
 	statusMessage1 := new(StatusMessage1)
 	err := json.Unmarshal([]byte(statusMessage), statusMessage1)
 	assert.NoError(t, err)
-	fmt.Println(statusMessage)
 	assertCollectionsMatch(t, vmAppCurrentCollection, statusMessage1.CurrentState)
 	assert.EqualValues(t, actionsPerformed, statusMessage1.ActionsPerformed)
 }

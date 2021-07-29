@@ -7,9 +7,12 @@ import (
 	"github.com/Azure/azure-extension-platform/pkg/extensionevents"
 	"github.com/Azure/azure-extension-platform/pkg/handlerenv"
 	"github.com/Azure/azure-extension-platform/pkg/logging"
+	"github.com/stretchr/testify/assert"
 	"io"
 	"os"
 	"path"
+	"testing"
+	"time"
 )
 
 var testdir = path.Join(".", "testdir")
@@ -51,24 +54,6 @@ func copyFile(source, destination string) error {
 	return err
 }
 
-//func newMockHostGaCommunicator(packageFileContent, configFileContent []byte) (*mockHostGaCommunicator, error) {
-//	pkgFile := path.Join(uploadDir, "pkgFile")
-//	configFile := path.Join(uploadDir, "configFile")
-//	err := os.MkdirAll(uploadDir, constants.FilePermissions_UserOnly_ReadWriteExecute)
-//	if err != nil {
-//		return nil, err
-//	}
-//	err = ioutil.WriteFile(pkgFile, packageFileContent, constants.FilePermissions_UserOnly_ReadWriteExecute)
-//	if err != nil {
-//		return nil, err
-//	}
-//	err = ioutil.WriteFile(configFile, configFileContent, constants.FilePermissions_UserOnly_ReadWriteExecute)
-//	if err != nil {
-//		return nil, err
-//	}
-//	return &mockHostGaCommunicator{pkgFileSourcePath: pkgFile, configFileSourcePath: configFile, DownloadConfigCount: 0, DownloadPackageCount: 0}, nil
-//}
-
 var handlerEnvironment = handlerenv.HandlerEnvironment{
 	ConfigFolder: path.Join(testdir, "config"),
 	StatusFolder: path.Join(testdir, "status"),
@@ -95,58 +80,58 @@ var vmAppPackageCurrent = packageregistry.VMAppPackageCurrent{
 
 var packageRegistry packageregistry.IPackageRegistry
 
-//func initTest(t *testing.T){
-//	actionPlan = ActionPlan{
-//		environment :       &handlerEnvironment,
-//		logger:             extensionLogger,
-//	}
-//	err := os.MkdirAll(handlerEnvironment.ConfigFolder, constants.FilePermissions_UserOnly_ReadWriteExecute)
-//	assert.NoError(t, err)
-//	err = os.MkdirAll(handlerEnvironment.StatusFolder, constants.FilePermissions_UserOnly_ReadWriteExecute)
-//	assert.NoError(t, err)
-//	err = os.MkdirAll(handlerEnvironment.LogFolder, constants.FilePermissions_UserOnly_ReadWriteExecute)
-//	assert.NoError(t, err)
-//	err = os.MkdirAll(handlerEnvironment.DataFolder, constants.FilePermissions_UserOnly_ReadWriteExecute)
-//	assert.NoError(t, err)
-//	err = os.MkdirAll(handlerEnvironment.EventsFolder, constants.FilePermissions_UserOnly_ReadWriteExecute)
-//	assert.NoError(t, err)
-//
-//	pkr, err := packageregistry.New(&handlerEnvironment, 1 * time.Minute)
-//	assert.NoError(t, err)
-//	packageRegistry = pkr
-//}
-//
-//func cleanTest(){
-//	packageRegistry.Close()
-//	os.RemoveAll(testdir)
-//}
-//
-//func TestExecuteHelper(t *testing.T){
-//	initTest(t)
-//	defer cleanTest()
-//	action := action{vmAppPackageCurrent, ActionSetting{
-//		ActionName: "action1",
-//		ActionScript: "echo hello",
-//		Timestamp:"",
-//		Parameters: []ActionParameter{},
-//		TickCount: 1234567,
-//	}}
-//	err := actionPlan.executeHelper(commandHandler, ActionPackageRegistry{}, &action, extensionEventManager)
-//	assert.NoError(t, err)
-//
-//	action.actionToPerform = packageregistry.Remove
-//	err = actionPlan.executeHelper(packageRegistry, commandHandler, packageregistry.CurrentPackageRegistry{}, &action, extensionEventManager)
-//	assert.NoError(t, err)
-//	assert.EqualValues(t, 1, mhgCommunicator.DownloadPackageCount, "download package count should be 1")
-//	assert.EqualValues(t, 1, mhgCommunicator.DownloadConfigCount, "download config count should be 1")
-//
-//	assert.EqualValues(t, vmAppPackageCurrent.InstallCommand, commandHandler.Result[0].command, "1st command should be install")
-//	assert.EqualValues(t, vmAppPackageCurrent.RemoveCommand, commandHandler.Result[1].command, "2nd command should be remove")
-//	assert.Equal(t, 2, len(commandHandler.Result), "only 2 commands should be executed")
-//	_, err = os.Stat(vmAppPackageCurrent.DownloadDir)
-//	assert.Error(t, err, "downloadDir should be deleted")
-//	_, ok := err.(*os.PathError)
-//	assert.True(t, ok, "downloadDir should be deleted")
-//}
+func initTest(t *testing.T){
+	actionPlan = ActionPlan{
+		environment :       &handlerEnvironment,
+		logger:             extensionLogger,
+	}
+	err := os.MkdirAll(handlerEnvironment.ConfigFolder, constants.FilePermissions_UserOnly_ReadWriteExecute)
+	assert.NoError(t, err)
+	err = os.MkdirAll(handlerEnvironment.StatusFolder, constants.FilePermissions_UserOnly_ReadWriteExecute)
+	assert.NoError(t, err)
+	err = os.MkdirAll(handlerEnvironment.LogFolder, constants.FilePermissions_UserOnly_ReadWriteExecute)
+	assert.NoError(t, err)
+	err = os.MkdirAll(handlerEnvironment.DataFolder, constants.FilePermissions_UserOnly_ReadWriteExecute)
+	assert.NoError(t, err)
+	err = os.MkdirAll(handlerEnvironment.EventsFolder, constants.FilePermissions_UserOnly_ReadWriteExecute)
+	assert.NoError(t, err)
+
+	pkr, err := packageregistry.New(&handlerEnvironment, 1 * time.Minute)
+	assert.NoError(t, err)
+	packageRegistry = pkr
+}
+
+func cleanTest(){
+	packageRegistry.Close()
+	os.RemoveAll(testdir)
+}
+
+func TestExecuteHelper(t *testing.T){
+	initTest(t)
+	defer cleanTest()
+	act := action{vmAppPackageCurrent, ActionSetting{
+		ActionName: "action1",
+		ActionScript: "echo hello",
+		Timestamp:"",
+		Parameters: []ActionParameter{},
+		TickCount: 1234567,
+	}}
+	err := actionPlan.executeHelper(commandHandler, ActionPackageRegistry{}, &act, extensionEventManager)
+	assert.NoError(t, err)
+	assertTickCountFileCorrect(t, act.Action.TickCount)
+
+	act = action{vmAppPackageCurrent, ActionSetting{
+		ActionName: "action2",
+		ActionScript: "echo world",
+		Timestamp:"",
+		Parameters: []ActionParameter{},
+		TickCount: 1234568,
+	}}
+
+	err = actionPlan.executeHelper(commandHandler, ActionPackageRegistry{}, &act, extensionEventManager)
+	assert.NoError(t, err)
+	assertTickCountFileCorrect(t, act.Action.TickCount)
+
+}
 
 
