@@ -59,6 +59,7 @@ func executeTestInAnotherThreadAndTerminateBeforeCompletion(t *testing.T, testNa
 	var lineContainingPid = -1
 	for i, line := range stringsbyLine {
 		matched, err := regexp.MatchString("^[0-9]+$", line)
+		fmt.Println(line)
 		if err == nil && matched {
 			lineContainingPid = i
 			break

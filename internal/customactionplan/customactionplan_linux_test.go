@@ -85,7 +85,6 @@ func executeTestInAnotherThreadAndTerminateBeforeCompletion(t *testing.T, testNa
 	if err == nil {
 		defer file.Close()
 	}
-	//c := exec.Command("bash", "-c", fmt.Sprintf("go test -v %s -run %s", packageDir, testName))
 	c := exec.Command("go", "test", "-v", packageDir, "-run", testName)
 	c.Dir = packageDir
 	c.Env = append(os.Environ(), fmt.Sprintf("%s=true", LaunchedFromAnotherProcessEnvVariable))

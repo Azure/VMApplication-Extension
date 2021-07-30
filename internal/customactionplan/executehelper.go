@@ -3,6 +3,7 @@ package customactionplan
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/Azure/VMApplication-Extension/internal/actionplan"
 	"github.com/Azure/azure-extension-platform/pkg/commandhandler"
 	"github.com/Azure/azure-extension-platform/pkg/constants"
 	"github.com/Azure/azure-extension-platform/pkg/exithelper"
@@ -26,7 +27,12 @@ func (actionPlan *ActionPlan) executeHelper(
 	tickCountFile := path.Join(actionPlan.environment.ConfigFolder, "tickCount")
 
 	if _, err := os.Stat(tickCountFile); os.IsNotExist(err) {
-		os.Create(tickCountFile)
+		_, err = os.Create(tickCountFile)
+		if err != nil {
+			eem.LogErrorEvent("CustomActionTickCountFileCreated", "could not create tick count file")
+			return err
+		}
+		eem.LogInformationalEvent("CustomActionTickCountFileCreated", "created tick count file")
 	}
 
 	// record new operation in the packageRegistry
@@ -95,9 +101,9 @@ func (actionPlan *ActionPlan) executeHelper(
 	}
 
 	if errorMessageToReturn != nil {
-		vmAppPackageCurrent.Result = fmt.Sprintf("%s %s %s", commandName, Failed, errorMessageToReturn.Error())
+		vmAppPackageCurrent.Result = fmt.Sprintf("%s %s %s", commandName, actionplan.Failed, errorMessageToReturn.Error())
 	} else {
-		vmAppPackageCurrent.Result = fmt.Sprintf("%s %s", commandName, Success)
+		vmAppPackageCurrent.Result = fmt.Sprintf("%s %s", commandName, actionplan.Success)
 	}
 
 	bytes, err := json.Marshal(act.Action.TickCount)
@@ -107,18 +113,18 @@ func (actionPlan *ActionPlan) executeHelper(
 
 	err = ioutil.WriteFile(tickCountFile, bytes, constants.FilePermissions_UserOnly_ReadWrite)
 	if err != nil {
-		currAction.Status = Failed
+		currAction.Status = actionplan.Failed
 		return markCommandFailed(commandName, appName, version, err, act, eem)
 	}
 
 	if errorMessageToReturn == nil {
-		currAction.Status = Success
+		currAction.Status = actionplan.Success
 		eem.LogInformationalEvent(
 			"CustomActionCompleted",
 			fmt.Sprintf("Completed custom action cmd=%v, application=%v, version=%v, parameters=%v, result=SUCCESS", commandName, appName, version, getParameterNames(act.Action)))
 		return
 	}
-	currAction.Status = Failed
+	currAction.Status = actionplan.Failed
 	return markCommandFailed(commandName, appName, version, errorMessageToReturn, act, eem)
 }
 

@@ -6,16 +6,16 @@ type ActionParameter struct {
 }
 
 type ActionSetting struct {
-	ActionName   string            `json:"actionName"`
-	ActionScript string            `json:"actionScript"`
+	ActionName   string            `json:"name"`
+	ActionScript string            `json:"script"`
 	Timestamp    string            `json:"timestamp"`
 	Parameters   []ActionParameter `json:"parameters"`
 	TickCount    uint64            `json:"tickCount"`
 }
 
 type VmAppSetting struct {
-	ApplicationName string          `json:"applicationName"`
-	Order           *int            `json:"order"`
+	ApplicationName string           `json:"name"`
+	Order           *int             `json:"order"`
 	Actions         []*ActionSetting `json:"actions"`
 }
 
@@ -28,18 +28,17 @@ func getParameterNames (settings ActionSetting) ([]string) {
 }
 
 type CustomActionPackage struct {
-	ApplicationName		string				`json:"applicationName"`
+	ApplicationName		string				`json:"application"`
 	Version             string     			`json:"version"`
-	ActionName   		string      		`json:"actionName"`
+	ActionName   		string      		`json:"name"`
 	Timestamp    		string      		`json:"timestamp"`
 	Parameters			[]ActionParameter	`json:"parameterNames"`
 	Status				string				`json:"status"`
 	stderr				string				`json:"stderr"`
 	stdout				string				`json:"stdout"`
-
 }
-type ActionPackageRegistry map[string][]*CustomActionPackage
 
+type ActionPackageRegistry map[string][]*CustomActionPackage
 
 func GetCurrentCustomActions(actions *ActionPlan) (*ActionPackageRegistry) {
 	act := make(ActionPackageRegistry, 0)

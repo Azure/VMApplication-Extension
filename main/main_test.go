@@ -138,7 +138,7 @@ func Test_getVMAppProtectedSettings_valid(t *testing.T) {
 	vmAppProtectedSettings := VmAppProtectedSettings{&appSettings}
 	testSettings := handlersettings.HandlerSettings {
 		PublicSettings: "{}",
-		ProtectedSettings: "[{\"applicationName\": \"iggy\", \"order\": 1, \"actions\": [{\"actionName\": \"logging\",\"actionScript\": \"echo %CustomAction_blobURL%\",\"timestamp\": \"20210604T155300Z\",\"parameters\": [{\"name\": \"blobURL\",\"value\": \"myaccount.blob.core.windows.net\"}],\"tickCount\": 10193113}]}]",
+		ProtectedSettings: "[{\"name\": \"iggy\", \"order\": 1, \"actions\": [{\"name\": \"logging\",\"script\": \"echo %CustomAction_blobURL%\",\"timestamp\": \"20210604T155300Z\",\"parameters\": [{\"name\": \"blobURL\",\"value\": \"myaccount.blob.core.windows.net\"}],\"tickCount\": 10193113}]}]",
 	}
 
 	out, err := getVMAppProtectedSettings(&testSettings)

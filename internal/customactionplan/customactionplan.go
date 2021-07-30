@@ -8,9 +8,7 @@ import (
 	"sort"
 	"strconv"
 
-	//"github.com/Azure/VMApplication-Extension/internal/hostgacommunicator"
 	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
-	//"github.com/Azure/VMApplication-Extension/pkg/utils"
 	"github.com/Azure/azure-extension-platform/pkg/commandhandler"
 	"github.com/Azure/azure-extension-platform/pkg/extensionerrors"
 	"github.com/Azure/azure-extension-platform/pkg/extensionevents"
@@ -38,9 +36,6 @@ func (a ActionCollection) Swap (i,j int) {
 	a[i], a[j] = a[j], a[i]
 }
 
-const Success = "SUCCESS"
-const Failed = "FAILED"
-
 type ActionPlan struct {
 	environment         *handlerenv.HandlerEnvironment
 	sortedOrder                 ActionCollection
@@ -61,7 +56,7 @@ func appendExecutionResult(executionResult *actionplan.PackageOperationResults ,
 			AppVersion: act.vmAppPackage.Version,
 			Operation: act.Action.ActionName,
 			Timestamp: act.Action.Timestamp,
-			Result: Success,
+			Result: actionplan.Success,
 		})
 	} else {
 		*executionResult = append(*executionResult,actionplan.PackageOperationResult {
@@ -87,7 +82,13 @@ func New(settings []*VmAppSetting, appPackage packageregistry.CurrentPackageRegi
 	if _, err := os.Stat(tickCountFile); !os.IsNotExist(err) {
 
 		tickCount, err := ioutil.ReadFile(tickCountFile)
+		if err != nil {
+			logger.Error("Error reading tick count file")
+		}
 		tc, err = strconv.ParseInt(string(tickCount), 10, 64)
+		if err != nil {
+			logger.Error("Tick count from file cannot be converted to integer")
+		}
 		if err != nil {
 			tc = 0
 		}
@@ -99,13 +100,18 @@ func New(settings []*VmAppSetting, appPackage packageregistry.CurrentPackageRegi
 		if app.Actions != nil && len(app.Actions) != 0 && containsApp{
 			for _, a := range app.Actions {
 				if uint64(tc) < a.TickCount  {
+					logger.Info("adding custom action %v to custom action action plan", a.ActionName)
 					newAction := action {
 						vmAppPackage: *appPackage[app.ApplicationName],
 						Action: *a,
 					}
 					actionPlan.sortedOrder = append(actionPlan.sortedOrder, &newAction)
+				} else {
+					logger.Info("custom action %v has a low tick count and will not be executed", a.ActionName)
 				}
 			}
+		} else {
+			logger.Info("application %v is not currently on the VM and cannot have its custom actions executed", )
 		}
 	}
 	sort.Sort(actionPlan.sortedOrder)
@@ -121,7 +127,7 @@ func (actionPlan *ActionPlan) Execute(eem *extensionevents.ExtensionEventManager
 		combinedErrors = extensionerrors.CombineErrors(combinedErrors, newError)
 		appendExecutionResult(result, act, newError)
 	}
-
+	eem.LogWarningEvent("CustomActionExecution", combinedErrors.Error())
 	return combinedErrors, result
 }
 

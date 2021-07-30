@@ -59,23 +59,15 @@ func TestSingleCustomActionWithParameterWindows(t *testing.T) {
 	}
 	err = packageReg.WriteToDisk(newRegistry)
 	assert.NoError(t, err)
-	//existingApps := packageregistry.VMAppPackageCurrentCollection{}
-	//incomingApps := packageregistry.VMAppPackageIncomingCollection{&newApp}
 	cmdHandler := NewCommandHandlerMock(mockCommandExecutorNoError)
 	appPackage, err := packageReg.GetExistingPackages()
-	//for k := range appPackage {
-	//	fmt.Println(k)
-	//}
 	_, statusMessage := executeActionPlan(t, action, appPackage, cmdHandler)
 
-	//assert.EqualValues(t, newApp.InstallCommand, cmdHandler.Result[0].command, "Install command must be invoked")
-	//assertPackageRegistryHasBeenUpdatedProperly(t, newReg, incomingApps)
-	//assertAllActionsSucceeded(t, newReg)
 	packageOperationResults, ok := statusMessage.(*actionplan.PackageOperationResults)
 	assert.True(t, ok)
 	assertTickCountFileCorrect(t, action[0].Actions[0].TickCount)
 	fmt.Println((*packageOperationResults))
-	assert.EqualValues(t, (*packageOperationResults)[0], actionplan.PackageOperationResult{Result: Success, Operation: "action1", AppVersion: "1.0", PackageName: newApp.ApplicationName, Timestamp: "20210604T155300Z"})
+	assert.EqualValues(t, (*packageOperationResults)[0], actionplan.PackageOperationResult{Result: actionplan.Success, Operation: "action1", AppVersion: "1.0", PackageName: newApp.ApplicationName, Timestamp: "20210604T155300Z"})
 }
 
 var mockCommandExecutorSleepForAnHour CommandExecutor = func(s string, s2 string) (int, error) {
@@ -85,6 +77,7 @@ var mockCommandExecutorSleepForAnHour CommandExecutor = func(s string, s2 string
 }
 
 func executeTestInAnotherThreadAndTerminateBeforeCompletion(t *testing.T, testName, packageDir, transcriptFile string, timeToWaitBeforeKilling time.Duration) {
+	// test still in progress - currently errors on on finding pid
 	stdinBuffer := &bytes.Buffer{}
 	stdoutBuffer := &bytes.Buffer{}
 	c := exec.Command("powershell.exe")
@@ -142,6 +135,7 @@ func sendCtrlCToProcess(pid int) (error) {
 }
 
 func TestCommandExecutorCanHandleProcessBeingKilled(t *testing.T) {
+	//test still in progress
 	envVariables := os.Environ()
 	var wasStartedByAnotherProcess = false
 	for _, variable := range envVariables {
@@ -189,7 +183,7 @@ func TestCommandExecutorCanHandleProcessBeingKilled(t *testing.T) {
 		packageOperationResults, ok := statusMessage.(*actionplan.PackageOperationResults)
 		assert.True(t, ok)
 		assertTickCountFileCorrect(t, action[0].Actions[0].TickCount)
-		assert.EqualValues(t, (*packageOperationResults)[0], actionplan.PackageOperationResult{Result: Success, Operation: "action1", AppVersion: "1.0", PackageName: newApp.ApplicationName, Timestamp: "20210604T155300Z"})
+		assert.EqualValues(t, (*packageOperationResults)[0], actionplan.PackageOperationResult{Result: actionplan.Success, Operation: "action1", AppVersion: "1.0", PackageName: newApp.ApplicationName, Timestamp: "20210604T155300Z"})
 
 	} else {
 		defer cleanupTest()

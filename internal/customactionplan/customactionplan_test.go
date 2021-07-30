@@ -2,7 +2,6 @@ package customactionplan
 
 import (
 	"encoding/json"
-	"fmt"
 	"github.com/Azure/VMApplication-Extension/internal/actionplan"
 	"io/ioutil"
 	"os"
@@ -142,7 +141,7 @@ func TestSingleCustomAction(t *testing.T) {
 	packageOperationResults, ok := statusMessage.(*actionplan.PackageOperationResults)
 	assert.True(t, ok)
 	assertTickCountFileCorrect(t, action[0].Actions[0].TickCount)
-	assert.EqualValues(t, (*packageOperationResults)[0], actionplan.PackageOperationResult{Result: Success, Operation: "action1", AppVersion: "1.0", PackageName: newApp.ApplicationName, Timestamp: "20210604T155300Z"})
+	assert.EqualValues(t, (*packageOperationResults)[0], actionplan.PackageOperationResult{Result: actionplan.Success, Operation: "action1", AppVersion: "1.0", PackageName: newApp.ApplicationName, Timestamp: "20210604T155300Z"})
 }
 
 func TestNoCustomAction(t *testing.T) {
@@ -230,12 +229,11 @@ func TestDoubleCustomAction(t *testing.T) {
 	assertActionOrder(t, actionPlan)
 
 	packageOperationResults, ok := statusMessage.(*actionplan.PackageOperationResults)
-	fmt.Println(packageOperationResults)
 	assert.True(t, ok)
 	assertTickCountFileCorrect(t, action[0].Actions[0].TickCount)
 	assert.Len(t, *packageOperationResults, 2)
-	assert.EqualValues(t, (*packageOperationResults)[0], actionplan.PackageOperationResult{Result: Success, Operation: "action1", AppVersion: "1.0", PackageName: action[0].ApplicationName, Timestamp: "20210604T155300Z"})
-	assert.EqualValues(t, (*packageOperationResults)[1], actionplan.PackageOperationResult{Result: Success, Operation: "action2", AppVersion: "1.0", PackageName: action[0].ApplicationName, Timestamp: "20210604T155330Z"})
+	assert.EqualValues(t, (*packageOperationResults)[0], actionplan.PackageOperationResult{Result: actionplan.Success, Operation: "action1", AppVersion: "1.0", PackageName: action[0].ApplicationName, Timestamp: "20210604T155300Z"})
+	assert.EqualValues(t, (*packageOperationResults)[1], actionplan.PackageOperationResult{Result: actionplan.Success, Operation: "action2", AppVersion: "1.0", PackageName: action[0].ApplicationName, Timestamp: "20210604T155330Z"})
 }
 
 func TestDoubleCustomActionNonexistantApp(t *testing.T) {
@@ -296,7 +294,7 @@ func TestDoubleCustomActionNonexistantApp(t *testing.T) {
 	packageOperationResults, ok := statusMessage.(*actionplan.PackageOperationResults)
 	assert.True(t, ok)
 	assertTickCountFileCorrect(t, action[0].Actions[0].TickCount)
-	assert.EqualValues(t, (*packageOperationResults)[0], actionplan.PackageOperationResult{Result: Success, Operation: "action1", AppVersion: "1.0", PackageName: newApp.ApplicationName, Timestamp: "20210604T155300Z"})
+	assert.EqualValues(t, (*packageOperationResults)[0], actionplan.PackageOperationResult{Result: actionplan.Success, Operation: "action1", AppVersion: "1.0", PackageName: newApp.ApplicationName, Timestamp: "20210604T155300Z"})
 }
 
 func TestDoubleCustomActionOldTickCount(t *testing.T) {
@@ -373,7 +371,7 @@ func TestDoubleCustomActionOldTickCount(t *testing.T) {
 	packageOperationResults, ok := statusMessage.(*actionplan.PackageOperationResults)
 	assert.True(t, ok)
 	assertTickCountFileCorrect(t, action[0].Actions[0].TickCount)
-	assert.EqualValues(t, (*packageOperationResults)[0], actionplan.PackageOperationResult{Result: Success, Operation: "action1", AppVersion: "1.0", PackageName: newApp1.ApplicationName, Timestamp: "20210604T155300Z"})
+	assert.EqualValues(t, (*packageOperationResults)[0], actionplan.PackageOperationResult{Result: actionplan.Success, Operation: "action1", AppVersion: "1.0", PackageName: newApp1.ApplicationName, Timestamp: "20210604T155300Z"})
 }
 
 func executeActionPlan(t *testing.T,
