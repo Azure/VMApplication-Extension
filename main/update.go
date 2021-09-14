@@ -23,12 +23,12 @@ func vmAppUpdateCallback() (string, error) {
 	}
 	defer oldFile.Close()
 
-	err = os.MkdirAll(folderPath + "\\" + extensionVersion + "\\RuntimeSettings", os.ModeDir) //creating applicationRegistry file
+	err = os.MkdirAll(folderPath + "\\" + extensionVersion + "\\RuntimeSettings", os.ModeDir) //creating directory 
 	if err != nil {
 		return "could not create new file", err
 	}
 
-	newFile, err := os.Create(folderPath + "\\" + extensionVersion + "\\RuntimeSettings\\applicationRegistry.active")
+	newFile, err := os.Create(folderPath + "\\" + extensionVersion + "\\RuntimeSettings\\applicationRegistry.active") //creating new file
 	defer newFile.Close()
 
 	_, err = io.Copy(newFile, oldFile) //copying old registry to new
