@@ -229,5 +229,5 @@ func verifyMD5CheckSum(filePath string, checkSum []byte) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	return bytes.Compare(checkSumNew, checkSum) == 0, nil
+	return bytes.Equal(checkSumNew, checkSum), nil
 }
