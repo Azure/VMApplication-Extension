@@ -1,36 +1,57 @@
 package main
 
 import (
+	packageregistryhelper "github.com/Azure/VMApplication-Extension/internal/packageregistry"
 	vmextensionhelper "github.com/Azure/azure-extension-platform/vmextension"
+	"github.com/pkg/errors"
 	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 func vmAppUpdateCallback(ext *vmextensionhelper.VMExtension) error {
-	configFolderPath := ext.HandlerEnv.ConfigFolder
-	folderPath := filepath.Dir(filepath.Dir(configFolderPath)) //directory with all versions
-	
+	folderPath := ext.HandlerEnv.ConfigFolder
+	currentFolderName := ""
+	pathToFile := ""
+	//loop to find directory that contains current version
+	for {
+		currentFolderName = filepath.Base(folderPath)
+		if strings.Contains(currentFolderName,extensionVersion) {
+			break
+		}
+		pathToFile = filepath.Join(currentFolderName, pathToFile) //keeping track of full path to file
+		folderPath = filepath.Dir(folderPath) //update folderpath to walk up directory
+		if folderPath == "." {
+			return errors.New("directory not found") //there are no directories that have an extension version when walk is done
+		}
+	}
+
+	folderPath = filepath.Dir(folderPath) 	//folder that contains all the versions
 	dirContent, err := ioutil.ReadDir(folderPath) //reads directory and returns content in sorted order
 	if err != nil {
 		return err
 	}
+	if len(dirContent) < 2 { //checks if directory contains siblings (other versions)
+		return errors.New("directory does not contain previous version")
+	}
 
-	oldVersion := dirContent[len(dirContent)-2]                                                                  //the version under the latest one
-	oldFile, err := os.Open(filepath.Join(folderPath, oldVersion.Name(), "RuntimeSettings", "applicationRegistry.active")) //opening previous applicationRegistry file
+	fileName := packageregistryhelper.LocalApplicationRegistryFileName
+	prevVersionFolder := dirContent[len(dirContent)-2]                                                  //taking the version under latest
+	prevFile, err := os.Open(filepath.Join(folderPath, prevVersionFolder.Name(), pathToFile, fileName)) //opening the applicationRegistry file
 	if err != nil {
 		return err
 	}
-	defer oldFile.Close()
+	defer prevFile.Close()
 
-	newFile, err := os.Create(filepath.Join(configFolderPath, "applicationRegistry.active")) //creating new file
+	newFile, err := os.Create(filepath.Join(ext.HandlerEnv.ConfigFolder, fileName)) //creating new file
 	if err != nil {
 		return err
 	}
 	defer newFile.Close()
 
-	_, err = io.Copy(newFile, oldFile) //copying old registry to new
+	_, err = io.Copy(newFile, prevFile) //copying previous registry to new
 	if err != nil {
 		return err
 	}
