@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	packageregistryhelper "github.com/Azure/VMApplication-Extension/internal/packageregistry"
 	"github.com/stretchr/testify/assert"
 	"io/ioutil"
 	"os"
@@ -11,7 +12,6 @@ import (
 
 func Test_didFileMove(t *testing.T) {
 	//set up test VM
-	maintestdir = filepath.Join("C:\\Microsoft.CPlat.Core.VMApplicationManagerWindows", extensionVersion)
 	order := 1
 	vmApplications := []VmAppSetting{
 		VmAppSetting{
@@ -21,10 +21,16 @@ func Test_didFileMove(t *testing.T) {
 	}
 	ext := createTestVMExtension(t, vmApplications)
 
-	//get folder paths and set up test files
-	configFolderPath := ext.HandlerEnv.ConfigFolder
-	folderPath := filepath.Dir(filepath.Dir(configFolderPath))
-	err := createTestFiles(folderPath)
+	//set up test files
+	runtimeFolderName := "RuntimeSettings"
+	testFolderPath := ext.HandlerEnv.ConfigFolder //path to create test version folders
+	ext.HandlerEnv.ConfigFolder = filepath.Join(ext.HandlerEnv.ConfigFolder, extensionVersion, runtimeFolderName) //overwrite to match path pattern of config folder in VM
+	err := os.MkdirAll(ext.HandlerEnv.ConfigFolder, os.ModeDir) //creates new folders
+	if err != nil {
+		return
+	}
+	fileName := packageregistryhelper.LocalApplicationRegistryFileName //gets name of application registry file
+	err = createTestFiles(testFolderPath, runtimeFolderName, fileName)
 	if err != nil {
 		return
 	}
@@ -35,14 +41,13 @@ func Test_didFileMove(t *testing.T) {
 		return
 	}
 
-	//check if file was moved
-	assert.NoError(t, err)
-	//check if correct file was moved
-	isSame := compareFiles(filepath.Join(folderPath,"1.0.3","RuntimeSettings","applicationRegistry.active"), filepath.Join(configFolderPath, "applicationRegistry.active"))
-	assert.True(t, isSame)
+	//checks
+	assert.NoError(t, err) 	//check for errors
+	isSame := compareFiles(filepath.Join(testFolderPath, "1.0.3", runtimeFolderName, fileName), filepath.Join(ext.HandlerEnv.ConfigFolder, fileName))
+	assert.True(t, isSame) 	//check if correct file was moved
 
 	//cleanup
-	os.RemoveAll(folderPath)
+	os.RemoveAll(maintestdir)
 }
 
 func compareFiles(path1, path2 string) bool {
@@ -63,7 +68,7 @@ func compareFiles(path1, path2 string) bool {
 	return false
 }
 
-func createTestFiles(folderPath string) error {
+func createTestFiles(folderPath, runtimeFolderName, fileName string) error {
 	//create test directories
 	err := os.MkdirAll(filepath.Join(folderPath, "1.0.1"), os.ModeDir)
 	if err != nil {
@@ -75,14 +80,14 @@ func createTestFiles(folderPath string) error {
 		return err
 	}
 
-	err = os.MkdirAll(filepath.Join(folderPath, "1.0.3", "RuntimeSettings" ), os.ModeDir)
+	err = os.MkdirAll(filepath.Join(folderPath, "1.0.3", runtimeFolderName), os.ModeDir)
 	if err != nil {
 		return err
 	}
 
 	//creating test file
 	testContent := []byte("Test File Contents")
-	err = ioutil.WriteFile(filepath.Join(folderPath,"1.0.3","RuntimeSettings","applicationRegistry.active"), testContent, 0777)
+	err = ioutil.WriteFile(filepath.Join(folderPath, "1.0.3", runtimeFolderName, fileName), testContent, 0777)
 	if err != nil {
 		return err
 	}
