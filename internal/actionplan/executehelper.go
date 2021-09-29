@@ -4,6 +4,12 @@ import (
 	"bytes"
 	"crypto/md5"
 	"fmt"
+	"io"
+	"os"
+	"os/signal"
+	"path"
+	"syscall"
+
 	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
 	"github.com/Azure/azure-extension-platform/pkg/commandhandler"
 	"github.com/Azure/azure-extension-platform/pkg/constants"
@@ -11,11 +17,6 @@ import (
 	"github.com/Azure/azure-extension-platform/pkg/extensionerrors"
 	"github.com/Azure/azure-extension-platform/pkg/extensionevents"
 	"github.com/pkg/errors"
-	"io"
-	"os"
-	"os/signal"
-	"path"
-	"syscall"
 )
 
 func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPackageRegistry,
@@ -24,7 +25,7 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 	errorMessageToReturn = nil
 	appName := act.vmAppPackage.ApplicationName
 	version := act.vmAppPackage.Version
-	
+
 	// record new operation in the packageRegistry
 	vmAppPackageCurrent := act.vmAppPackage
 	registry[appName] = &vmAppPackageCurrent
@@ -74,7 +75,7 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 				// download packages
 				downloadPackageFileName := path.Join(downloadPath, vmAppPackageCurrent.PackageFileName)
 				if err := actionPlan.hostGaCommunicator.DownloadPackage(actionPlan.logger, vmAppPackageCurrent.ApplicationName, downloadPackageFileName); err != nil {
-					errorMessageToReturn =  extensionerrors.CombineErrors(errorMessageToReturn, errors.Wrapf(err, "failed to download package file %s", downloadPackageFileName))
+					errorMessageToReturn = extensionerrors.CombineErrors(errorMessageToReturn, errors.Wrapf(err, "failed to download package file %s", downloadPackageFileName))
 				}
 				if err == nil {
 					if packageFileChecksum, err := getMD5CheckSum(downloadPackageFileName); err == nil {
@@ -163,7 +164,6 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 				delete(registry, appName)
 				os.RemoveAll(vmAppPackageCurrent.DownloadDir)
 			}
-
 			registryHandler.WriteToDisk(registry)
 			exithelper.Exiter.Exit(0)
 		}
