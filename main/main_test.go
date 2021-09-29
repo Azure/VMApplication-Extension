@@ -101,7 +101,7 @@ func Test_getVMPackageData_noApplications(t *testing.T) {
 func Test_getVMPackageData_valid(t *testing.T) {
 	order := 1
 	vmApplications := []VmAppSetting{
-		VmAppSetting{
+		{
 			ApplicationName: "iggy",
 			Order:           &order,
 		},
@@ -117,7 +117,7 @@ func Test_getVMPackageData_valid(t *testing.T) {
 func Test_getVMPackageData_noVersion(t *testing.T) {
 	order := 1
 	vmApplications := []VmAppSetting{
-		VmAppSetting{
+		{
 			ApplicationName: "iggy",
 			Order:           &order,
 		},
@@ -133,7 +133,7 @@ func Test_getVMPackageData_noVersion(t *testing.T) {
 func Test_getVMPackageData_noApplicationName(t *testing.T) {
 	order := 1
 	vmApplications := []VmAppSetting{
-		VmAppSetting{
+		{
 			ApplicationName: "",
 			Order:           &order,
 		},
