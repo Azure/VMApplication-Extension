@@ -25,7 +25,7 @@ func getVMAppIncomingCollection(settings *settings.HandlerSettings, communicator
 	incomingCollection := make(packageregistry.VMAppPackageIncomingCollection, 0)
 	for _, app := range protSettings {
 		if app.ApplicationName == "" {
-			return nil, errors.New("Missing application name")
+			return nil, errors.New("missing application name")
 		}
 		vmAppInfo, err := communicator.GetVMAppInfo(el, app.ApplicationName)
 		if err != nil {
