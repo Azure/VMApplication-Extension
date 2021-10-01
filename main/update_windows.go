@@ -24,7 +24,7 @@ func vmAppUpdateCallback(ext *vmextensionhelper.VMExtension) error {
 		pathToFile = filepath.Join(currentFolderName, pathToFile) //keeping track of full path to file
 		folderPath = filepath.Dir(folderPath) //update folderpath to walk up directory
 		if folderPath == "." {
-			return errors.New("directory not found") //there are no directories that have an extension version when walk is done
+			return nil //breaks at root of path if version directory is not found, update doesn't take place
 		}
 	}
 
