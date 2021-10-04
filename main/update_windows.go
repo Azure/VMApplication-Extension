@@ -1,7 +1,7 @@
 package main
 
 import (
-	packageregistryhelper "github.com/Azure/VMApplication-Extension/internal/packageregistry"
+	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
 	vmextensionhelper "github.com/Azure/azure-extension-platform/vmextension"
 	"github.com/pkg/errors"
 	"io"
@@ -37,7 +37,7 @@ func vmAppUpdateCallback(ext *vmextensionhelper.VMExtension) error {
 		return errors.New("directory does not contain previous version")
 	}
 
-	fileName := packageregistryhelper.LocalApplicationRegistryFileName
+	fileName := packageregistry.LocalApplicationRegistryFileName
 	prevVersionFolder := dirContent[len(dirContent)-2]                                                  //taking the version under latest
 	prevFile, err := os.Open(filepath.Join(folderPath, prevVersionFolder.Name(), pathToFile, fileName)) //opening the applicationRegistry file
 	if err != nil {
