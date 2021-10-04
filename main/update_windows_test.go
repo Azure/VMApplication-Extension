@@ -2,7 +2,7 @@ package main
 
 import (
 	"bytes"
-	packageregistryhelper "github.com/Azure/VMApplication-Extension/internal/packageregistry"
+	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
 	"github.com/stretchr/testify/assert"
 	"io/ioutil"
 	"os"
@@ -29,7 +29,7 @@ func Test_didFileMove(t *testing.T) {
 	if err != nil {
 		return
 	}
-	fileName := packageregistryhelper.LocalApplicationRegistryFileName //gets name of application registry file
+	fileName := packageregistry.LocalApplicationRegistryFileName //gets name of application registry file
 	err = createTestFiles(testFolderPath, runtimeFolderName, fileName)
 	if err != nil {
 		return
