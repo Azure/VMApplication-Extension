@@ -36,6 +36,8 @@ func getExtensionAndRun() error {
 	if err != nil {
 		return err
 	}
+	
+	ii.UpdateCallback = vmAppUpdateCallback
 
 	ext, err := vmextensionhelper.GetVMExtension(ii)
 	if err != nil {

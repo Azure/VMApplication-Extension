@@ -7,15 +7,15 @@ import (
 	"path"
 	"time"
 
-	"github.com/Azure/azure-extension-platform/pkg/lockedfile"
 	"github.com/Azure/azure-extension-platform/pkg/constants"
 	"github.com/Azure/azure-extension-platform/pkg/handlerenv"
+	"github.com/Azure/azure-extension-platform/pkg/lockedfile"
 )
 
 const (
 	lockFileName                                             = "VMApp.lockfile"
 	localApplicationRegistryBackupFileName                   = "applicationRegistry.backup"
-	localApplicationRegistryFileName                         = "applicationRegistry.active"
+	LocalApplicationRegistryFileName						 = "applicationRegistry.active"
 	localApplicationRegistryFileDefaultTimeout time.Duration = 30 * time.Minute
 )
 
@@ -187,7 +187,7 @@ func (self *PackageRegistry) WriteToDisk(packageRegistry CurrentPackageRegistry)
 }
 
 func (self *PackageRegistry) getLocalApplicationRegistryFilePath() string {
-	return path.Join(self.handlerEnv.ConfigFolder, localApplicationRegistryFileName)
+	return path.Join(self.handlerEnv.ConfigFolder, LocalApplicationRegistryFileName)
 }
 
 func (self *PackageRegistry) getLocalApplicationRegistryBackupFilePath() string {
