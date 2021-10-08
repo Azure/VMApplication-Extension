@@ -7,6 +7,7 @@ import (
 	"path"
 	"testing"
 
+	"github.com/Azure/VMApplication-Extension/internal/actionplan"
 	"github.com/Azure/VMApplication-Extension/internal/hostgacommunicator"
 	"github.com/Azure/azure-extension-platform/pkg/constants"
 	"github.com/Azure/azure-extension-platform/pkg/extensionevents"
@@ -14,12 +15,12 @@ import (
 	"github.com/Azure/azure-extension-platform/pkg/logging"
 	handlersettings "github.com/Azure/azure-extension-platform/pkg/settings"
 	"github.com/Azure/azure-extension-platform/vmextension"
-	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/assert"
 )
 
 // implements IHostGaCommunicator
 type NoopHostGaCommunicator struct {
-	myApp *hostgacommunicator.VMAppMetadata
+	MyApp *hostgacommunicator.VMAppMetadata
 }
 
 func (communicator *NoopHostGaCommunicator) DownloadPackage(el *logging.ExtensionLogger, appName string, dst string) error {
@@ -29,11 +30,11 @@ func (communicator *NoopHostGaCommunicator) DownloadConfig(el *logging.Extension
 	return nil
 }
 func (communicator *NoopHostGaCommunicator) GetVMAppInfo(el *logging.ExtensionLogger, appName string) (*hostgacommunicator.VMAppMetadata, error) {
-	return communicator.myApp, nil
+	return communicator.MyApp, nil
 }
 
-func (communicator *NoopHostGaCommunicator) SetupVMAppInfo(appName string, version string, operation string) {
-	communicator.myApp = &hostgacommunicator.VMAppMetadata{
+func (communicator *NoopHostGaCommunicator) SetupVMAppInfo(appName string, version string) {
+	communicator.MyApp = &hostgacommunicator.VMAppMetadata{
 		ApplicationName:    appName,
 		DirectDownloadOnly: false,
 		InstallCommand:     "",
@@ -58,47 +59,48 @@ func TestMain(m *testing.M) {
 
 	maintestdir = testdir
 	exitVal := m.Run()
-	os.RemoveAll(maintestdir)
+	cleanTestDir()
 
 	os.Exit(exitVal)
 }
 
-func Test_settingsFailToInit(t *testing.T) {
+func TestSettingsFailToInit(t *testing.T) {
 	extensionVersion = ""
 	defer resetExtensionVersion()
 	err := getExtensionAndRun()
-	require.Error(t, err)
+	assert.Error(t, err)
 }
 
-func Test_failToCreateExtension(t *testing.T) {
+func TestFailToCreateExtension(t *testing.T) {
 	// This will fail automatically because Guest Agent hasn't set the required sequence numbers
 	err := getExtensionAndRun()
-	require.Error(t, err)
+	assert.Error(t, err)
 }
 
-func Test_getVMPackageData_noSettings(t *testing.T) {
+func TestGetVMPackageDataNoSettings(t *testing.T) {
 	ext := createTestVMExtension(t, nil)
 	_, err := vmAppEnableCallback(ext)
-	require.Error(t, err)
+	assert.Error(t, err)
 }
 
-func Test_getVMPackageData_cannotDeserialize(t *testing.T) {
+func TestGetVMPackageDataCannotDeserialize(t *testing.T) {
 	vmPackages := "yabasnarfle {}"
 
 	ext := createTestVMExtension(t, vmPackages)
 	_, err := vmAppEnableCallback(ext)
-	require.Error(t, err)
+	assert.Error(t, err)
 }
 
-func Test_getVMPackageData_noApplications(t *testing.T) {
+func TestGetVMPackageDataNoApplications(t *testing.T) {
 	vmApplications := []VmAppSetting{}
 
 	ext := createTestVMExtension(t, vmApplications)
 	_, err := vmAppEnableCallback(ext)
-	require.NoError(t, err)
+	assert.NoError(t, err)
 }
 
-func Test_getVMPackageData_valid(t *testing.T) {
+func TestEnableCallbackWithOneApplication(t *testing.T) {
+	defer cleanTestDir()
 	order := 1
 	vmApplications := []VmAppSetting{
 		{
@@ -109,12 +111,55 @@ func Test_getVMPackageData_valid(t *testing.T) {
 
 	ext := createTestVMExtension(t, vmApplications)
 	hostGaCommunicator := NoopHostGaCommunicator{}
-	hostGaCommunicator.SetupVMAppInfo("iggy", "1.0.1", "install")
-	_, err := doVmAppEnableCallback(ext, &hostGaCommunicator)
-	require.NoError(t, err)
+	hostGaCommunicator.SetupVMAppInfo("iggy", "1.0.1")
+	statusString, err := doVmAppEnableCallback(ext, &hostGaCommunicator)
+	assert.NoError(t, err, "enable callback should return no error")
+	statusMessage := new(StatusMessageWithPackageOperationResults)
+	err = json.Unmarshal([]byte(statusString), statusMessage)
+	assert.NoError(t, err, "statusString should deserialize to an object of type StatusMessageWithPackageOperationResults")
+	assert.Equal(t, 1, len(statusMessage.ActionsPerformed), "there should be one action performed")
+	assert.Equal(t, actionplan.Success, statusMessage.ActionsPerformed[0].Result)
 }
 
-func Test_getVMPackageData_noVersion(t *testing.T) {
+func TestTreatFailureAsDeploymentFailure(t *testing.T) {
+	defer cleanTestDir()
+	order := 1
+	vmApplications := []VmAppSetting{
+		{
+			ApplicationName:                 "iggy",
+			Order:                           &order,
+			TreatFailureAsDeploymentFailure: true,
+		},
+	}
+
+	ext := createTestVMExtension(t, vmApplications)
+	hostGaCommunicator := NoopHostGaCommunicator{}
+	hostGaCommunicator.SetupVMAppInfo("iggy", "1.0.1")
+	hostGaCommunicator.MyApp.InstallCommand = "return 1"
+	statusString, err := doVmAppEnableCallback(ext, &hostGaCommunicator)
+	assert.EqualError(t, err, treatFailureAsDeploymentFailureError.Error(), "enable callback should return expected error")
+	statusMessage := new(StatusMessageWithPackageOperationResults)
+	err = json.Unmarshal([]byte(statusString), statusMessage)
+	assert.NoError(t, err, "statusString should deserialize to an object of type StatusMessageWithPackageOperationResults")
+	assert.Equal(t, 1, len(statusMessage.ActionsPerformed), "there should be one action performed")
+	assert.Contains(t, statusMessage.ActionsPerformed[0].Result, hostGaCommunicator.MyApp.InstallCommand)
+
+	// also test enable callback return no error when TreatFailureAsDeploymentFailure is false
+	cleanTestDir()
+	vmApplications[0].ApplicationName = "app2"
+	vmApplications[0].TreatFailureAsDeploymentFailure = false
+	hostGaCommunicator.MyApp.InstallCommand = "return 2"
+	ext = createTestVMExtension(t, vmApplications)
+	statusString, err = doVmAppEnableCallback(ext, &hostGaCommunicator)
+	assert.NoError(t, err, "enableCallBack should not return error even on failure of install command when TreatFailureAsDeploymentFailure is false")
+	statusMessage = new(StatusMessageWithPackageOperationResults)
+	err = json.Unmarshal([]byte(statusString), statusMessage)
+	assert.NoError(t, err, "statusString should deserialize to an object of type StatusMessageWithPackageOperationResults")
+	assert.Equal(t, 1, len(statusMessage.ActionsPerformed), "there should be one action performed")
+	assert.Contains(t, statusMessage.ActionsPerformed[0].Result, hostGaCommunicator.MyApp.InstallCommand)
+}
+
+func TestGetVMPackageDataNoVersion(t *testing.T) {
 	order := 1
 	vmApplications := []VmAppSetting{
 		{
@@ -124,13 +169,13 @@ func Test_getVMPackageData_noVersion(t *testing.T) {
 	}
 
 	hostGaCommunicator := NoopHostGaCommunicator{}
-	hostGaCommunicator.SetupVMAppInfo("iggy", "", "install")
+	hostGaCommunicator.SetupVMAppInfo("iggy", "")
 	ext := createTestVMExtension(t, vmApplications)
 	_, err := doVmAppEnableCallback(ext, &hostGaCommunicator)
-	require.Error(t, err)
+	assert.Error(t, err)
 }
 
-func Test_getVMPackageData_noApplicationName(t *testing.T) {
+func TestGetVMPackageDataNoApplicationName(t *testing.T) {
 	order := 1
 	vmApplications := []VmAppSetting{
 		{
@@ -140,19 +185,23 @@ func Test_getVMPackageData_noApplicationName(t *testing.T) {
 	}
 
 	hostGaCommunicator := NoopHostGaCommunicator{}
-	hostGaCommunicator.SetupVMAppInfo("iggy", "1.0.1", "install")
+	hostGaCommunicator.SetupVMAppInfo("iggy", "1.0.1")
 	ext := createTestVMExtension(t, vmApplications)
 	_, err := doVmAppEnableCallback(ext, &hostGaCommunicator)
-	require.Error(t, err)
+	assert.Error(t, err)
 }
 
-func Test_main_nothingToProcess(t *testing.T) {
+func TestEnableCallbackNothingToProcess(t *testing.T) {
 	vmApplications := []VmAppSetting{}
 	ext := createTestVMExtension(t, vmApplications)
 
 	hostGaCommunicator := NoopHostGaCommunicator{}
 	_, err := doVmAppEnableCallback(ext, &hostGaCommunicator)
-	require.NoError(t, err)
+	assert.NoError(t, err)
+}
+
+func cleanTestDir() {
+	os.RemoveAll(maintestdir)
 }
 
 func resetExtensionVersion() {
@@ -182,7 +231,7 @@ func createTestVMExtension(t *testing.T, settings interface{}) *vmextension.VMEx
 
 	configFolder := path.Join(maintestdir, "config/")
 	err := os.MkdirAll(configFolder, constants.FilePermissions_UserOnly_ReadWriteExecute)
-	require.NoError(t, err)
+	assert.NoError(t, err)
 
 	el := logging.New(nil)
 	he := &handlerenv.HandlerEnvironment{

@@ -103,7 +103,7 @@ func TestCommandExecutorCanHandleProcessBeingKilled(t *testing.T) {
 		existingApps := packageregistry.VMAppPackageCurrentCollection{}
 		incomingApps := packageregistry.VMAppPackageIncomingCollection{&newApp}
 		cmdHandler := NewCommandHandlerMock(mockCommandExecutorSleepForAnHour)
-		newReg, _, statusMessage := executeActionPlan(t, existingApps, incomingApps, cmdHandler)
+		newReg, _, statusMessage, _ := executeActionPlan(t, existingApps, incomingApps, cmdHandler)
 		assert.EqualValues(t, newApp.InstallCommand, cmdHandler.Result[0].command, "Install command must be invoked")
 		assertPackageRegistryHasBeenUpdatedProperly(t, newReg, incomingApps)
 		assertAllActionsSucceeded(t, newReg)

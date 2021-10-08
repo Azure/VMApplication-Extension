@@ -77,6 +77,24 @@ func TestStatusFormatter(t *testing.T) {
 	assert.NoError(t, json.Unmarshal([]byte(statusMessage), statusMessageInstance), "sould be able to parse status message")
 }
 
+func TestStatusError(t *testing.T) {
+	actionsPerformed := actionplan.PackageOperationResults{
+		actionplan.PackageOperationResult{
+			PackageName:                     "app1",
+			AppVersion:                      "0.1.1",
+			Operation:                       "Install",
+			Result:                          actionplan.Failed,
+			TreatFailureAsDeploymentFailure: false,
+		},
+	}
+	_, err := getStatusMessageAndError(vmAppCurrentCollection, &actionsPerformed)
+	assert.NoError(t, err, "error should be nil when treatFailureAsDeploymentFailure isFalse")
+
+	actionsPerformed[0].TreatFailureAsDeploymentFailure = true
+	_, err = getStatusMessageAndError(vmAppCurrentCollection, &actionsPerformed)
+	assert.EqualError(t, err, treatFailureAsDeploymentFailureError.Error(), "getStatusMessageAndError should return treadFailureAsDeploymentFalureError")
+}
+
 func TestGetStatusMessageTruncatesStringsOver5KB(t *testing.T) {
 	messageLength := fiveKilo + 100
 	ce := criticalErrorString(generateRandomStringOfLength(messageLength))

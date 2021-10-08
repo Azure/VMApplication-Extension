@@ -108,7 +108,8 @@ func TestSingleInstallWithOrder(t *testing.T) {
 	existingApps := packageregistry.VMAppPackageCurrentCollection{}
 	incomingApps := packageregistry.VMAppPackageIncomingCollection{&newApp}
 	cmdHandler := NewCommandHandlerMock(mockCommandExecutorNoError)
-	newReg, _, statusMessage := executeActionPlan(t, existingApps, incomingApps, cmdHandler)
+	newReg, _, statusMessage, err := executeActionPlan(t, existingApps, incomingApps, cmdHandler)
+	assert.NoError(t, err, "executeActionPlan should return no error")
 
 	assert.EqualValues(t, newApp.InstallCommand, cmdHandler.Result[0].command, "Install command must be invoked")
 	assertPackageRegistryHasBeenUpdatedProperly(t, newReg, incomingApps)
@@ -116,6 +117,28 @@ func TestSingleInstallWithOrder(t *testing.T) {
 	packageOperationResults, ok := statusMessage.(*PackageOperationResults)
 	assert.True(t, ok)
 	assert.EqualValues(t, (*packageOperationResults)[0], PackageOperationResult{Result: Success, Operation: packageregistry.Install.ToString(), AppVersion: newApp.Version, PackageName: newApp.ApplicationName})
+}
+
+func TestTreatFailureAsDeploymentFailure(t *testing.T) {
+	initializeTest(t)
+	defer cleanupTest()
+	newApp := packageregistry.VMAppPackageIncoming{
+		ApplicationName:                 "app1",
+		Order:                           &one,
+		Version:                         "1.0",
+		InstallCommand:                  "fail install app1",
+		RemoveCommand:                   "fail remove app1",
+		UpdateCommand:                   "fail update app1",
+		TreatFailureAsDeploymentFailure: true,
+	}
+	existingApps := packageregistry.VMAppPackageCurrentCollection{}
+	incomingApps := packageregistry.VMAppPackageIncomingCollection{&newApp}
+	cmdHandler := NewCommandHandlerMock(mockCommandFailOnDemand)
+	newReg, _, statusMessage, err := executeActionPlan(t, existingApps, incomingApps, cmdHandler)
+	assert.Error(t, err, "executeActionPlan should return error")
+	_, ok := statusMessage.(*PackageOperationResults)
+	assert.True(t, ok)
+	assert.True(t, newReg[newApp.ApplicationName].TreatFailureAsDeploymentFailure, "treatFailureAsDeploymentFailure value should be properly saved")
 }
 
 func TestSingleInstallWithoutOrder(t *testing.T) {
@@ -133,7 +156,8 @@ func TestSingleInstallWithoutOrder(t *testing.T) {
 	existingApps := packageregistry.VMAppPackageCurrentCollection{}
 	incomingApps := packageregistry.VMAppPackageIncomingCollection{&newApp}
 	cmdHandler := NewCommandHandlerMock(mockCommandExecutorNoError)
-	newReg, _, statusMessage := executeActionPlan(t, existingApps, incomingApps, cmdHandler)
+	newReg, _, statusMessage, err := executeActionPlan(t, existingApps, incomingApps, cmdHandler)
+	assert.NoError(t, err, "executeActionPlan should return no error")
 
 	assert.EqualValues(t, newApp.InstallCommand, cmdHandler.Result[0].command, "Install command must be invoked")
 	assertPackageRegistryHasBeenUpdatedProperly(t, newReg, incomingApps)
@@ -161,7 +185,8 @@ func TestSingleRemove(t *testing.T) {
 	existingApps := packageregistry.VMAppPackageCurrentCollection{&currentVmApp}
 	incomingApps := packageregistry.VMAppPackageIncomingCollection{}
 	cmdHandler := NewCommandHandlerMock(mockCommandExecutorNoError)
-	newReg, _, statusMessage := executeActionPlan(t, existingApps, incomingApps, cmdHandler)
+	newReg, _, statusMessage, err := executeActionPlan(t, existingApps, incomingApps, cmdHandler)
+	assert.NoError(t, err, "executeActionPlan should return no error")
 
 	assert.Equal(t, 0, len(newReg)) // the current registry should have no applications
 	assertPackageRegistryHasBeenUpdatedProperly(t, newReg, incomingApps)
@@ -194,7 +219,8 @@ func TestUpdateCommandIsCalledWhenPresent(t *testing.T) {
 	existingApps := packageregistry.VMAppPackageCurrentCollection{&oldVersion}
 	incomingApps := packageregistry.VMAppPackageIncomingCollection{&newVersion}
 	cmdHandler := NewCommandHandlerMock(mockCommandExecutorNoError)
-	newReg, actionPlan, statusMessage := executeActionPlan(t, existingApps, incomingApps, cmdHandler)
+	newReg, actionPlan, statusMessage, err := executeActionPlan(t, existingApps, incomingApps, cmdHandler)
+	assert.NoError(t, err, "executeActionPlan should return no error")
 
 	assertAllActionsSucceeded(t, newReg)
 	assertPackageRegistryHasBeenUpdatedProperly(t, newReg, incomingApps)
@@ -210,7 +236,7 @@ func TestUpdateCommandIsCalledWhenPresent(t *testing.T) {
 	// test the same for ordered actions
 	newVersion.Order = &one
 	cmdHandler = NewCommandHandlerMock(mockCommandExecutorNoError)
-	newReg, actionPlan, statusMessage = executeActionPlan(t, existingApps, incomingApps, cmdHandler)
+	newReg, actionPlan, statusMessage, _ = executeActionPlan(t, existingApps, incomingApps, cmdHandler)
 
 	assertAllActionsSucceeded(t, newReg)
 	assertPackageRegistryHasBeenUpdatedProperly(t, newReg, incomingApps)
@@ -247,7 +273,8 @@ func TestDependentActionsAreCreatedForUpdatesWithoutUpdateCommand(t *testing.T) 
 	existingApps := packageregistry.VMAppPackageCurrentCollection{&oldVersion}
 	incomingApps := packageregistry.VMAppPackageIncomingCollection{&newVersion}
 	cmdHandler := NewCommandHandlerMock(mockCommandExecutorNoError)
-	newReg, actionPlan, statusMessage := executeActionPlan(t, existingApps, incomingApps, cmdHandler)
+	newReg, actionPlan, statusMessage, err := executeActionPlan(t, existingApps, incomingApps, cmdHandler)
+	assert.NoError(t, err, "executeActionPlan should return no error")
 
 	assertAllActionsSucceeded(t, newReg)
 	assertPackageRegistryHasBeenUpdatedProperly(t, newReg, incomingApps)
@@ -265,7 +292,8 @@ func TestDependentActionsAreCreatedForUpdatesWithoutUpdateCommand(t *testing.T) 
 	// test the same for ordered actions
 	newVersion.Order = &one
 	cmdHandler = NewCommandHandlerMock(mockCommandExecutorNoError)
-	newReg, actionPlan, statusMessage = executeActionPlan(t, existingApps, incomingApps, cmdHandler)
+	newReg, actionPlan, statusMessage, err = executeActionPlan(t, existingApps, incomingApps, cmdHandler)
+	assert.NoError(t, err, "executeActionPlan should return no error")
 
 	assertAllActionsSucceeded(t, newReg)
 	assertPackageRegistryHasBeenUpdatedProperly(t, newReg, incomingApps)
@@ -304,8 +332,8 @@ func TestDependantActionsAreCancelled(t *testing.T) {
 	existingApps := packageregistry.VMAppPackageCurrentCollection{&oldVersion}
 	incomingApps := packageregistry.VMAppPackageIncomingCollection{&newVersion}
 	cmdHandler := NewCommandHandlerMock(mockCommandFailOnDemand)
-	newReg, actionPlan, statusMessage := executeActionPlan(t, existingApps, incomingApps, cmdHandler)
-
+	newReg, actionPlan, statusMessage, err := executeActionPlan(t, existingApps, incomingApps, cmdHandler)
+	assert.Error(t, err, "executeActionPlan should return error")
 	assert.Equal(t, 1, len(actionPlan.unorderedOperations), "there must be 1 unordered operation")
 	assert.Equal(t, 2, len(actionPlan.unorderedOperations[0]), "there must be 2 dependent actions")
 	assert.Equal(t, 1, len(cmdHandler.Result), "only one command should have been executed")
@@ -382,7 +410,8 @@ func TestOrderIsMaintainedAndHigherOrderOperationsAreSkippedOnFailure(t *testing
 	existingApps := packageregistry.VMAppPackageCurrentCollection{&old1, &old2, &old3}
 	incomingApps := packageregistry.VMAppPackageIncomingCollection{&new1, &new2, &new4, &new5}
 	cmdHandler := NewCommandHandlerMock(mockCommandFailOnDemand)
-	newReg, actionPlan, statusMessage := executeActionPlan(t, existingApps, incomingApps, cmdHandler)
+	newReg, actionPlan, statusMessage, err := executeActionPlan(t, existingApps, incomingApps, cmdHandler)
+	assert.NoError(t, err, "executeActionPlan should return no error")
 	assertAllActionsSucceeded(t, newReg)
 	assertPackageRegistryHasBeenUpdatedProperly(t, newReg, incomingApps)
 	assert.Equal(t, 1, len(actionPlan.unorderedImplicitUninstalls), "we are expecting one uninstall")
@@ -434,7 +463,8 @@ func TestOrderIsMaintainedAndHigherOrderOperationsAreSkippedOnFailure(t *testing
 	}
 	incomingApps = append(incomingApps, &newFail6, &new7, &new8)
 	cmdHandler = NewCommandHandlerMock(mockCommandFailOnDemand)
-	newReg, actionPlan, statusMessage = executeActionPlan(t, existingApps, incomingApps, cmdHandler)
+	newReg, actionPlan, statusMessage, err = executeActionPlan(t, existingApps, incomingApps, cmdHandler)
+	assert.Error(t, err, "executeActionPlan should return error")
 	assert.Equal(t, 5, len(actionPlan.orderedOperations), "5 orders expected")
 	assert.Equal(t, 3, len(actionPlan.orderedOperations[2]), "3 operation of order 2")
 	assert.Equal(t, 5, len(cmdHandler.Result), "5 total command executions are expected")
@@ -528,7 +558,8 @@ func TestSkippedPackagesAreCleanedUpWhenRemovedFromApplicationProfile(t *testing
 	existingApps := packageregistry.VMAppPackageCurrentCollection{&old1, &old2, &old3}
 	incomingApps := packageregistry.VMAppPackageIncomingCollection{}
 	cmdHandler := NewCommandHandlerMock(mockCommandFailOnDemand)
-	newReg, actionPlan, statusMessage := executeActionPlan(t, existingApps, incomingApps, cmdHandler)
+	newReg, actionPlan, statusMessage, err := executeActionPlan(t, existingApps, incomingApps, cmdHandler)
+	assert.NoError(t, err, "executeActionPlan should return no error")
 	assertAllActionsSucceeded(t, newReg)
 	assertPackageRegistryHasBeenUpdatedProperly(t, newReg, incomingApps)
 	assert.Equal(t, 3, len(actionPlan.unorderedImplicitUninstalls), "we are expecting 3 uninstall operations")
@@ -543,7 +574,7 @@ func TestSkippedPackagesAreCleanedUpWhenRemovedFromApplicationProfile(t *testing
 func executeActionPlan(t *testing.T,
 	currentPackages packageregistry.VMAppPackageCurrentCollection,
 	incomingPackages packageregistry.VMAppPackageIncomingCollection,
-	cmdHandler commandhandler.ICommandHandler) (packageregistry.CurrentPackageRegistry, *ActionPlan, IResult) {
+	cmdHandler commandhandler.ICommandHandler) (packageregistry.CurrentPackageRegistry, *ActionPlan, IResult, error) {
 
 	currentReg := packageregistry.CurrentPackageRegistry{}
 	currentReg.Populate(currentPackages)
@@ -562,10 +593,10 @@ func executeActionPlan(t *testing.T,
 	he := getHandlerEnvironment()
 	eem := extensionevents.New(el, he)
 
-	statusMessage, _ := actionPlan.Execute(packageReg, eem, cmdHandler)
+	statusMessage, actionPlanExecutionError := actionPlan.Execute(packageReg, eem, cmdHandler)
 	currentReg, err = packageReg.GetExistingPackages()
 	assert.NoError(t, err)
-	return currentReg, actionPlan, statusMessage
+	return currentReg, actionPlan, statusMessage, actionPlanExecutionError
 }
 
 func getHandlerEnvironment() *handlerenv.HandlerEnvironment {
