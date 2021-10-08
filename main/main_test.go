@@ -9,6 +9,7 @@ import (
 
 	"github.com/Azure/VMApplication-Extension/internal/actionplan"
 	"github.com/Azure/VMApplication-Extension/internal/hostgacommunicator"
+	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
 	"github.com/Azure/azure-extension-platform/pkg/constants"
 	"github.com/Azure/azure-extension-platform/pkg/extensionevents"
 	"github.com/Azure/azure-extension-platform/pkg/handlerenv"
@@ -143,6 +144,25 @@ func TestTreatFailureAsDeploymentFailure(t *testing.T) {
 	assert.NoError(t, err, "statusString should deserialize to an object of type StatusMessageWithPackageOperationResults")
 	assert.Equal(t, 1, len(statusMessage.ActionsPerformed), "there should be one action performed")
 	assert.Contains(t, statusMessage.ActionsPerformed[0].Result, hostGaCommunicator.MyApp.InstallCommand)
+	assert.Equal(t, statusMessage.ActionsPerformed[0].Operation, packageregistry.Install.ToString())
+
+	// test for update
+	cleanTestDir()
+	ext = createTestVMExtension(t, vmApplications)
+	hostGaCommunicator.MyApp.InstallCommand = "return 0"
+	// let install succeed, next enable should call update
+	_, _ = doVmAppEnableCallback(ext, &hostGaCommunicator)
+	hostGaCommunicator.MyApp.UpdateCommand = "return 1"
+	hostGaCommunicator.MyApp.Version = "1.0.2"
+
+	statusString, err = doVmAppEnableCallback(ext, &hostGaCommunicator)
+	assert.EqualError(t, err, treatFailureAsDeploymentFailureError.Error(), "enable callback should return expected error")
+	statusMessage = new(StatusMessageWithPackageOperationResults)
+	err = json.Unmarshal([]byte(statusString), statusMessage)
+	assert.NoError(t, err, "statusString should deserialize to an object of type StatusMessageWithPackageOperationResults")
+	assert.Equal(t, 1, len(statusMessage.ActionsPerformed), "there should be one action performed")
+	assert.Contains(t, statusMessage.ActionsPerformed[0].Result, hostGaCommunicator.MyApp.UpdateCommand)
+	assert.Equal(t, statusMessage.ActionsPerformed[0].Operation, packageregistry.Update.ToString())
 
 	// also test enable callback return no error when TreatFailureAsDeploymentFailure is false
 	cleanTestDir()

@@ -67,7 +67,9 @@ func getStatusMessageAndError(vmAppCurrentCollection packageregistry.VMAppPackag
 		var shouldFailEnable bool
 		for _, packageOperationResult := range statusMessage.ActionsPerformed {
 			if packageOperationResult.TreatFailureAsDeploymentFailure && packageOperationResult.Result != actionplan.Success {
-				shouldFailEnable = true
+				if packageOperationResult.Operation == packageregistry.Install.ToString() || packageOperationResult.Operation == packageregistry.Update.ToString() {
+					shouldFailEnable = true
+				}
 			}
 		}
 		if shouldFailEnable {
