@@ -3,11 +3,17 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+
 	"github.com/Azure/VMApplication-Extension/internal/actionplan"
 	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
+	"github.com/pkg/errors"
 )
 
 const fiveKilo = 5 * 1024
+
+var (
+	treatFailureAsDeploymentFailureError = errors.New("an app maked as TreatFailureAsDeploymentFailure couldn't be installed or updated")
+)
 
 type VmAppPackageCurrentForStatusCollection []*VmAppPackageCurrentForStatus
 
@@ -17,12 +23,12 @@ type VmAppPackageCurrentForStatus struct {
 	Result          string `json:"result"`
 }
 
-type StatusMessage1 struct {
+type StatusMessageWithPackageOperationResults struct {
 	CurrentState     VmAppPackageCurrentForStatusCollection `json:"CurrentState"`
 	ActionsPerformed actionplan.PackageOperationResults     `json:"ActionsPerformed"`
 }
 
-type StatusMessage2 struct {
+type StatusMessageWithCriticalError struct {
 	CurrentState  VmAppPackageCurrentForStatusCollection `json:"CurrentState"`
 	CriticalError string                                 `json:"CriticalError"`
 }
@@ -39,13 +45,15 @@ func getVmAppCurrentForStatus(vmAppCurrentCollection packageregistry.VMAppPackag
 	return vmAppCurrentForStatusCollection
 }
 
-func getStatusMessage(vmAppCurrentCollection packageregistry.VMAppPackageCurrentCollection, result actionplan.IResult) string {
+func getStatusMessageAndError(vmAppCurrentCollection packageregistry.VMAppPackageCurrentCollection, result actionplan.IResult) (string, error) {
 	vmAppCurrentForStatusCollection := getVmAppCurrentForStatus(vmAppCurrentCollection)
 	packageOperationResults, ok := result.(*actionplan.PackageOperationResults)
 	var statusMessageString string
 
+	var errorMessageToReturn error = nil
+
 	if ok {
-		statusMessage := StatusMessage1{
+		statusMessage := StatusMessageWithPackageOperationResults{
 			CurrentState:     vmAppCurrentForStatusCollection,
 			ActionsPerformed: *packageOperationResults,
 		}
@@ -55,8 +63,18 @@ func getStatusMessage(vmAppCurrentCollection packageregistry.VMAppPackageCurrent
 		} else {
 			statusMessageString = string(statusM)
 		}
+		// figure out if vmApp failure should result in extension error
+		var shouldFailEnable bool
+		for _, packageOperationResult := range statusMessage.ActionsPerformed {
+			if packageOperationResult.TreatFailureAsDeploymentFailure && packageOperationResult.Result != actionplan.Success {
+				shouldFailEnable = true
+			}
+		}
+		if shouldFailEnable {
+			errorMessageToReturn = treatFailureAsDeploymentFailureError
+		}
 	} else {
-		statusMessage := StatusMessage2{
+		statusMessage := StatusMessageWithCriticalError{
 			CurrentState:  vmAppCurrentForStatusCollection,
 			CriticalError: result.ToJsonString(),
 		}
@@ -66,11 +84,11 @@ func getStatusMessage(vmAppCurrentCollection packageregistry.VMAppPackageCurrent
 		} else {
 			statusMessageString = string(statusM)
 		}
+		errorMessageToReturn = errors.New(statusMessage.CriticalError)
 	}
 
 	if len(statusMessageString) > fiveKilo {
 		statusMessageString = statusMessageString[:fiveKilo]
 	}
-
-	return statusMessageString
+	return statusMessageString, errorMessageToReturn
 }

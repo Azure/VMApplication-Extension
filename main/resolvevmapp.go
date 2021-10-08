@@ -11,8 +11,9 @@ import (
 )
 
 type VmAppSetting struct {
-	ApplicationName string `json:"applicationName"`
-	Order           *int   `json:"order"`
+	ApplicationName                 string `json:"applicationName"`
+	Order                           *int   `json:"order"`
+	TreatFailureAsDeploymentFailure bool   `json:"treatFailureAsDeploymentFailure"`
 }
 
 type VmAppProtectedSettings []*VmAppSetting
@@ -36,16 +37,17 @@ func getVMAppIncomingCollection(settings *settings.HandlerSettings, communicator
 			return nil, errors.New("HostGA did not return a valid vmAppInfo")
 		}
 		incomingPackage := packageregistry.VMAppPackageIncoming{
-			ApplicationName:    app.ApplicationName,
-			Order:              app.Order,
-			Version:            vmAppInfo.Version,
-			InstallCommand:     vmAppInfo.InstallCommand,
-			RemoveCommand:      vmAppInfo.RemoveCommand,
-			UpdateCommand:      vmAppInfo.UpdateCommand,
-			DirectDownloadOnly: vmAppInfo.DirectDownloadOnly,
-			ConfigExists:       vmAppInfo.ConfigExists,
-			ConfigFileName:     vmAppInfo.ConfigFileName,
-			PackageFileName:    vmAppInfo.PackageFileName,
+			ApplicationName:                 app.ApplicationName,
+			Order:                           app.Order,
+			Version:                         vmAppInfo.Version,
+			InstallCommand:                  vmAppInfo.InstallCommand,
+			RemoveCommand:                   vmAppInfo.RemoveCommand,
+			UpdateCommand:                   vmAppInfo.UpdateCommand,
+			DirectDownloadOnly:              vmAppInfo.DirectDownloadOnly,
+			ConfigExists:                    vmAppInfo.ConfigExists,
+			ConfigFileName:                  vmAppInfo.ConfigFileName,
+			PackageFileName:                 vmAppInfo.PackageFileName,
+			TreatFailureAsDeploymentFailure: app.TreatFailureAsDeploymentFailure,
 		}
 		incomingCollection = append(incomingCollection, &incomingPackage)
 	}

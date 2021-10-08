@@ -9,6 +9,7 @@ import (
 	"github.com/Azure/VMApplication-Extension/internal/hostgacommunicator"
 	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
 	"github.com/Azure/azure-extension-platform/pkg/commandhandler"
+	"github.com/Azure/azure-extension-platform/pkg/status"
 	vmextensionhelper "github.com/Azure/azure-extension-platform/vmextension"
 )
 
@@ -30,14 +31,34 @@ func main() {
 	}
 }
 
+var statusMessageFormatter status.StatusMessageFormatter = func(operationName string, t status.StatusType, msg string) string {
+	s := operationName
+	switch t {
+	case status.StatusSuccess:
+		// success and error status message contains well formatted JSON result, do not add prefixes
+		return msg
+	case status.StatusError:
+		return msg
+	case status.StatusTransitioning:
+		s += " in progress"
+	}
+	if msg != "" {
+		// append the original
+		s += ": " + msg
+	}
+	return s
+}
+
 func getExtensionAndRun() error {
 	// require SeqNoChange is set to false because we want the extension to ensure that the packages are in sync with the desired packages
 	ii, err := vmextensionhelper.GetInitializationInfo(extensionName, extensionVersion, false, vmAppEnableCallback)
 	if err != nil {
 		return err
 	}
-	
+
 	ii.UpdateCallback = vmAppUpdateCallback
+
+	ii.CustomStatusFormatter = statusMessageFormatter
 
 	ext, err := vmextensionhelper.GetVMExtension(ii)
 	if err != nil {
@@ -93,12 +114,12 @@ func doVmAppEnableCallback(ext *vmextensionhelper.VMExtension, hostGaCommunicato
 
 	// actionPlan.Execute can fail partially, but we mark the overall process as success
 	// errors are sent in the status message
-	_, result := actionPlan.Execute(packageRegistry, ext.ExtensionEvents, &commandHandler)
+	result, _ := actionPlan.Execute(packageRegistry, ext.ExtensionEvents, &commandHandler)
 
 	currentPackageRegistry, err = packageRegistry.GetExistingPackages()
 	if err != nil {
 		return "could not read current package registry", err
 	}
 
-	return getStatusMessage(currentPackageRegistry.GetPackageCollection(), result), nil
+	return getStatusMessageAndError(currentPackageRegistry.GetPackageCollection(), result)
 }

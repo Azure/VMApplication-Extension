@@ -15,7 +15,7 @@ import (
 const (
 	lockFileName                                             = "VMApp.lockfile"
 	localApplicationRegistryBackupFileName                   = "applicationRegistry.backup"
-	LocalApplicationRegistryFileName						 = "applicationRegistry.active"
+	LocalApplicationRegistryFileName                         = "applicationRegistry.active"
 	localApplicationRegistryFileDefaultTimeout time.Duration = 30 * time.Minute
 )
 
@@ -65,20 +65,21 @@ type DesiredPackageRegistry map[string]*VMAppPackageIncoming
 type VMAppPackageCurrentCollection []*VMAppPackageCurrent
 
 type VMAppPackageCurrent struct {
-	ApplicationName        string     `json:"applicationName"`
-	Version                string     `json:"version"`
-	InstallCommand         string     `json:"install"`
-	RemoveCommand          string     `json:"remove"`
-	UpdateCommand          string     `json:"update"`
-	DirectDownloadOnly     bool       `json:"directOnly"`
-	ConfigExists           bool       `json:"configExists"`
-	OngoingOperation       ActionEnum `json:"ongoingOperation"`
-	DownloadDir            string     `json:"downloadDir"`
-	PackageFileName        string     `json:"packageFileName"`
-	ConfigFileName         string     `json:"configFileName"`
-	PackageFileMD5Checksum []byte     `json:"packageFileMD5Checksum"`
-	ConfigFileMD5Checksum  []byte     `json:"configFileMD5Checksum"`
-	Result                 string     `json:"result"`
+	ApplicationName                 string     `json:"applicationName"`
+	Version                         string     `json:"version"`
+	InstallCommand                  string     `json:"install"`
+	RemoveCommand                   string     `json:"remove"`
+	UpdateCommand                   string     `json:"update"`
+	DirectDownloadOnly              bool       `json:"directOnly"`
+	ConfigExists                    bool       `json:"configExists"`
+	OngoingOperation                ActionEnum `json:"ongoingOperation"`
+	DownloadDir                     string     `json:"downloadDir"`
+	PackageFileName                 string     `json:"packageFileName"`
+	ConfigFileName                  string     `json:"configFileName"`
+	PackageFileMD5Checksum          []byte     `json:"packageFileMD5Checksum"`
+	ConfigFileMD5Checksum           []byte     `json:"configFileMD5Checksum"`
+	Result                          string     `json:"result"`
+	TreatFailureAsDeploymentFailure bool       `json:"treatFailureAsDeploymentFailure"`
 }
 
 func (vmAppPackageCurrent *VMAppPackageCurrent) GetWorkingDirectory(environment *handlerenv.HandlerEnvironment) string {
@@ -88,50 +89,51 @@ func (vmAppPackageCurrent *VMAppPackageCurrent) GetWorkingDirectory(environment 
 type VMAppPackageIncomingCollection []*VMAppPackageIncoming
 
 type VMAppPackageIncoming struct {
-	ApplicationName    string `json:"applicationName"`
-	Version            string `json:"version"`
-	InstallCommand     string `json:"install"`
-	RemoveCommand      string `json:"remove"`
-	UpdateCommand      string `json:"update"`
-	DirectDownloadOnly bool   `json:"directOnly"`
-	Order              *int   `json:"order"`
-	ConfigExists       bool   `json:"configExists"`
-	PackageFileName    string `json:"packageFileName"`
-	ConfigFileName     string `json:"configFileName"`
+	ApplicationName                 string `json:"applicationName"`
+	Version                         string `json:"version"`
+	InstallCommand                  string `json:"install"`
+	RemoveCommand                   string `json:"remove"`
+	UpdateCommand                   string `json:"update"`
+	DirectDownloadOnly              bool   `json:"directOnly"`
+	Order                           *int   `json:"order"`
+	ConfigExists                    bool   `json:"configExists"`
+	PackageFileName                 string `json:"packageFileName"`
+	ConfigFileName                  string `json:"configFileName"`
+	TreatFailureAsDeploymentFailure bool   `json:"treatFailureAsDeploymentFailure"`
 }
 
-type IPackageRegistry interface {
+type IPackageRegistryHandler interface {
 	GetExistingPackages() (CurrentPackageRegistry, error)
 	WriteToDisk(packageRegistry CurrentPackageRegistry) error
 	Close() error
 }
 
-type PackageRegistry struct {
+type PackageRegistryHandler struct {
 	handlerEnv *handlerenv.HandlerEnvironment
 	lockedFile lockedfile.ILockedFile
 }
 
 // Keep the PackageRegistry object alive as long as the package registry is being accessed to lock it
 // Call PackageRegistry.Close() to release locks on the registry file
-func New(handlerEnv *handlerenv.HandlerEnvironment, fileLockTimeout time.Duration) (IPackageRegistry, error) {
+func New(handlerEnv *handlerenv.HandlerEnvironment, fileLockTimeout time.Duration) (IPackageRegistryHandler, error) {
 	appRegistryFilePath := path.Join(handlerEnv.ConfigFolder, lockFileName)
 	fileLock, err := lockedfile.New(appRegistryFilePath, fileLockTimeout)
 	if err != nil {
 		return nil, err
 	}
 
-	return &PackageRegistry{handlerEnv: handlerEnv, lockedFile: fileLock}, nil
+	return &PackageRegistryHandler{handlerEnv: handlerEnv, lockedFile: fileLock}, nil
 }
 
 // Closes the file handle, renders the object of the class PackageRegistry unusable
-func (self *PackageRegistry) Close() error {
-	return self.lockedFile.Close()
+func (packageRegistryHandler *PackageRegistryHandler) Close() error {
+	return packageRegistryHandler.lockedFile.Close()
 }
 
-func (self *PackageRegistry) GetExistingPackages() (CurrentPackageRegistry, error) {
+func (packageRegistryHandler *PackageRegistryHandler) GetExistingPackages() (CurrentPackageRegistry, error) {
 	var currentPackageRegistry CurrentPackageRegistry
 	currentPackageRegistry = nil
-	localApplicationRegistryFilePath := self.getLocalApplicationRegistryFilePath()
+	localApplicationRegistryFilePath := packageRegistryHandler.getLocalApplicationRegistryFilePath()
 
 	vmAppPackageCurrentCollection := VMAppPackageCurrentCollection{}
 	_, err := os.Stat(localApplicationRegistryFilePath)
@@ -157,9 +159,9 @@ func (self *PackageRegistry) GetExistingPackages() (CurrentPackageRegistry, erro
 	return currentPackageRegistry, err
 }
 
-func (self *PackageRegistry) WriteToDisk(packageRegistry CurrentPackageRegistry) error {
-	regFile := self.getLocalApplicationRegistryFilePath()
-	regFileBackup := self.getLocalApplicationRegistryBackupFilePath()
+func (packageRegistryHandler *PackageRegistryHandler) WriteToDisk(packageRegistry CurrentPackageRegistry) error {
+	regFile := packageRegistryHandler.getLocalApplicationRegistryFilePath()
+	regFileBackup := packageRegistryHandler.getLocalApplicationRegistryBackupFilePath()
 	var doesBackupFileExist = false
 	err := os.Rename(regFile, regFileBackup)
 	if err != nil {
@@ -186,10 +188,10 @@ func (self *PackageRegistry) WriteToDisk(packageRegistry CurrentPackageRegistry)
 	}
 }
 
-func (self *PackageRegistry) getLocalApplicationRegistryFilePath() string {
-	return path.Join(self.handlerEnv.ConfigFolder, LocalApplicationRegistryFileName)
+func (packageRegistryHandler *PackageRegistryHandler) getLocalApplicationRegistryFilePath() string {
+	return path.Join(packageRegistryHandler.handlerEnv.ConfigFolder, LocalApplicationRegistryFileName)
 }
 
-func (self *PackageRegistry) getLocalApplicationRegistryBackupFilePath() string {
-	return path.Join(self.handlerEnv.ConfigFolder, localApplicationRegistryBackupFileName)
+func (packageRegistryHandler *PackageRegistryHandler) getLocalApplicationRegistryBackupFilePath() string {
+	return path.Join(packageRegistryHandler.handlerEnv.ConfigFolder, localApplicationRegistryBackupFileName)
 }

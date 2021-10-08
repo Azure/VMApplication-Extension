@@ -53,16 +53,17 @@ func VMAppPackageIncomingToVmAppPackageCurrent(incoming *VMAppPackageIncoming) (
 	}
 
 	current = &VMAppPackageCurrent{
-		ApplicationName:    incoming.ApplicationName,
-		Version:            incoming.Version,
-		InstallCommand:     incoming.InstallCommand,
-		RemoveCommand:      incoming.RemoveCommand,
-		UpdateCommand:      incoming.UpdateCommand,
-		DirectDownloadOnly: incoming.DirectDownloadOnly,
-		ConfigExists:       incoming.ConfigExists,
-		OngoingOperation:   NoAction,
-		PackageFileName:    packageFileName,
-		ConfigFileName:     configFileName,
+		ApplicationName:                 incoming.ApplicationName,
+		Version:                         incoming.Version,
+		InstallCommand:                  incoming.InstallCommand,
+		RemoveCommand:                   incoming.RemoveCommand,
+		UpdateCommand:                   incoming.UpdateCommand,
+		DirectDownloadOnly:              incoming.DirectDownloadOnly,
+		ConfigExists:                    incoming.ConfigExists,
+		OngoingOperation:                NoAction,
+		PackageFileName:                 packageFileName,
+		ConfigFileName:                  configFileName,
+		TreatFailureAsDeploymentFailure: incoming.TreatFailureAsDeploymentFailure,
 	}
 	return current
 }

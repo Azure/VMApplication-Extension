@@ -2,12 +2,14 @@ package main
 
 import (
 	"encoding/json"
-	"github.com/Azure/VMApplication-Extension/internal/actionplan"
-	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
-	"github.com/stretchr/testify/assert"
 	"math/rand"
 	"strings"
 	"testing"
+
+	"github.com/Azure/VMApplication-Extension/internal/actionplan"
+	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
+	"github.com/Azure/azure-extension-platform/pkg/status"
+	"github.com/stretchr/testify/assert"
 )
 
 var vmAppCurrentCollection = packageregistry.VMAppPackageCurrentCollection{
@@ -25,43 +27,60 @@ var vmAppCurrentCollection = packageregistry.VMAppPackageCurrentCollection{
 	},
 }
 
-type criticalError string
+type criticalErrorString string
 
-func (c criticalError) ToJsonString() string {
+func (c criticalErrorString) ToJsonString() string {
 	return string(c)
 }
 
-func TestGetStatusMessage01(t *testing.T) {
+func TestGetStatusMessageWithPackageOperationResults(t *testing.T) {
 	actionsPerformed := actionplan.PackageOperationResults{
 		actionplan.PackageOperationResult{
 			PackageName: "app1",
 			AppVersion:  "0.1.1",
 			Operation:   "Install",
-			Result:      "install succeeded",
+			Result:      actionplan.Success,
 		},
 	}
-	statusMessage := getStatusMessage(vmAppCurrentCollection, &actionsPerformed)
-	statusMessage1 := new(StatusMessage1)
+	statusMessage, _ := getStatusMessageAndError(vmAppCurrentCollection, &actionsPerformed)
+	statusMessage1 := new(StatusMessageWithPackageOperationResults)
 	err := json.Unmarshal([]byte(statusMessage), statusMessage1)
 	assert.NoError(t, err)
 	assertCollectionsMatch(t, vmAppCurrentCollection, statusMessage1.CurrentState)
 	assert.EqualValues(t, actionsPerformed, statusMessage1.ActionsPerformed)
 }
 
-func TestGetStatusMessage02(t *testing.T) {
-	var ce criticalError = "critical error"
-	statusMessage := getStatusMessage(vmAppCurrentCollection, &ce)
-	statusMessage2 := new(StatusMessage2)
+func TestGetStatusMessageWithCriticalError(t *testing.T) {
+	var ce criticalErrorString = "critical error"
+	statusMessage, statusError := getStatusMessageAndError(vmAppCurrentCollection, &ce)
+	statusMessage2 := new(StatusMessageWithCriticalError)
 	err := json.Unmarshal([]byte(statusMessage), statusMessage2)
 	assert.NoError(t, err)
 	assertCollectionsMatch(t, vmAppCurrentCollection, statusMessage2.CurrentState)
 	assert.EqualValues(t, ce, statusMessage2.CriticalError)
+	assert.EqualValues(t, ce, statusError.Error())
+}
+
+func TestStatusFormatter(t *testing.T) {
+	actionsPerformed := actionplan.PackageOperationResults{
+		actionplan.PackageOperationResult{
+			PackageName: "app1",
+			AppVersion:  "0.1.1",
+			Operation:   "Install",
+			Result:      actionplan.Success,
+		},
+	}
+	statusMessage, _ := getStatusMessageAndError(vmAppCurrentCollection, &actionsPerformed)
+	// assert that status message is a well fromed json
+	statusMessage = statusMessageFormatter("enable", status.StatusSuccess, statusMessage)
+	statusMessageInstance := new(StatusMessageWithPackageOperationResults)
+	assert.NoError(t, json.Unmarshal([]byte(statusMessage), statusMessageInstance), "sould be able to parse status message")
 }
 
 func TestGetStatusMessageTruncatesStringsOver5KB(t *testing.T) {
 	messageLength := fiveKilo + 100
-	ce := criticalError(generateRandomStringOfLength(messageLength))
-	statusMessage := getStatusMessage(vmAppCurrentCollection, &ce)
+	ce := criticalErrorString(generateRandomStringOfLength(messageLength))
+	statusMessage, _ := getStatusMessageAndError(vmAppCurrentCollection, &ce)
 	assert.Greater(t, len(ce), fiveKilo, "critical error string length should be greater than 5 kb")
 	assert.Equal(t, fiveKilo, len(statusMessage), "statusMessage string should be less than 5 kb")
 }
@@ -76,11 +95,11 @@ func assertCollectionsMatch(t *testing.T, vmAppCurrentCollection packageregistry
 	}
 }
 
-func generateRandomStringOfLength(length int)(string) {
+func generateRandomStringOfLength(length int) string {
 	charset := "abcdABCD1234"
 	charsetLength := len(charset)
 	sb := strings.Builder{}
-	for i := 0; i < length; i ++ {
+	for i := 0; i < length; i++ {
 		randChar := charset[rand.Intn(charsetLength)]
 		sb.WriteString(string(randChar))
 	}

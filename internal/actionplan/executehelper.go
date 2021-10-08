@@ -19,7 +19,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPackageRegistry,
+func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPackageRegistryHandler,
 	commandHandler commandhandler.ICommandHandler, registry packageregistry.CurrentPackageRegistry,
 	act *action, eem *extensionevents.ExtensionEventManager) (errorMessageToReturn error) {
 	errorMessageToReturn = nil

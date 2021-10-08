@@ -47,8 +47,6 @@ func (commandHandlerMock *CommandHandlerMock) Execute(command string, workingDir
 	return
 }
 
-
-
 var mockCommandExecutorNoError CommandExecutor = func(string, string) (int, error) {
 	return 0, nil
 }
@@ -462,11 +460,11 @@ func TestOrderIsMaintainedAndHigherOrderOperationsAreSkippedOnFailure(t *testing
 		if sMessage.Result == Success {
 			assert.Equal(t, app.OngoingOperation, packageregistry.NoAction)
 			successCountFromStatus++
-		} else if strings.Contains(sMessage.Result, packageregistry.Skipped.ToString()) {
+		} else if strings.Contains(sMessage.Result.String(), packageregistry.Skipped.ToString()) {
 			assert.Equal(t, app.OngoingOperation, packageregistry.Skipped)
 			skipCountFromStatus++
 
-		} else if strings.Contains(sMessage.Result, errorString) {
+		} else if strings.Contains(sMessage.Result.String(), errorString) {
 			assert.Equal(t, app.OngoingOperation, packageregistry.Failed)
 			failCountFromStatus++
 		}
@@ -500,7 +498,7 @@ func TestOrderIsMaintainedAndHigherOrderOperationsAreSkippedOnFailure(t *testing
 	assertAllActionsSucceeded(t, newReg)
 }
 
-func TestSkippedPackagesAreCleanedUpWhenRemovedFromApplicationProfile(t *testing.T){
+func TestSkippedPackagesAreCleanedUpWhenRemovedFromApplicationProfile(t *testing.T) {
 	initializeTest(t)
 	defer cleanupTest()
 	old1 := packageregistry.VMAppPackageCurrent{
@@ -534,7 +532,7 @@ func TestSkippedPackagesAreCleanedUpWhenRemovedFromApplicationProfile(t *testing
 	assertAllActionsSucceeded(t, newReg)
 	assertPackageRegistryHasBeenUpdatedProperly(t, newReg, incomingApps)
 	assert.Equal(t, 3, len(actionPlan.unorderedImplicitUninstalls), "we are expecting 3 uninstall operations")
-	assert.Equal(t,2,  len(cmdHandler.Result), "only 2 commands should be invoked")
+	assert.Equal(t, 2, len(cmdHandler.Result), "only 2 commands should be invoked")
 
 	packageOperationResults, ok := statusMessage.(*PackageOperationResults)
 	assert.True(t, ok)
@@ -564,7 +562,7 @@ func executeActionPlan(t *testing.T,
 	he := getHandlerEnvironment()
 	eem := extensionevents.New(el, he)
 
-	_, statusMessage := actionPlan.Execute(packageReg, eem, cmdHandler)
+	statusMessage, _ := actionPlan.Execute(packageReg, eem, cmdHandler)
 	currentReg, err = packageReg.GetExistingPackages()
 	assert.NoError(t, err)
 	return currentReg, actionPlan, statusMessage

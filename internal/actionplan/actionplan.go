@@ -21,8 +21,15 @@ type action struct {
 	vmAppPackage    packageregistry.VMAppPackageCurrent
 	actionToPerform packageregistry.ActionEnum
 }
-const Success = "SUCCESS"
-const Failed = "FAILED"
+
+type ActionResult string
+
+const Success ActionResult = "SUCCESS"
+const Failed ActionResult = "FAILED"
+
+func (ar ActionResult) String() string {
+	return string(ar)
+}
 
 // when an update requires an implicit remove and uninstall, the install is dependent on the remove
 // this data structure helps us skip the install if the remove fails
@@ -64,23 +71,55 @@ func (packageOperationResults *PackageOperationResults) ToJsonString() (message 
 	return
 }
 
+// This struct is meant for emitting results of the operation of the VMAppExtension in the status message
 type PackageOperationResult struct {
-	PackageName string `json:"package"`
-	AppVersion  string `json:"version"`
-	Operation   string `json:"operation"`
-	Result      string `json:"result"`
+	PackageName string       `json:"package"`
+	AppVersion  string       `json:"version"`
+	Operation   string       `json:"operation"`
+	Result      ActionResult `json:"result"`
+	// TreatFailureAsDeploymentFailure is only required to assess whether TreatFailureAsDeploymentFailure needs to
+	// fail the enable operation of the Extension
+	// we don't serialize TreatFailureAsDeploymentFailure in the status message
+	TreatFailureAsDeploymentFailure bool `json:"-"`
 }
 
 func appendExecutionResult(executionResult *PackageOperationResults, act *action, err error) {
 	if err == nil {
-		*executionResult = append(*executionResult, PackageOperationResult{PackageName: act.vmAppPackage.ApplicationName, AppVersion: act.vmAppPackage.Version, Operation: act.actionToPerform.ToString(), Result: Success})
+		*executionResult = append(
+			*executionResult,
+			PackageOperationResult{
+				PackageName:                     act.vmAppPackage.ApplicationName,
+				AppVersion:                      act.vmAppPackage.Version,
+				Operation:                       act.actionToPerform.ToString(),
+				Result:                          Success,
+				TreatFailureAsDeploymentFailure: act.vmAppPackage.TreatFailureAsDeploymentFailure,
+			},
+		)
 	} else {
-		*executionResult = append(*executionResult, PackageOperationResult{PackageName: act.vmAppPackage.ApplicationName, AppVersion: act.vmAppPackage.Version, Operation: act.actionToPerform.ToString(), Result: err.Error()})
+		*executionResult = append(
+			*executionResult,
+			PackageOperationResult{
+				PackageName:                     act.vmAppPackage.ApplicationName,
+				AppVersion:                      act.vmAppPackage.Version,
+				Operation:                       act.actionToPerform.ToString(),
+				Result:                          ActionResult(err.Error()),
+				TreatFailureAsDeploymentFailure: act.vmAppPackage.TreatFailureAsDeploymentFailure,
+			},
+		)
 	}
 }
 
 func appendExecutionResultExplicit(executionResult *PackageOperationResults, act *action, result string) {
-	*executionResult = append(*executionResult, PackageOperationResult{PackageName: act.vmAppPackage.ApplicationName, AppVersion: act.vmAppPackage.Version, Operation: act.actionToPerform.ToString(), Result: result})
+	*executionResult = append(
+		*executionResult,
+		PackageOperationResult{
+			PackageName:                     act.vmAppPackage.ApplicationName,
+			AppVersion:                      act.vmAppPackage.Version,
+			Operation:                       act.actionToPerform.ToString(),
+			Result:                          ActionResult(result),
+			TreatFailureAsDeploymentFailure: act.vmAppPackage.TreatFailureAsDeploymentFailure,
+		},
+	)
 }
 
 func New(currentPackageRegistry packageregistry.CurrentPackageRegistry, desiredVMAppCollection packageregistry.VMAppPackageIncomingCollection, environment *handlerenv.HandlerEnvironment, hostGaCommunicator hostgacommunicator.IHostGaCommunicator, logger *logging.ExtensionLogger) (*ActionPlan, error) {
@@ -156,11 +195,15 @@ func (actionPlan *ActionPlan) insertOperation(order *int, dependentActions1 ...*
 	}
 }
 
-func (actionPlan *ActionPlan) Execute(registryHandler packageregistry.IPackageRegistry, eem *extensionevents.ExtensionEventManager, commandHandler commandhandler.ICommandHandler) (error, IResult) {
+func (actionPlan *ActionPlan) Execute(
+	registryHandler packageregistry.IPackageRegistryHandler,
+	eem *extensionevents.ExtensionEventManager,
+	commandHandler commandhandler.ICommandHandler,
+) (IResult, error) {
 	// registry will be mutated and written to disk so that we can keep track of all the actions that have happened
 	registry, err := registryHandler.GetExistingPackages()
 	if err != nil {
-		return err, StatusErrorMessage(err.Error())
+		return StatusErrorMessage(err.Error()), err
 	}
 
 	var combinedErrors error = nil
@@ -168,9 +211,9 @@ func (actionPlan *ActionPlan) Execute(registryHandler packageregistry.IPackageRe
 
 	// handle unordered implicit uninstalls
 	for _, act := range actionPlan.unorderedImplicitUninstalls {
-		newError := actionPlan.executeHelper(registryHandler, commandHandler, registry, act, eem)
-		appendExecutionResult(&executionResult, act, newError)
-		combinedErrors = extensionerrors.CombineErrors(combinedErrors, newError)
+		actionExecutionError := actionPlan.executeHelper(registryHandler, commandHandler, registry, act, eem)
+		appendExecutionResult(&executionResult, act, actionExecutionError)
+		combinedErrors = extensionerrors.CombineErrors(combinedErrors, actionExecutionError)
 	}
 
 	// handle ordered operations
@@ -193,16 +236,16 @@ func (actionPlan *ActionPlan) Execute(registryHandler packageregistry.IPackageRe
 					err = registryHandler.WriteToDisk(registry)
 					if err != nil {
 						combinedErrors = extensionerrors.CombineErrors(combinedErrors, err)
-						return combinedErrors, &executionResult
+						return &executionResult, combinedErrors
 					}
 					break
 				}
 
-				newError := actionPlan.executeHelper(registryHandler, commandHandler, registry, act, eem)
-				combinedErrors = extensionerrors.CombineErrors(combinedErrors, newError)
-				appendExecutionResult(&executionResult, act, newError)
+				actionExecutionError := actionPlan.executeHelper(registryHandler, commandHandler, registry, act, eem)
+				combinedErrors = extensionerrors.CombineErrors(combinedErrors, actionExecutionError)
+				appendExecutionResult(&executionResult, act, actionExecutionError)
 
-				if newError != nil {
+				if actionExecutionError != nil {
 					atLeastOneActionFailed = true
 					actionFailedAtOrder = order
 					// no need to execute the remaining dependent operations
@@ -215,14 +258,14 @@ func (actionPlan *ActionPlan) Execute(registryHandler packageregistry.IPackageRe
 	// handle remaining unordered operations
 	for _, depActions := range actionPlan.unorderedOperations {
 		for _, act := range depActions {
-			newError := actionPlan.executeHelper(registryHandler, commandHandler, registry, act, eem)
-			combinedErrors = extensionerrors.CombineErrors(combinedErrors, newError)
-			appendExecutionResult(&executionResult, act, newError)
+			actionExecutionError := actionPlan.executeHelper(registryHandler, commandHandler, registry, act, eem)
+			combinedErrors = extensionerrors.CombineErrors(combinedErrors, actionExecutionError)
+			appendExecutionResult(&executionResult, act, actionExecutionError)
 
-			if newError != nil {
+			if actionExecutionError != nil {
 				break // will skip the remaining dependant actions
 			}
 		}
 	}
-	return combinedErrors, &executionResult
+	return &executionResult, combinedErrors
 }

@@ -1,14 +1,15 @@
 package packageregistry
 
 import (
-	"github.com/Azure/azure-extension-platform/pkg/lockedfile"
-	"github.com/Azure/azure-extension-platform/pkg/constants"
-	"github.com/Azure/azure-extension-platform/pkg/handlerenv"
-	"github.com/stretchr/testify/assert"
 	"os"
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/Azure/azure-extension-platform/pkg/constants"
+	"github.com/Azure/azure-extension-platform/pkg/handlerenv"
+	"github.com/Azure/azure-extension-platform/pkg/lockedfile"
+	"github.com/stretchr/testify/assert"
 )
 
 var hndlEnv = handlerenv.HandlerEnvironment{
@@ -16,19 +17,19 @@ var hndlEnv = handlerenv.HandlerEnvironment{
 }
 
 var packageRegistry = CurrentPackageRegistry{"package1": &VMAppPackageCurrent{
-	ApplicationName:       "package1",
-	DirectDownloadOnly:    false,
-	InstallCommand:        "install_1.ps1",
-	RemoveCommand:         "remove_1.ps1",
-	UpdateCommand:         "update_1.ps1",
-	Version:               "1.2.3.1",
+	ApplicationName:    "package1",
+	DirectDownloadOnly: false,
+	InstallCommand:     "install_1.ps1",
+	RemoveCommand:      "remove_1.ps1",
+	UpdateCommand:      "update_1.ps1",
+	Version:            "1.2.3.1",
 }, "package2": &VMAppPackageCurrent{
-	ApplicationName:       "package2",
-	DirectDownloadOnly:    true,
-	InstallCommand:        "install_2.ps1",
-	RemoveCommand:         "remove_2.ps1",
-	UpdateCommand:         "update_2.ps1",
-	Version:               "1.2.3.2",
+	ApplicationName:    "package2",
+	DirectDownloadOnly: true,
+	InstallCommand:     "install_2.ps1",
+	RemoveCommand:      "remove_2.ps1",
+	UpdateCommand:      "update_2.ps1",
+	Version:            "1.2.3.2",
 }}
 
 func initializeTest(t *testing.T) {
@@ -46,7 +47,7 @@ func cleanupTest() {
 func TestPackageRegistryReadWrite(t *testing.T) {
 	initializeTest(t)
 	defer cleanupTest()
-	var pkgHndlr IPackageRegistry
+	var pkgHndlr IPackageRegistryHandler
 	pkgHndlr, err := New(&hndlEnv, time.Second)
 	assert.NoError(t, err, "operation should not throw error")
 	err = pkgHndlr.WriteToDisk(packageRegistry)
@@ -87,7 +88,7 @@ func TestValuesAreProperlySaved(t *testing.T) {
 	initializeTest(t)
 	defer cleanupTest()
 	reg1 := CurrentPackageRegistry{"p1": &VMAppPackageCurrent{ApplicationName: "p1", Version: "1.1"}}
-	var pkgHndlr IPackageRegistry
+	var pkgHndlr IPackageRegistryHandler
 	pkgHndlr, err := New(&hndlEnv, time.Second)
 	assert.NoError(t, err, "operation should not throw error")
 	err = pkgHndlr.WriteToDisk(reg1)
