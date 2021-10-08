@@ -1,4 +1,4 @@
-# github.com/Azure/azure-extension-platform v0.0.0-20210929015142-6aa53b30ef01
+# github.com/Azure/azure-extension-platform v0.0.0-20211008024037-9029cf34b0b1
 ## explicit; go 1.15
 github.com/Azure/azure-extension-platform/pkg/commandhandler
 github.com/Azure/azure-extension-platform/pkg/constants

@@ -2,6 +2,8 @@ cloud.google.com/go v0.26.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMT
 cloud.google.com/go v0.34.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
 github.com/Azure/azure-extension-platform v0.0.0-20210929015142-6aa53b30ef01 h1:+njhQ++zy3ZZ78Z8fjG8Bh3YWqQOVRHT5Orw+b7Fuc8=
 github.com/Azure/azure-extension-platform v0.0.0-20210929015142-6aa53b30ef01/go.mod h1:brpB+xXVzyS1c5vrXJLzh1qrK2h6vh8MIPIu4FF12+0=
+github.com/Azure/azure-extension-platform v0.0.0-20211008024037-9029cf34b0b1 h1:bNXlha6rUNQPyETmvrlttQN1+McEdhTTzt3TUMYkJWI=
+github.com/Azure/azure-extension-platform v0.0.0-20211008024037-9029cf34b0b1/go.mod h1:brpB+xXVzyS1c5vrXJLzh1qrK2h6vh8MIPIu4FF12+0=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/Knetic/govaluate v3.0.1-0.20171022003610-9aa49832a739+incompatible/go.mod h1:r7JcOSlj0wfOMncg0iLm8Leh48TZaKVeNIfJntJ2wa0=
 github.com/Shopify/sarama v1.19.0/go.mod h1:FVkBWblsNy7DGZRfXLU0O9RCGt5g3g3yEuWXgklEdEo=
