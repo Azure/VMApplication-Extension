@@ -18,7 +18,6 @@ import (
 	"time"
 )
 
-
 var mockCommandExecutorSleepForAnHour CommandExecutor = func(s string, s2 string) (int, error) {
 	fmt.Sprint("sleeping for 1 hour")
 	time.Sleep(1 * time.Hour)
@@ -78,7 +77,7 @@ func executeTestInAnotherThreadAndTerminateBeforeCompletion(t *testing.T, testNa
 	assert.NoError(t, err)
 }
 
-func sendCtrlCToProcess(pid int) (error) {
+func sendCtrlCToProcess(pid int) error {
 	c := exec.Command("powershell.exe", "-NoLogo", "-NoProfile", "-ExecutionPolicy", "bypass", "-Command", fmt.Sprintf("Add-Type -Names 'w' -Name 'k' -M '[DllImport(\"kernel32.dll\")]public static extern bool FreeConsole();[DllImport(\"kernel32.dll\")]public static extern bool AttachConsole(uint p);[DllImport(\"kernel32.dll\")]public static extern bool SetConsoleCtrlHandler(uint h, bool a);[DllImport(\"kernel32.dll\")]public static extern bool GenerateConsoleCtrlEvent(uint e, uint p);public static void SendCtrlC(uint p){FreeConsole();AttachConsole(p);GenerateConsoleCtrlEvent(0, 0);}';[w.k]::SendCtrlC(%d)", pid))
 	return c.Run()
 }
@@ -132,11 +131,10 @@ func TestCommandExecutorCanHandleProcessBeingKilled(t *testing.T) {
 		assert.Equal(t, packageregistry.NoAction, app.OngoingOperation)
 
 		// wait for another 3 seconds to ensure that the transcript file is written
-		time.Sleep(3 *time.Second)
+		time.Sleep(3 * time.Second)
 		transcriptFileBytes, error := ioutil.ReadFile(transcriptFile)
 		assert.NoError(t, error, "should be able to read transcript file")
 		stranscriptFileString := string(transcriptFileBytes)
 		assert.Contains(t, stranscriptFileString, "Info received terminate signal, system reboot detected")
-		assert.Contains(t, stranscriptFileString, "ok      github.com/Azure/VMApplication-Extension/internal/actionplan")
 	}
 }

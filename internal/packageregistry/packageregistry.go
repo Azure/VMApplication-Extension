@@ -15,7 +15,7 @@ import (
 const (
 	lockFileName                                             = "VMApp.lockfile"
 	localApplicationRegistryBackupFileName                   = "applicationRegistry.backup"
-	localApplicationRegistryFileName                         = "applicationRegistry.active"
+	LocalApplicationRegistryFileName						 = "applicationRegistry.active"
 	localApplicationRegistryFileDefaultTimeout time.Duration = 30 * time.Minute
 )
 
@@ -188,7 +188,7 @@ func (self *PackageRegistry) WriteToDisk(packageRegistry CurrentPackageRegistry)
 
 
 func (self *PackageRegistry) getLocalApplicationRegistryFilePath() string {
-	return path.Join(self.handlerEnv.ConfigFolder, localApplicationRegistryFileName)
+	return path.Join(self.handlerEnv.ConfigFolder, LocalApplicationRegistryFileName)
 }
 
 func (self *PackageRegistry) getLocalApplicationRegistryBackupFilePath() string {
