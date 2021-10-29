@@ -11,6 +11,7 @@ import (
 	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
 	"github.com/Azure/VMApplication-Extension/pkg/commandhandler"
 	"github.com/Azure/azure-extension-platform/pkg/constants"
+	"github.com/Azure/azure-extension-platform/pkg/extensionevents"
 	"github.com/Azure/azure-extension-platform/pkg/handlerenv"
 	"github.com/Azure/azure-extension-platform/pkg/logging"
 	"github.com/pkg/errors"
@@ -418,7 +419,7 @@ func executeActionPlan(t *testing.T,
 	currentReg := packageregistry.CurrentPackageRegistry{}
 	currentReg.Populate(currentPackages)
 
-	packageReg, err := packageregistry.New(environment, time.Second)
+	packageReg, err := packageregistry.New(el, environment, time.Second)
 	assert.NoError(t, err)
 	if err == nil {
 		defer packageReg.Close()
@@ -427,10 +428,26 @@ func executeActionPlan(t *testing.T,
 	assert.NoError(t, err)
 	actionPlan, err := New(currentReg, incomingPackages, environment, new(NoopHostGaComminucator), el)
 	assert.NoError(t, err)
-	actionPlan.Execute(packageReg, cmdHandler)
+
+	el := logging.New(nil)
+	he := getHandlerEnvironment()
+	eem := extensionevents.New(el, he)
+
+	actionPlan.Execute(packageReg, eem, cmdHandler)
 	currentReg, err = packageReg.GetExistingPackages()
 	assert.NoError(t, err)
 	return currentReg, actionPlan
+}
+
+func getHandlerEnvironment() *handlerenv.HandlerEnvironment {
+	return &handlerenv.HandlerEnvironment{
+		HeartbeatFile: "",
+		StatusFolder:  "",
+		ConfigFolder:  "",
+		LogFolder:     "",
+		DataFolder:    "",
+		EventsFolder:  "",
+	}
 }
 
 func assertPackageRegistryHasBeenUpdatedProperly(t *testing.T, pkgReg packageregistry.CurrentPackageRegistry, incoming packageregistry.VMAppPackageIncomingCollection) {

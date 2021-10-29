@@ -9,6 +9,7 @@ import (
 
 	"github.com/Azure/VMApplication-Extension/internal/hostgacommunicator"
 	"github.com/Azure/azure-extension-platform/pkg/constants"
+	"github.com/Azure/azure-extension-platform/pkg/extensionevents"
 	"github.com/Azure/azure-extension-platform/pkg/handlerenv"
 	"github.com/Azure/azure-extension-platform/pkg/logging"
 	handlersettings "github.com/Azure/azure-extension-platform/pkg/settings"
@@ -234,18 +235,24 @@ func createTestVMExtension(t *testing.T, settings interface{}) *vmextension.VMEx
 	err := os.MkdirAll(configFolder, constants.FilePermissions_UserOnly_ReadWriteExecute)
 	require.NoError(t, err)
 
+	el := logging.New(nil)
+	he := &handlerenv.HandlerEnvironment{
+		HeartbeatFile: path.Join(maintestdir, "heartbeat.txt"),
+		StatusFolder:  path.Join(maintestdir, "status/"),
+		ConfigFolder:  configFolder,
+		LogFolder:     path.Join(maintestdir, "log/"),
+		DataFolder:    path.Join(maintestdir, "data/"),
+	}
+	eem := extensionevents.New(el, he)
+
 	return &vmextension.VMExtension{
 		Name:                    extensionVersion,
 		Version:                 extensionVersion,
 		RequestedSequenceNumber: 2,
 		CurrentSequenceNumber:   &one,
-		HandlerEnv: &handlerenv.HandlerEnvironment{
-			HeartbeatFile: path.Join(maintestdir, "heartbeat.txt"),
-			StatusFolder:  path.Join(maintestdir, "status/"),
-			ConfigFolder:  configFolder,
-			LogFolder:     path.Join(maintestdir, "log/"),
-			DataFolder:    path.Join(maintestdir, "data/"),
-		},
-		Settings: hs,
+		HandlerEnv:              he,
+		Settings:                hs,
+		ExtensionLogger:         el,
+		ExtensionEvents:         eem,
 	}
 }
