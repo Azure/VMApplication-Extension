@@ -419,7 +419,7 @@ func executeActionPlan(t *testing.T,
 	currentReg := packageregistry.CurrentPackageRegistry{}
 	currentReg.Populate(currentPackages)
 
-	packageReg, err := packageregistry.New(environment, time.Second)
+	packageReg, err := packageregistry.New(el, environment, time.Second)
 	assert.NoError(t, err)
 	if err == nil {
 		defer packageReg.Close()

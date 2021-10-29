@@ -10,6 +10,7 @@ import (
 	"github.com/Azure/VMApplication-Extension/pkg/lockedfile"
 	"github.com/Azure/azure-extension-platform/pkg/constants"
 	"github.com/Azure/azure-extension-platform/pkg/handlerenv"
+	"github.com/Azure/azure-extension-platform/pkg/logging"
 )
 
 const (
@@ -72,18 +73,19 @@ type IPackageRegistry interface {
 type PackageRegistry struct {
 	handlerEnv *handlerenv.HandlerEnvironment
 	lockedFile lockedfile.ILockedFile
+	logger     *logging.ExtensionLogger
 }
 
 // Keep the PackageRegistry object alive as long as the package registry is being accessed to lock it
 // Call PackageRegistry.Close() to release locks on the registry file
-func New(handlerEnv *handlerenv.HandlerEnvironment, fileLockTimeout time.Duration) (IPackageRegistry, error) {
+func New(el *logging.ExtensionLogger, handlerEnv *handlerenv.HandlerEnvironment, fileLockTimeout time.Duration) (IPackageRegistry, error) {
 	appRegistryFilePath := path.Join(handlerEnv.ConfigFolder, lockFileName)
 	fileLock, err := lockedfile.New(appRegistryFilePath, fileLockTimeout)
 	if err != nil {
 		return nil, err
 	}
 
-	return &PackageRegistry{handlerEnv: handlerEnv, lockedFile: fileLock}, nil
+	return &PackageRegistry{handlerEnv: handlerEnv, lockedFile: fileLock, logger: el}, nil
 }
 
 // Closes the file handle, renders the object of the class PackageRegistry unusable
@@ -112,9 +114,11 @@ func (self *PackageRegistry) GetExistingPackages() (CurrentPackageRegistry, erro
 			}
 		}
 	} else if !os.IsNotExist(err) {
+		self.logger.Info("Package registry file %v does not exist. Creating it.", localApplicationRegistryFilePath)
 		return currentPackageRegistry, err
 	}
 
+	self.logger.Info("Read package registry file %v with %v entries", localApplicationRegistryFilePath, len(vmAppPackageCurrentCollection))
 	currentPackageRegistry = make(CurrentPackageRegistry)
 	err = currentPackageRegistry.Populate(vmAppPackageCurrentCollection)
 	return currentPackageRegistry, err
@@ -141,6 +145,7 @@ func (self *PackageRegistry) WriteToDisk(packageRegistry CurrentPackageRegistry)
 	}
 
 	err = ioutil.WriteFile(regFile, bytes, constants.FilePermissions_UserOnly_ReadWrite)
+	self.logger.Info("Wrote package registry to %v", regFile)
 
 	if doesBackupFileExist {
 		return os.Remove(regFileBackup)

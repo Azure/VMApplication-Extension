@@ -58,6 +58,7 @@ func New(currentPackageRegistry packageregistry.CurrentPackageRegistry, desiredV
 	for _, vmAppCurrent := range vmAppCurrentCollection {
 		_, exists := packageRegistryIncoming[vmAppCurrent.ApplicationName]
 		if !exists {
+			logger.Info("Application %v not in incoming package collection. Marking to delete.", vmAppCurrent.ApplicationName)
 			deleteAction := &action{vmAppCurrent, packageregistry.Delete}
 			actionPlan.unorderedImplicitUninstalls = append(actionPlan.unorderedImplicitUninstalls, deleteAction)
 		}
@@ -72,16 +73,21 @@ func New(currentPackageRegistry packageregistry.CurrentPackageRegistry, desiredV
 			if !versionsEqual {
 				if len(vmAppIncoming.UpdateCommand) == 0 {
 					// not the same version and there is no update command
+					logger.Info("Application %v has version %v, but %v is desired. No update command exists, so removing and adding",
+						vmAppCurrent.ApplicationName, vmAppCurrent.Version, vmAppIncoming.Version)
 					deleteAction := &action{vmAppCurrent, packageregistry.Delete} // delete current and install incoming
 					installAction := &action{packageregistry.VMAppPackageIncomingToVmAppPackageCurrent(vmAppIncoming), packageregistry.Install}
 					actionPlan.insertOperation(vmAppIncoming.Order, deleteAction, installAction)
 				} else {
+					logger.Info("Application %v has version %v, but %v is desired. Will call update.",
+						vmAppCurrent.ApplicationName, vmAppCurrent.Version, vmAppIncoming.Version)
 					updateAction := &action{packageregistry.VMAppPackageIncomingToVmAppPackageCurrent(vmAppIncoming), packageregistry.Update}
 					actionPlan.insertOperation(vmAppIncoming.Order, updateAction)
 				}
 			}
 		} else {
 			// installs
+			logger.Info("Application %v does not exist on the system. Installing", vmAppIncoming.ApplicationName)
 			installAction := &action{packageregistry.VMAppPackageIncomingToVmAppPackageCurrent(vmAppIncoming), packageregistry.Install}
 			actionPlan.insertOperation(vmAppIncoming.Order, installAction)
 		}
@@ -130,6 +136,7 @@ func (actionPlan *ActionPlan) Execute(registryHandler packageregistry.IPackageRe
 			for _, act := range depActions {
 				// if we encountered and error in the past, skip all the operations for a higher order
 				if atLeastOneActionFailed && order > actionFailedAtOrder {
+					actionPlan.logger.Warn("Skipping application %v because a previous application failed", act.vmAppPackage.ApplicationName)
 					appName := act.vmAppPackage.ApplicationName
 
 					registry[appName] = act.vmAppPackage
@@ -147,6 +154,7 @@ func (actionPlan *ActionPlan) Execute(registryHandler packageregistry.IPackageRe
 				combinedErrors = extensionerrors.CombineErrors(combinedErrors, newError)
 
 				if newError != nil {
+					actionPlan.logger.Warn("Application %v failed. Skipping the remaining applications", act.vmAppPackage.ApplicationName)
 					atLeastOneActionFailed = true
 					actionFailedAtOrder = order
 					// no need to execute the remaining dependent operations
@@ -198,6 +206,7 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 		errorMessageToReturn = errors.Errorf("Unexpected Action to perform encountered %v", act.actionToPerform)
 	}
 
+	actionPlan.logger.Info("Calling command %v for application %v, version %v", commandToExecute, appName, version)
 	eem.LogInformationalEvent(
 		"CommandStarted",
 		fmt.Sprintf("Starting cmd=%v, application=%v, version=%v", commandToExecute, appName, version))
@@ -208,11 +217,13 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 
 		// download packages now
 		if err := actionPlan.hostGaCommunicator.DownloadPackage(actionPlan.logger, act.vmAppPackage.ApplicationName, downloadPath); err != nil {
+			actionPlan.logger.Error("Failed to download package for application %v, version %v. Error: %v", appName, version, err.Error())
 			return markCommandFailed(commandToExecute, appName, version, err, eem)
 		}
 
 		// download configuration
 		if err := actionPlan.hostGaCommunicator.DownloadConfig(actionPlan.logger, act.vmAppPackage.ApplicationName, downloadPath); err != nil {
+			actionPlan.logger.Error("Failed to download config for application %v, version %v. Error: %v", appName, version, err.Error())
 			return markCommandFailed(commandToExecute, appName, version, err, eem)
 		}
 
@@ -236,16 +247,19 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 	}
 	err = registryHandler.WriteToDisk(registry)
 	if err != nil {
+		actionPlan.logger.Error("Failed to write registry to disk due to %v", err.Error())
 		return markCommandFailed(commandToExecute, appName, version, err, eem)
 	}
 
 	if errorMessageToReturn == nil {
+		actionPlan.logger.Info("Completed command %v, application %v, version %v", commandToExecute, appName, version)
 		eem.LogInformationalEvent(
 			"CommandCompleted",
 			fmt.Sprintf("Completed cmd=%v, application=%v, version=%v, result=Success", commandToExecute, appName, version))
 		return
 	}
 
+	actionPlan.logger.Error("Command %v failed for application %v, version %v. Error: %v", commandToExecute, appName, version, errorMessageToReturn.Error())
 	return markCommandFailed(commandToExecute, appName, version, errorMessageToReturn, eem)
 }
 

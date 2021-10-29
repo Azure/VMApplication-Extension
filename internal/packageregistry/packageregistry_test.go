@@ -1,14 +1,16 @@
 package packageregistry
 
 import (
-	"github.com/Azure/VMApplication-Extension/pkg/lockedfile"
-	"github.com/Azure/azure-extension-platform/pkg/constants"
-	"github.com/Azure/azure-extension-platform/pkg/handlerenv"
-	"github.com/stretchr/testify/assert"
 	"os"
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/Azure/VMApplication-Extension/pkg/lockedfile"
+	"github.com/Azure/azure-extension-platform/pkg/constants"
+	"github.com/Azure/azure-extension-platform/pkg/handlerenv"
+	"github.com/Azure/azure-extension-platform/pkg/logging"
+	"github.com/stretchr/testify/assert"
 )
 
 var hndlEnv = handlerenv.HandlerEnvironment{
@@ -16,24 +18,24 @@ var hndlEnv = handlerenv.HandlerEnvironment{
 }
 
 var packageRegistry = CurrentPackageRegistry{"package1": &VMAppPackageCurrent{
-	ApplicationName:       "package1",
-	ConfigurationLocation: "some configuration location1",
-	DirectDownloadOnly:    false,
-	InstallCommand:        "install_1.ps1",
-	PackageLocation:       "some package location1",
-	RemoveCommand:         "remove_1.ps1",
-	UpdateCommand:         "update_1.ps1",
-	Version:               "1.2.3.1",
+	ApplicationName:    "package1",
+	DirectDownloadOnly: false,
+	InstallCommand:     "install_1.ps1",
+	RemoveCommand:      "remove_1.ps1",
+	UpdateCommand:      "update_1.ps1",
+	Version:            "1.2.3.1",
 }, "package2": &VMAppPackageCurrent{
-	ApplicationName:       "package2",
-	ConfigurationLocation: "some configuration location2",
-	DirectDownloadOnly:    true,
-	InstallCommand:        "install_2.ps1",
-	PackageLocation:       "some package location2",
-	RemoveCommand:         "remove_2.ps1",
-	UpdateCommand:         "update_2.ps1",
-	Version:               "1.2.3.2",
+	ApplicationName:    "package2",
+	DirectDownloadOnly: true,
+	InstallCommand:     "install_2.ps1",
+	RemoveCommand:      "remove_2.ps1",
+	UpdateCommand:      "update_2.ps1",
+	Version:            "1.2.3.2",
 }}
+
+func nopLog() *logging.ExtensionLogger {
+	return logging.New(nil)
+}
 
 func initializeTest(t *testing.T) {
 	err := os.MkdirAll(hndlEnv.ConfigFolder, constants.FilePermissions_UserOnly_ReadWriteExecute)
@@ -51,7 +53,7 @@ func TestPackageRegistryReadWrite(t *testing.T) {
 	initializeTest(t)
 	defer cleanupTest()
 	var pkgHndlr IPackageRegistry
-	pkgHndlr, err := New(&hndlEnv, time.Second)
+	pkgHndlr, err := New(nopLog(), &hndlEnv, time.Second)
 	assert.NoError(t, err, "operation should not throw error")
 	err = pkgHndlr.WriteToDisk(packageRegistry)
 	assert.NoError(t, err, "operation should not throw error")
@@ -92,14 +94,14 @@ func TestValuesAreProperlySaved(t *testing.T) {
 	defer cleanupTest()
 	reg1 := CurrentPackageRegistry{"p1": &VMAppPackageCurrent{ApplicationName: "p1", Version: "1.1"}}
 	var pkgHndlr IPackageRegistry
-	pkgHndlr, err := New(&hndlEnv, time.Second)
+	pkgHndlr, err := New(nopLog(), &hndlEnv, time.Second)
 	assert.NoError(t, err, "operation should not throw error")
 	err = pkgHndlr.WriteToDisk(reg1)
 	assert.NoError(t, err, "operation should not throw error")
 	err = pkgHndlr.Close()
 	assert.NoError(t, err, "operation should not throw error")
 
-	pkgHndlr, err = New(&hndlEnv, time.Second)
+	pkgHndlr, err = New(nopLog(), &hndlEnv, time.Second)
 	assert.NoError(t, err, "operation should not throw error")
 	result, err := pkgHndlr.GetExistingPackages()
 	assert.True(t, reflect.DeepEqual(reg1, result), "the maps should be equal")
@@ -108,14 +110,14 @@ func TestValuesAreProperlySaved(t *testing.T) {
 
 	// write different data again, test if it is consistent
 	reg2 := CurrentPackageRegistry{"p2": &VMAppPackageCurrent{ApplicationName: "p2", Version: "2.1"}}
-	pkgHndlr, err = New(&hndlEnv, time.Second)
+	pkgHndlr, err = New(nopLog(), &hndlEnv, time.Second)
 	assert.NoError(t, err, "operation should not throw error")
 	err = pkgHndlr.WriteToDisk(reg2)
 	assert.NoError(t, err, "operation should not throw error")
 	err = pkgHndlr.Close()
 	assert.NoError(t, err, "operation should not throw error")
 
-	pkgHndlr, err = New(&hndlEnv, time.Second)
+	pkgHndlr, err = New(nopLog(), &hndlEnv, time.Second)
 	assert.NoError(t, err, "operation should not throw error")
 	result, err = pkgHndlr.GetExistingPackages()
 	assert.True(t, reflect.DeepEqual(reg2, result), "the maps should be equal")
@@ -127,16 +129,16 @@ func TestValuesAreProperlySaved(t *testing.T) {
 func TestOnlyOneInstanceofPackageRegistryCanExist(t *testing.T) {
 	initializeTest(t)
 	defer cleanupTest()
-	pkgHndlr1, err := New(&hndlEnv, 60*time.Second)
+	pkgHndlr1, err := New(nopLog(), &hndlEnv, 60*time.Second)
 	assert.NoError(t, err, "operation should not throw error")
-	pkgHndlr2, err := New(&hndlEnv, time.Second)
+	pkgHndlr2, err := New(nopLog(), &hndlEnv, time.Second)
 	assert.Error(t, err, "operation should throw error")
 	assert.Nil(t, pkgHndlr2, "package handler instance should be nil")
 	_, ok := err.(*lockedfile.FileLockTimeoutError)
 	assert.True(t, ok, "Error type should be FileLockTimeoutError")
 	err = pkgHndlr1.Close()
 	assert.NoError(t, err, "operation should not throw error")
-	pkgHndlr2, err = New(&hndlEnv, time.Second)
+	pkgHndlr2, err = New(nopLog(), &hndlEnv, time.Second)
 	assert.NoError(t, err, "operation should not throw error")
 	err = pkgHndlr2.Close()
 	assert.NoError(t, err, "operation should not throw error")
