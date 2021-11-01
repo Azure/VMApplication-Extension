@@ -37,7 +37,6 @@ func (communicator *NoopHostGaCommunicator) SetupVMAppInfo(appName string, versi
 		ApplicationName:    appName,
 		DirectDownloadOnly: false,
 		InstallCommand:     "",
-		Operation:          operation,
 		RemoveCommand:      "",
 		UpdateCommand:      "",
 		Version:            version,
@@ -102,7 +101,7 @@ func Test_getVMPackageData_noApplications(t *testing.T) {
 func Test_getVMPackageData_valid(t *testing.T) {
 	order := 1
 	vmApplications := []VmAppSetting{
-		VmAppSetting{
+		{
 			ApplicationName: "iggy",
 			Order:           &order,
 		},
@@ -118,7 +117,7 @@ func Test_getVMPackageData_valid(t *testing.T) {
 func Test_getVMPackageData_noVersion(t *testing.T) {
 	order := 1
 	vmApplications := []VmAppSetting{
-		VmAppSetting{
+		{
 			ApplicationName: "iggy",
 			Order:           &order,
 		},
@@ -131,26 +130,10 @@ func Test_getVMPackageData_noVersion(t *testing.T) {
 	require.Error(t, err)
 }
 
-func Test_getVMPackageData_noOperationName(t *testing.T) {
-	order := 1
-	vmApplications := []VmAppSetting{
-		VmAppSetting{
-			ApplicationName: "iggy",
-			Order:           &order,
-		},
-	}
-
-	hostGaCommunicator := NoopHostGaCommunicator{}
-	hostGaCommunicator.SetupVMAppInfo("iggy", "1.0.1", "")
-	ext := createTestVMExtension(t, vmApplications)
-	_, err := doVmAppEnableCallback(ext, &hostGaCommunicator)
-	require.Error(t, err)
-}
-
 func Test_getVMPackageData_noApplicationName(t *testing.T) {
 	order := 1
 	vmApplications := []VmAppSetting{
-		VmAppSetting{
+		{
 			ApplicationName: "",
 			Order:           &order,
 		},
@@ -168,46 +151,12 @@ func Test_main_nothingToProcess(t *testing.T) {
 	ext := createTestVMExtension(t, vmApplications)
 
 	hostGaCommunicator := NoopHostGaCommunicator{}
-	result, err := doVmAppEnableCallback(ext, &hostGaCommunicator)
+	_, err := doVmAppEnableCallback(ext, &hostGaCommunicator)
 	require.NoError(t, err)
-	require.Equal(t, "Operation completed", result)
 }
 
 func resetExtensionVersion() {
 	extensionVersion = "1.0.0"
-}
-
-func createVmPackageData() vmPackageData {
-	vmPackages := vmPackageData{
-		Packages: []vmPackage{
-			{
-				Name:      "yaba",
-				Operation: "install",
-				Version:   "1.0.0",
-			},
-		},
-	}
-
-	return vmPackages
-}
-
-func createMultipleVmPackageData() vmPackageData {
-	vmPackages := vmPackageData{
-		Packages: []vmPackage{
-			{
-				Name:      "yaba",
-				Operation: "install",
-				Version:   "1.0.0",
-			},
-			{
-				Name:      "flipmonster",
-				Operation: "enable",
-				Version:   "1.0.0",
-			},
-		},
-	}
-
-	return vmPackages
 }
 
 func createSettings(settings interface{}) *handlersettings.HandlerSettings {
@@ -246,13 +195,15 @@ func createTestVMExtension(t *testing.T, settings interface{}) *vmextension.VMEx
 	eem := extensionevents.New(el, he)
 
 	return &vmextension.VMExtension{
-		Name:                    extensionVersion,
-		Version:                 extensionVersion,
-		RequestedSequenceNumber: 2,
-		CurrentSequenceNumber:   &one,
-		HandlerEnv:              he,
-		Settings:                hs,
-		ExtensionLogger:         el,
-		ExtensionEvents:         eem,
+		Name:                       extensionVersion,
+		Version:                    extensionVersion,
+		GetRequestedSequenceNumber: func() (uint, error) { return 2, nil },
+		CurrentSequenceNumber:      &one,
+		HandlerEnv:                 he,
+		GetSettings: func() (*handlersettings.HandlerSettings, error) {
+			return hs, nil
+		},
+		ExtensionLogger: el,
+		ExtensionEvents: eem,
 	}
 }

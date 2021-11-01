@@ -7,16 +7,16 @@ import (
 	"path"
 	"time"
 
-	"github.com/Azure/VMApplication-Extension/pkg/lockedfile"
 	"github.com/Azure/azure-extension-platform/pkg/constants"
 	"github.com/Azure/azure-extension-platform/pkg/handlerenv"
+	"github.com/Azure/azure-extension-platform/pkg/lockedfile"
 	"github.com/Azure/azure-extension-platform/pkg/logging"
 )
 
 const (
 	lockFileName                                             = "VMApp.lockfile"
 	localApplicationRegistryBackupFileName                   = "applicationRegistry.backup"
-	localApplicationRegistryFileName                         = "applicationRegistry.active"
+	LocalApplicationRegistryFileName                         = "applicationRegistry.active"
 	localApplicationRegistryFileDefaultTimeout time.Duration = 30 * time.Minute
 )
 
@@ -26,10 +26,37 @@ const (
 	NoAction ActionEnum = iota
 	Install
 	Update
-	Delete
+	Remove
 	Failed
 	Skipped
+	// cleanup happens when a VMApp was previously skipped due to failure of an operation with lower order
+	// and the VMApp has been subsequently removed from the VM/VMSS application profile
+	// we need not call the remove command
+	Cleanup
 )
+
+const defaultConfigFileNameSuffix = "_config"
+
+func (act ActionEnum) ToString() string {
+	switch act {
+	case NoAction:
+		return "NoAction"
+	case Install:
+		return "Install"
+	case Update:
+		return "Update"
+	case Remove:
+		return "Remove"
+	case Failed:
+		return "Failed"
+	case Skipped:
+		return "Skipped"
+	case Cleanup:
+		return "Cleanup"
+	default:
+		return "UnknownAction"
+	}
+}
 
 // defines a map between the application name and the other properties of the application
 type CurrentPackageRegistry map[string]*VMAppPackageCurrent
@@ -39,13 +66,20 @@ type DesiredPackageRegistry map[string]*VMAppPackageIncoming
 type VMAppPackageCurrentCollection []*VMAppPackageCurrent
 
 type VMAppPackageCurrent struct {
-	ApplicationName    string     `json:"applicationName"`
-	Version            string     `json:"version"`
-	InstallCommand     string     `json:"install"`
-	RemoveCommand      string     `json:"remove"`
-	UpdateCommand      string     `json:"update"`
-	DirectDownloadOnly bool       `json:"directOnly"`
-	OngoingOperation   ActionEnum `json:"ongoingOperation"`
+	ApplicationName        string     `json:"applicationName"`
+	Version                string     `json:"version"`
+	InstallCommand         string     `json:"install"`
+	RemoveCommand          string     `json:"remove"`
+	UpdateCommand          string     `json:"update"`
+	DirectDownloadOnly     bool       `json:"directOnly"`
+	ConfigExists           bool       `json:"configExists"`
+	OngoingOperation       ActionEnum `json:"ongoingOperation"`
+	DownloadDir            string     `json:"downloadDir"`
+	PackageFileName        string     `json:"packageFileName"`
+	ConfigFileName         string     `json:"configFileName"`
+	PackageFileMD5Checksum []byte     `json:"packageFileMD5Checksum"`
+	ConfigFileMD5Checksum  []byte     `json:"configFileMD5Checksum"`
+	Result                 string     `json:"result"`
 }
 
 func (vmAppPackageCurrent *VMAppPackageCurrent) GetWorkingDirectory(environment *handlerenv.HandlerEnvironment) string {
@@ -62,6 +96,9 @@ type VMAppPackageIncoming struct {
 	UpdateCommand      string `json:"update"`
 	DirectDownloadOnly bool   `json:"directOnly"`
 	Order              *int   `json:"order"`
+	ConfigExists       bool   `json:"configExists"`
+	PackageFileName    string `json:"packageFileName"`
+	ConfigFileName     string `json:"configFileName"`
 }
 
 type IPackageRegistry interface {
@@ -155,7 +192,7 @@ func (self *PackageRegistry) WriteToDisk(packageRegistry CurrentPackageRegistry)
 }
 
 func (self *PackageRegistry) getLocalApplicationRegistryFilePath() string {
-	return path.Join(self.handlerEnv.ConfigFolder, localApplicationRegistryFileName)
+	return path.Join(self.handlerEnv.ConfigFolder, LocalApplicationRegistryFileName)
 }
 
 func (self *PackageRegistry) getLocalApplicationRegistryBackupFilePath() string {

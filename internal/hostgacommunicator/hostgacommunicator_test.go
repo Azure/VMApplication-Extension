@@ -1,23 +1,23 @@
-package hostgacommunicator_test
+package hostgacommunicator
 
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
+	"fmt"
+	"github.com/Azure/azure-extension-platform/pkg/logging"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path"
 	"testing"
-
-	"github.com/Azure/VMApplication-Extension/internal/hostgacommunicator"
-	"github.com/Azure/azure-extension-platform/pkg/logging"
-	"github.com/stretchr/testify/require"
 )
 
 const (
-	myAppName       = "chipmunkdetector"
-	nonExistentFile = "blarf"
+	myAppName = "chipmunkdetector"
 )
 
 var testDirPath string
@@ -38,17 +38,9 @@ func cleanupTestDir() {
 	os.RemoveAll(testDirPath)
 }
 
-func TestGetVmAppInfo_NoEnvironmentVariable(t *testing.T) {
-	os.Setenv(hostgacommunicator.WireProtocolAddress, "")
-	hgc := &hostgacommunicator.HostGaCommunicator{}
-	_, err := hgc.GetVMAppInfo(nopLog(), myAppName)
-	require.NotNil(t, err, "did not fail")
-	require.Contains(t, err.Error(), "WireProtocolAddress not present in environment", "Wrong message for non-existent environment variable")
-}
-
 func TestGetVmAppInfo_InvalidUri(t *testing.T) {
-	os.Setenv(hostgacommunicator.WireProtocolAddress, "h%t!p:notgoingtohappen!")
-	hgc := &hostgacommunicator.HostGaCommunicator{}
+	os.Setenv(WireProtocolAddress, "h%t!p:notgoingtohappen!")
+	hgc := &HostGaCommunicator{}
 	_, err := hgc.GetVMAppInfo(nopLog(), myAppName)
 	require.NotNil(t, err, "did not fail")
 	require.Contains(t, err.Error(), "Could not parse the HostGA URI", "Wrong message for invalid uri")
@@ -61,8 +53,8 @@ func TestGetVmAppInfo_RequestFailed(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	os.Setenv(hostgacommunicator.WireProtocolAddress, srv.URL)
-	hgc := &hostgacommunicator.HostGaCommunicator{}
+	os.Setenv(WireProtocolAddress, srv.URL)
+	hgc := &HostGaCommunicator{}
 	_, err := hgc.GetVMAppInfo(nopLog(), myAppName)
 	require.NotNil(t, err, "did not fail")
 	require.Contains(t, err.Error(), "Metadata request failed with retries.", "Wrong message for failed request")
@@ -77,18 +69,17 @@ func TestGetVmAppInfo_CouldNotDecodeResponse(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	os.Setenv(hostgacommunicator.WireProtocolAddress, srv.URL)
-	hgc := &hostgacommunicator.HostGaCommunicator{}
+	os.Setenv(WireProtocolAddress, srv.URL)
+	hgc := &HostGaCommunicator{}
 	_, err := hgc.GetVMAppInfo(nopLog(), myAppName)
 	require.NotNil(t, err, "did not fail")
 	require.Contains(t, err.Error(), "failed to decode response body", "Wrong message for invalid response")
 }
 
 func TestGetVmAppInfo_MissingProperties(t *testing.T) {
-	expected := hostgacommunicator.VMAppMetadata{
+	expected := VMAppMetadataReceiver{
 		ApplicationName: "chipmunk",
 		Version:         "42",
-		Operation:       "install",
 		InstallCommand:  "installchipmunk.bat",
 	}
 
@@ -102,25 +93,23 @@ func TestGetVmAppInfo_MissingProperties(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	os.Setenv(hostgacommunicator.WireProtocolAddress, srv.URL)
-	hgc := &hostgacommunicator.HostGaCommunicator{}
+	os.Setenv(WireProtocolAddress, srv.URL)
+	hgc := &HostGaCommunicator{}
 	actual, err := hgc.GetVMAppInfo(nopLog(), myAppName)
 	require.Nil(t, err, "request failed")
 	require.Equal(t, expected.ApplicationName, actual.ApplicationName)
 	require.Equal(t, expected.Version, actual.Version)
-	require.Equal(t, expected.Operation, actual.Operation)
 	require.Equal(t, expected.InstallCommand, actual.InstallCommand)
 }
 
 func TestGetVmAppInfo_ValidResponse(t *testing.T) {
-	expected := hostgacommunicator.VMAppMetadata{
+	expected := VMAppMetadataReceiver{
 		ApplicationName:    "chipmunk",
 		Version:            "42",
-		Operation:          "install",
 		InstallCommand:     "installchipmunk.bat",
 		UpdateCommand:      "updatechipmunk.bat",
 		RemoveCommand:      "removechipmunk.bat",
-		DirectDownloadOnly: false,
+		DirectDownloadOnly: "false",
 	}
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -133,33 +122,28 @@ func TestGetVmAppInfo_ValidResponse(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	os.Setenv(hostgacommunicator.WireProtocolAddress, srv.URL)
-	hgc := &hostgacommunicator.HostGaCommunicator{}
+	os.Setenv(WireProtocolAddress, srv.URL)
+	hgc := &HostGaCommunicator{}
 	actual, err := hgc.GetVMAppInfo(nopLog(), myAppName)
 	require.Nil(t, err, "request failed")
 	require.Equal(t, expected.ApplicationName, actual.ApplicationName)
 	require.Equal(t, expected.Version, actual.Version)
-	require.Equal(t, expected.Operation, actual.Operation)
 	require.Equal(t, expected.InstallCommand, actual.InstallCommand)
 	require.Equal(t, expected.UpdateCommand, actual.UpdateCommand)
 	require.Equal(t, expected.RemoveCommand, actual.RemoveCommand)
-	require.Equal(t, expected.DirectDownloadOnly, actual.DirectDownloadOnly)
-}
-
-func TestDownloadPackage_NoEnvironmentVariable(t *testing.T) {
-	os.Setenv(hostgacommunicator.WireProtocolAddress, "")
-	hgc := &hostgacommunicator.HostGaCommunicator{}
-	err := hgc.DownloadPackage(nopLog(), myAppName, nonExistentFile)
-	require.NotNil(t, err, "did not fail")
-	require.Contains(t, err.Error(), "WireProtocolAddress not present in environment", "Wrong message for non-existent environment variable")
+	require.Equal(t, expected.DirectDownloadOnly, fmt.Sprintf("%v", actual.DirectDownloadOnly))
 }
 
 func TestDownloadPackage_CannotRemoveExistingFile(t *testing.T) {
 	createTestDir(t)
 	defer cleanupTestDir()
 	filePath := path.Join(testDirPath, "LockedFile")
-	f, err := os.Create(filePath)
-	defer f.Close()
+	lf, err := os.Create(filePath)
+	defer lf.Close()
+	removeFileFunc = func(filename string) error {
+		return errors.New("Could not remove the existing file")
+	}
+	defer func() { removeFileFunc = removeFile }()
 	require.Nil(t, err, "File creation failed")
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -168,15 +152,15 @@ func TestDownloadPackage_CannotRemoveExistingFile(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	os.Setenv(hostgacommunicator.WireProtocolAddress, srv.URL)
-	hgc := &hostgacommunicator.HostGaCommunicator{}
+	os.Setenv(WireProtocolAddress, srv.URL)
+	hgc := &HostGaCommunicator{}
 	err = hgc.DownloadPackage(nopLog(), myAppName, filePath)
 	require.NotNil(t, err, "did not fail")
 	require.Contains(t, err.Error(), "Could not remove the existing file", "Wrong message for failing to remove locked file")
 }
 
 func TestDownloadPackage_InvalidPath(t *testing.T) {
-	filePath := "aaargh!$(*&#$%)($"
+	filePath := string(make([]byte, 5)) // null characters in file names are invalid in both windows and linux
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -184,8 +168,8 @@ func TestDownloadPackage_InvalidPath(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	os.Setenv(hostgacommunicator.WireProtocolAddress, srv.URL)
-	hgc := &hostgacommunicator.HostGaCommunicator{}
+	os.Setenv(WireProtocolAddress, srv.URL)
+	hgc := &HostGaCommunicator{}
 	err := hgc.DownloadPackage(nopLog(), myAppName, filePath)
 	require.NotNil(t, err, "did not fail")
 	require.Contains(t, err.Error(), "Cannot retrieve file information", "Wrong message for invalid file path")
@@ -205,8 +189,8 @@ func TestDownloadPackage_SingeCallDownload(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	os.Setenv(hostgacommunicator.WireProtocolAddress, srv.URL)
-	hgc := &hostgacommunicator.HostGaCommunicator{}
+	os.Setenv(WireProtocolAddress, srv.URL)
+	hgc := &HostGaCommunicator{}
 	err := hgc.DownloadPackage(nopLog(), myAppName, filePath)
 	require.Nil(t, err, "Download failed")
 	verifyFileContents(t, filePath, expected)
@@ -236,8 +220,8 @@ func TestDownloadPackage_TooManyTries(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	os.Setenv(hostgacommunicator.WireProtocolAddress, srv.URL)
-	hgc := &hostgacommunicator.HostGaCommunicator{}
+	os.Setenv(WireProtocolAddress, srv.URL)
+	hgc := &HostGaCommunicator{}
 	err := hgc.DownloadPackage(nopLog(), myAppName, filePath)
 	require.NotNil(t, err, "did not fail")
 	require.Contains(t, err.Error(), "Failed to completely download the file", "Wrong message for incomplete file")
@@ -267,8 +251,8 @@ func TestDownloadPackage_IntermediateCallFails(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	os.Setenv(hostgacommunicator.WireProtocolAddress, srv.URL)
-	hgc := &hostgacommunicator.HostGaCommunicator{}
+	os.Setenv(WireProtocolAddress, srv.URL)
+	hgc := &HostGaCommunicator{}
 	err := hgc.DownloadPackage(nopLog(), myAppName, filePath)
 	require.NotNil(t, err, "did not fail")
 	require.Contains(t, err.Error(), "Unrecoverable error while downloading the file", "Wrong message for failure mid-retries")
@@ -303,20 +287,12 @@ func TestDownloadPackage_MultipleCallDownload(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	os.Setenv(hostgacommunicator.WireProtocolAddress, srv.URL)
-	hgc := &hostgacommunicator.HostGaCommunicator{}
+	os.Setenv(WireProtocolAddress, srv.URL)
+	hgc := &HostGaCommunicator{}
 	err := hgc.DownloadPackage(nopLog(), myAppName, filePath)
 	require.Nil(t, err, "Download failed")
 	require.Equal(t, expectedCallCount, callCount)
 	verifyFileContents(t, filePath, expected)
-}
-
-func TestDownloadConfig_NoEnvironmentVariable(t *testing.T) {
-	os.Setenv(hostgacommunicator.WireProtocolAddress, "")
-	hgc := &hostgacommunicator.HostGaCommunicator{}
-	err := hgc.DownloadConfig(nopLog(), myAppName, nonExistentFile)
-	require.NotNil(t, err, "did not fail")
-	require.Contains(t, err.Error(), "WireProtocolAddress not present in environment", "Wrong message for non-existent environment variable")
 }
 
 func TestDownloadConfig_SingeCallDownload(t *testing.T) {
@@ -333,11 +309,48 @@ func TestDownloadConfig_SingeCallDownload(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	os.Setenv(hostgacommunicator.WireProtocolAddress, srv.URL)
-	hgc := &hostgacommunicator.HostGaCommunicator{}
+	os.Setenv(WireProtocolAddress, srv.URL)
+	hgc := &HostGaCommunicator{}
 	err := hgc.DownloadConfig(nopLog(), myAppName, filePath)
 	require.Nil(t, err, "Download failed")
 	verifyFileContents(t, filePath, expected)
+}
+
+func TestGetOperationUri(t *testing.T) {
+	appName := "myApp"
+	operation := "metadata"
+
+	el := logging.New(nil)
+	os.Setenv(WireProtocolAddress, "10.0.0.1")
+	uri, err := getOperationURI(el, appName, operation)
+	assert.NoError(t, err)
+	assert.Equal(t, fmt.Sprintf("http://10.0.0.1:%s/applications/%s/%s", hostGaPluginPort, appName, operation), uri)
+
+	os.Setenv(WireProtocolAddress, "10.0.0.1:1234")
+	uri, err = getOperationURI(el, appName, operation)
+	assert.NoError(t, err)
+	assert.Equal(t, fmt.Sprintf("http://10.0.0.1:1234/applications/%s/%s", appName, operation), uri)
+
+	os.Setenv(WireProtocolAddress, "foo.bar.com")
+	uri, err = getOperationURI(el, appName, operation)
+	assert.NoError(t, err)
+	assert.Equal(t, fmt.Sprintf("http://foo.bar.com:%s/applications/%s/%s", hostGaPluginPort, appName, operation), uri)
+
+	os.Setenv(WireProtocolAddress, "foo.bar.com:1568")
+	uri, err = getOperationURI(el, appName, operation)
+	assert.NoError(t, err)
+	assert.Equal(t, fmt.Sprintf("http://foo.bar.com:1568/applications/%s/%s", appName, operation), uri)
+
+	os.Setenv(WireProtocolAddress, "https://foo.bar.com:1568")
+	uri, err = getOperationURI(el, appName, operation)
+	assert.NoError(t, err)
+	assert.Equal(t, fmt.Sprintf("https://foo.bar.com:1568/applications/%s/%s", appName, operation), uri)
+
+	// test fallback address for Wire Server
+	os.Setenv(WireProtocolAddress, "")
+	uri, err = getOperationURI(el, appName, operation)
+	assert.NoError(t, err)
+	assert.Equal(t, fmt.Sprintf("%s/applications/%s/%s", wireServerFallbackAddress, appName, operation), uri)
 }
 
 func verifyFileContents(t *testing.T, file string, expected string) {

@@ -1,7 +1,9 @@
 package hostgacommunicator
 
 import (
+	"github.com/Azure/azure-extension-platform/pkg/logging"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/Azure/VMApplication-Extension/internal/requesthelper"
@@ -20,19 +22,53 @@ var (
 type VMAppMetadata struct {
 	ApplicationName    string `json:"name"`
 	Version            string `json:"version"`
-	Operation          string `json:"operation"`
 	InstallCommand     string `json:"install"`
 	UpdateCommand      string `json:"update"`
 	RemoveCommand      string `json:"remove"`
 	DirectDownloadOnly bool   `json:"directOnly"`
+	ConfigExists       bool
+	PackageFileName    string `json:"packageFileName"`
+	ConfigFileName     string `json:"configFileName"`
+}
+
+type VMAppMetadataReceiver struct {
+	ApplicationName    string `json:"name"`
+	Version            string `json:"version"`
+	InstallCommand     string `json:"install"`
+	UpdateCommand      string `json:"update"`
+	RemoveCommand      string `json:"remove"`
+	DirectDownloadOnly string `json:"directOnly"`
+	Package            string `json:"package"`
+	Config             string `json:"config"`
+	PackageFileName    string `json:"packageFileName"`
+	ConfigFileName     string `json:"configFileName"`
+}
+
+func (receiver *VMAppMetadataReceiver) MapToVMAppMetadata() (*VMAppMetadata) {
+	directDownloadOnly, err := strconv.ParseBool(receiver.DirectDownloadOnly)
+	if err != nil {
+		// assume directDownloadOnly is false when parsing fails
+		directDownloadOnly = false
+	}
+	configExists := receiver.Config != ""
+	vmAppMetadata := VMAppMetadata{
+		ApplicationName:    receiver.ApplicationName,
+		Version:            receiver.Version,
+		InstallCommand:     receiver.InstallCommand,
+		UpdateCommand:      receiver.UpdateCommand,
+		RemoveCommand:      receiver.RemoveCommand,
+		DirectDownloadOnly: directDownloadOnly,
+		ConfigExists:       configExists,
+	}
+	return &vmAppMetadata
 }
 
 type metadataRequestFactory struct {
 	url string
 }
 
-func newMetadataRequestFactory(appName string) (*metadataRequestFactory, error) {
-	url, err := getOperationURI(appName, metadataOperation)
+func newMetadataRequestFactory(el *logging.ExtensionLogger, appName string) (*metadataRequestFactory, error) {
+	url, err := getOperationURI(el, appName, metadataOperation)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to obtain operationURI")
 	}
@@ -45,8 +81,8 @@ func (u metadataRequestFactory) GetRequest() (*http.Request, error) {
 	return http.NewRequest("GET", u.url, nil)
 }
 
-func getMetadataRequestManager(appName string) (*requesthelper.RequestManager, error) {
-	factory, err := newMetadataRequestFactory(appName)
+func getMetadataRequestManager(el *logging.ExtensionLogger, appName string) (*requesthelper.RequestManager, error) {
+	factory, err := newMetadataRequestFactory(el, appName)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to create request factory")
 	}

@@ -25,14 +25,14 @@ func getVMAppIncomingCollection(settings *settings.HandlerSettings, communicator
 	incomingCollection := make(packageregistry.VMAppPackageIncomingCollection, 0)
 	for _, app := range protSettings {
 		if app.ApplicationName == "" {
-			return nil, errors.New("Missing application name")
+			return nil, errors.New("missing application name")
 		}
 		vmAppInfo, err := communicator.GetVMAppInfo(el, app.ApplicationName)
 		if err != nil {
 			// TODO: ignore errors?
 			return incomingCollection, err
 		}
-		if vmAppInfo.Version == "" || vmAppInfo.Operation == "" {
+		if vmAppInfo.Version == "" {
 			return nil, errors.New("HostGA did not return a valid vmAppInfo")
 		}
 		incomingPackage := packageregistry.VMAppPackageIncoming{
@@ -43,6 +43,9 @@ func getVMAppIncomingCollection(settings *settings.HandlerSettings, communicator
 			RemoveCommand:      vmAppInfo.RemoveCommand,
 			UpdateCommand:      vmAppInfo.UpdateCommand,
 			DirectDownloadOnly: vmAppInfo.DirectDownloadOnly,
+			ConfigExists:       vmAppInfo.ConfigExists,
+			ConfigFileName:     vmAppInfo.ConfigFileName,
+			PackageFileName:    vmAppInfo.PackageFileName,
 		}
 		incomingCollection = append(incomingCollection, &incomingPackage)
 	}

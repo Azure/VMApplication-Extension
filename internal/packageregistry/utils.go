@@ -39,6 +39,19 @@ func (self DesiredPackageRegistry) GetPackageCollection() (collection VMAppPacka
 }
 
 func VMAppPackageIncomingToVmAppPackageCurrent(incoming *VMAppPackageIncoming) (current *VMAppPackageCurrent) {
+	var packageFileName, configFileName string
+	if incoming.PackageFileName == "" {
+		packageFileName = incoming.ApplicationName
+	} else {
+		packageFileName = incoming.PackageFileName
+	}
+
+	if incoming.ConfigFileName == "" {
+		configFileName = incoming.ApplicationName + defaultConfigFileNameSuffix
+	} else {
+		configFileName = incoming.ConfigFileName
+	}
+
 	current = &VMAppPackageCurrent{
 		ApplicationName:    incoming.ApplicationName,
 		Version:            incoming.Version,
@@ -46,7 +59,10 @@ func VMAppPackageIncomingToVmAppPackageCurrent(incoming *VMAppPackageIncoming) (
 		RemoveCommand:      incoming.RemoveCommand,
 		UpdateCommand:      incoming.UpdateCommand,
 		DirectDownloadOnly: incoming.DirectDownloadOnly,
+		ConfigExists:       incoming.ConfigExists,
 		OngoingOperation:   NoAction,
+		PackageFileName:    packageFileName,
+		ConfigFileName:     configFileName,
 	}
 	return current
 }

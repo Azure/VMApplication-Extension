@@ -8,19 +8,12 @@ import (
 	"github.com/Azure/VMApplication-Extension/internal/actionplan"
 	"github.com/Azure/VMApplication-Extension/internal/hostgacommunicator"
 	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
-	"github.com/Azure/VMApplication-Extension/pkg/commandhandler"
+	"github.com/Azure/azure-extension-platform/pkg/commandhandler"
 	vmextensionhelper "github.com/Azure/azure-extension-platform/vmextension"
 )
 
 // Note: not const so test can change them
-var (
-	extensionName    = "Microsoft.Azure.Extensions.VMApp"
-	extensionVersion = "1.0.0"
-
-	// downloadDir is where we store the downloaded files in the "{downloadDir}/{seqnum}/file"
-	// format and the logs as "{downloadDir}/{seqnum}/std(out|err)". Stored under dataDir
-	downloadDir = "download"
-)
+var extensionVersion = "1.0.4"
 
 const (
 	vmPackagesSetting       = "vmPackages"
@@ -29,21 +22,6 @@ const (
 	operationRemove         = "remove"
 	filelockTimeoutDuration = 15 * time.Minute
 )
-
-type vmPackageData struct {
-	Packages []vmPackage `json:"vmPackages"`
-}
-
-// Note that Name, Operation, and Version come from the protected settings sent by CRP
-// SequenceNumber comes from the Guest Agent and is added by this code
-// ProposedFileNumber is used only for proposal files. There is no need to serialize it.
-type vmPackage struct {
-	Name               string `json:"name"`
-	Operation          string `json:"operation"`
-	Version            string `json:"version"`
-	SequenceNumber     uint   `json:"sequenceNumber"`
-	ProposedFileNumber int
-}
 
 func main() {
 	err := getExtensionAndRun()
@@ -58,6 +36,8 @@ func getExtensionAndRun() error {
 	if err != nil {
 		return err
 	}
+	
+	ii.UpdateCallback = vmAppUpdateCallback
 
 	ext, err := vmextensionhelper.GetVMExtension(ii)
 	if err != nil {
@@ -86,7 +66,11 @@ func vmAppEnableCallback(ext *vmextensionhelper.VMExtension) (string, error) {
 }
 
 func doVmAppEnableCallback(ext *vmextensionhelper.VMExtension, hostGaCommunicator hostgacommunicator.IHostGaCommunicator) (string, error) {
-	vmAppIncomingCollection, err := getVMAppIncomingCollection(ext.Settings, hostGaCommunicator, ext.ExtensionLogger)
+	settings, err := ext.GetSettings()
+	if err != nil {
+		return "could not get extension settings", err
+	}
+	vmAppIncomingCollection, err := getVMAppIncomingCollection(settings, hostGaCommunicator, ext.ExtensionLogger)
 	if err != nil {
 		return "resolving packages failed", err
 	}
@@ -107,13 +91,14 @@ func doVmAppEnableCallback(ext *vmextensionhelper.VMExtension, hostGaCommunicato
 
 	commandHandler := commandhandler.CommandHandler{}
 
-	err = actionPlan.Execute(packageRegistry, ext.ExtensionEvents, &commandHandler)
+	// actionPlan.Execute can fail partially, but we mark the overall process as success
+	// errors are sent in the status message
+	_, result := actionPlan.Execute(packageRegistry, ext.ExtensionEvents, &commandHandler)
 
+	currentPackageRegistry, err = packageRegistry.GetExistingPackages()
 	if err != nil {
-		// actionPlan.Execute can fail partially
-		// return ths string that contains operations that failed, but mark the overall process as success
-		return err.Error(), nil
+		return "could not read current package registry", err
 	}
 
-	return "Operation completed", nil
+	return getStatusMessage(currentPackageRegistry.GetPackageCollection(), result), nil
 }

@@ -1,6 +1,13 @@
 package packageregistry
 
 import (
+<<<<<<< HEAD
+=======
+	"github.com/Azure/azure-extension-platform/pkg/lockedfile"
+	"github.com/Azure/azure-extension-platform/pkg/constants"
+	"github.com/Azure/azure-extension-platform/pkg/handlerenv"
+	"github.com/stretchr/testify/assert"
+>>>>>>> 4c818fabe39791ef4f74448914a293fb58e28468
 	"os"
 	"reflect"
 	"testing"
@@ -18,19 +25,19 @@ var hndlEnv = handlerenv.HandlerEnvironment{
 }
 
 var packageRegistry = CurrentPackageRegistry{"package1": &VMAppPackageCurrent{
-	ApplicationName:    "package1",
-	DirectDownloadOnly: false,
-	InstallCommand:     "install_1.ps1",
-	RemoveCommand:      "remove_1.ps1",
-	UpdateCommand:      "update_1.ps1",
-	Version:            "1.2.3.1",
+	ApplicationName:       "package1",
+	DirectDownloadOnly:    false,
+	InstallCommand:        "install_1.ps1",
+	RemoveCommand:         "remove_1.ps1",
+	UpdateCommand:         "update_1.ps1",
+	Version:               "1.2.3.1",
 }, "package2": &VMAppPackageCurrent{
-	ApplicationName:    "package2",
-	DirectDownloadOnly: true,
-	InstallCommand:     "install_2.ps1",
-	RemoveCommand:      "remove_2.ps1",
-	UpdateCommand:      "update_2.ps1",
-	Version:            "1.2.3.2",
+	ApplicationName:       "package2",
+	DirectDownloadOnly:    true,
+	InstallCommand:        "install_2.ps1",
+	RemoveCommand:         "remove_2.ps1",
+	UpdateCommand:         "update_2.ps1",
+	Version:               "1.2.3.2",
 }}
 
 func nopLog() *logging.ExtensionLogger {
