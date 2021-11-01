@@ -104,10 +104,12 @@ func New(currentPackageRegistry packageregistry.CurrentPackageRegistry, desiredV
 		_, existsInNewConfiguration := packageRegistryIncoming[vmAppCurrent.ApplicationName]
 		if !existsInNewConfiguration {
 			if vmAppCurrent.OngoingOperation != packageregistry.Skipped {
+				logger.Info("Application %v not in incoming package collection. Marking to delete.", vmAppCurrent.ApplicationName)
 				deleteAction := &action{*vmAppCurrent, packageregistry.Remove}
 				actionPlan.unorderedImplicitUninstalls = append(actionPlan.unorderedImplicitUninstalls, deleteAction)
 			} else {
 				// remove the package without from the registry without calling the remove command
+				logger.Info("Application %v not in incoming package collection. Removing.", vmAppCurrent.ApplicationName)
 				deleteAction := &action{*vmAppCurrent, packageregistry.Cleanup}
 				actionPlan.unorderedImplicitUninstalls = append(actionPlan.unorderedImplicitUninstalls, deleteAction)
 			}
@@ -123,16 +125,21 @@ func New(currentPackageRegistry packageregistry.CurrentPackageRegistry, desiredV
 			if !versionsEqual {
 				if len(vmAppIncoming.UpdateCommand) == 0 {
 					// not the same version and there is no update command
+					logger.Info("Application %v has version %v, but %v is desired. No update command exists, so removing and adding",
+						vmAppCurrent.ApplicationName, vmAppCurrent.Version, vmAppIncoming.Version)
 					deleteAction := &action{*vmAppCurrent, packageregistry.Remove} // delete current and install incoming
 					installAction := &action{*packageregistry.VMAppPackageIncomingToVmAppPackageCurrent(vmAppIncoming), packageregistry.Install}
 					actionPlan.insertOperation(vmAppIncoming.Order, deleteAction, installAction)
 				} else {
+					logger.Info("Application %v has version %v, but %v is desired. Will call update.",
+						vmAppCurrent.ApplicationName, vmAppCurrent.Version, vmAppIncoming.Version)
 					updateAction := &action{*packageregistry.VMAppPackageIncomingToVmAppPackageCurrent(vmAppIncoming), packageregistry.Update}
 					actionPlan.insertOperation(vmAppIncoming.Order, updateAction)
 				}
 			}
 		} else {
 			// installs
+			logger.Info("Application %v does not exist on the system. Installing", vmAppIncoming.ApplicationName)
 			installAction := &action{*packageregistry.VMAppPackageIncomingToVmAppPackageCurrent(vmAppIncoming), packageregistry.Install}
 			actionPlan.insertOperation(vmAppIncoming.Order, installAction)
 		}
@@ -223,6 +230,7 @@ func (actionPlan *ActionPlan) Execute(registryHandler packageregistry.IPackageRe
 			appendExecutionResult(&executionResult, act, newError)
 
 			if newError != nil {
+				actionPlan.logger.Warn("Application %v failed. Skipping the remaining applications", act.vmAppPackage.ApplicationName)
 				break // will skip the remaining dependant actions
 			}
 		}

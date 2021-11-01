@@ -1,6 +1,13 @@
 package actionplan
 
 import (
+	"io"
+	"io/ioutil"
+	"os"
+	"path"
+	"testing"
+	"time"
+
 	"github.com/Azure/VMApplication-Extension/internal/hostgacommunicator"
 	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
 	"github.com/Azure/azure-extension-platform/pkg/constants"
@@ -8,12 +15,6 @@ import (
 	"github.com/Azure/azure-extension-platform/pkg/handlerenv"
 	"github.com/Azure/azure-extension-platform/pkg/logging"
 	"github.com/stretchr/testify/assert"
-	"io"
-	"io/ioutil"
-	"os"
-	"path"
-	"testing"
-	"time"
 )
 
 var testdir = path.Join(".", "testdir")
@@ -86,26 +87,25 @@ var commandHandler = NewCommandHandlerMock(mockCommandExecutorNoError)
 var extensionLogger = logging.New(nil)
 var extensionEventManager = extensionevents.New(extensionLogger, &handlerEnvironment)
 var vmAppPackageCurrent = packageregistry.VMAppPackageCurrent{
-	ApplicationName:"test app",
-	Version:"1.0.0",
-	InstallCommand:"install",
-	RemoveCommand:"remove",
-	UpdateCommand:"update",
-	ConfigExists:true,
-	PackageFileName:"package",
-	ConfigFileName:"config",
-
+	ApplicationName: "test app",
+	Version:         "1.0.0",
+	InstallCommand:  "install",
+	RemoveCommand:   "remove",
+	UpdateCommand:   "update",
+	ConfigExists:    true,
+	PackageFileName: "package",
+	ConfigFileName:  "config",
 }
 
 var packageRegistry packageregistry.IPackageRegistry
 
 var mhgCommunicator *mockHostGaCommunicator
 
-func initTest(t *testing.T){
+func initTest(t *testing.T) {
 	mhc, err := newMockHostGaCommunicator([]byte("package File"), []byte("config file"))
 	assert.NoError(t, err, "mockHostGaCommunicator initialization should succeed")
 	actionPlan = ActionPlan{
-		environment :       &handlerEnvironment,
+		environment:        &handlerEnvironment,
 		logger:             extensionLogger,
 		hostGaCommunicator: mhc,
 	}
@@ -121,17 +121,17 @@ func initTest(t *testing.T){
 	err = os.MkdirAll(handlerEnvironment.EventsFolder, constants.FilePermissions_UserOnly_ReadWriteExecute)
 	assert.NoError(t, err)
 
-	pkr, err := packageregistry.New(&handlerEnvironment, 1 * time.Minute)
+	pkr, err := packageregistry.New(extensionLogger, &handlerEnvironment, 1*time.Minute)
 	assert.NoError(t, err)
 	packageRegistry = pkr
 }
 
-func cleanTest(){
+func cleanTest() {
 	packageRegistry.Close()
 	os.RemoveAll(testdir)
 }
 
-func TestExecuteHelper(t *testing.T){
+func TestExecuteHelper(t *testing.T) {
 	initTest(t)
 	defer cleanTest()
 	action := action{vmAppPackageCurrent, packageregistry.Install}
@@ -155,7 +155,7 @@ func TestExecuteHelper(t *testing.T){
 	assert.True(t, ok, "downloadDir should be deleted")
 }
 
-func TestChecksum(t *testing.T){
+func TestChecksum(t *testing.T) {
 	initTest(t)
 	defer cleanTest()
 	checksum, err := getMD5CheckSum(mhgCommunicator.pkgFileSourcePath)
@@ -169,4 +169,3 @@ func TestChecksum(t *testing.T){
 	assert.NoError(t, err, "verify checksum should not throw error")
 	assert.False(t, checksumMatch, "checksum should not match")
 }
-
