@@ -115,14 +115,14 @@ type PackageRegistry struct {
 
 // Keep the PackageRegistry object alive as long as the package registry is being accessed to lock it
 // Call PackageRegistry.Close() to release locks on the registry file
-func New(el *logging.ExtensionLogger, handlerEnv *handlerenv.HandlerEnvironment, fileLockTimeout time.Duration) (IPackageRegistry, error) {
+func New(extLogger *logging.ExtensionLogger, handlerEnv *handlerenv.HandlerEnvironment, fileLockTimeout time.Duration) (IPackageRegistry, error) {
 	appRegistryFilePath := path.Join(handlerEnv.ConfigFolder, lockFileName)
 	fileLock, err := lockedfile.New(appRegistryFilePath, fileLockTimeout)
 	if err != nil {
 		return nil, err
 	}
 
-	return &PackageRegistry{handlerEnv: handlerEnv, lockedFile: fileLock, logger: el}, nil
+	return &PackageRegistry{handlerEnv: handlerEnv, lockedFile: fileLock, logger: extLogger}, nil
 }
 
 // Closes the file handle, renders the object of the class PackageRegistry unusable
