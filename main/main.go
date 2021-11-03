@@ -74,7 +74,7 @@ func doVmAppEnableCallback(ext *vmextensionhelper.VMExtension, hostGaCommunicato
 	if err != nil {
 		return "resolving packages failed", err
 	}
-	packageRegistry, err := packageregistry.New(ext.HandlerEnv, filelockTimeoutDuration)
+	packageRegistry, err := packageregistry.New(ext.ExtensionLogger, ext.HandlerEnv, filelockTimeoutDuration)
 	if err != nil {
 		return "could not create package registry", err
 	}

@@ -3,9 +3,6 @@ package actionplan
 import (
 	"bytes"
 	"fmt"
-	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
-	"github.com/Azure/azure-extension-platform/pkg/constants"
-	"github.com/stretchr/testify/assert"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -16,6 +13,10 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
+	"github.com/Azure/azure-extension-platform/pkg/constants"
+	"github.com/stretchr/testify/assert"
 )
 
 var mockCommandExecutorSleepForAnHour CommandExecutor = func(s string, s2 string) (int, error) {
@@ -118,7 +119,7 @@ func TestCommandExecutorCanHandleProcessBeingKilled(t *testing.T) {
 		transcriptFile := path.Join(currentDirAbsolutePath, testdir, "transcript.txt")
 		// test takes at least 5 seconds to start, need to give it time before killing it
 		executeTestInAnotherThreadAndTerminateBeforeCompletion(t, "TestCommandExecutorCanHandleProcessBeingKilled", currentDirAbsolutePath, transcriptFile, 10*time.Second)
-		pkr, err := packageregistry.New(environment, time.Second)
+		pkr, err := packageregistry.New(el, environment, time.Second)
 		assert.NoError(t, err, "should be able to get current package registry")
 		if err == nil {
 			defer pkr.Close()
