@@ -4,6 +4,12 @@ import (
 	"bytes"
 	"crypto/md5"
 	"fmt"
+	"io"
+	"os"
+	"os/signal"
+	"path"
+	"syscall"
+
 	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
 	"github.com/Azure/azure-extension-platform/pkg/commandhandler"
 	"github.com/Azure/azure-extension-platform/pkg/constants"
@@ -11,11 +17,6 @@ import (
 	"github.com/Azure/azure-extension-platform/pkg/extensionerrors"
 	"github.com/Azure/azure-extension-platform/pkg/extensionevents"
 	"github.com/pkg/errors"
-	"io"
-	"os"
-	"os/signal"
-	"path"
-	"syscall"
 )
 
 func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPackageRegistry,
@@ -24,7 +25,7 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 	errorMessageToReturn = nil
 	appName := act.vmAppPackage.ApplicationName
 	version := act.vmAppPackage.Version
-	
+
 	// record new operation in the packageRegistry
 	vmAppPackageCurrent := act.vmAppPackage
 	registry[appName] = &vmAppPackageCurrent
@@ -55,6 +56,7 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 		errorMessageToReturn = errors.Errorf("Unexpected Action to perform encountered %v", act.actionToPerform)
 	}
 
+	actionPlan.logger.Info("Calling command %v for application %v, version %v", commandToExecute, appName, version)
 	eem.LogInformationalEvent(
 		"CommandStarted",
 		fmt.Sprintf("Starting cmd=%v, application=%v, version=%v", commandToExecute, appName, version))
@@ -74,7 +76,8 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 				// download packages
 				downloadPackageFileName := path.Join(downloadPath, vmAppPackageCurrent.PackageFileName)
 				if err := actionPlan.hostGaCommunicator.DownloadPackage(actionPlan.logger, vmAppPackageCurrent.ApplicationName, downloadPackageFileName); err != nil {
-					errorMessageToReturn =  extensionerrors.CombineErrors(errorMessageToReturn, errors.Wrapf(err, "failed to download package file %s", downloadPackageFileName))
+					actionPlan.logger.Error("Failed to download package for application %v, version %v. Error: %v", appName, version, err.Error())
+					errorMessageToReturn = extensionerrors.CombineErrors(errorMessageToReturn, errors.Wrapf(err, "failed to download package file %s", downloadPackageFileName))
 				}
 				if err == nil {
 					if packageFileChecksum, err := getMD5CheckSum(downloadPackageFileName); err == nil {
@@ -88,6 +91,7 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 				if vmAppPackageCurrent.ConfigExists {
 					downloadConfigFileName := path.Join(downloadPath, vmAppPackageCurrent.ConfigFileName)
 					if err := actionPlan.hostGaCommunicator.DownloadConfig(actionPlan.logger, vmAppPackageCurrent.ApplicationName, downloadConfigFileName); err != nil {
+						actionPlan.logger.Error("Failed to download config for application %v, version %v. Error: %v", appName, version, err.Error())
 						errorMessageToReturn = extensionerrors.CombineErrors(errorMessageToReturn, errors.Wrapf(err, "failed to download config file %s", downloadConfigFileName))
 					}
 					if err == nil {
@@ -163,7 +167,6 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 				delete(registry, appName)
 				os.RemoveAll(vmAppPackageCurrent.DownloadDir)
 			}
-
 			registryHandler.WriteToDisk(registry)
 			exithelper.Exiter.Exit(0)
 		}
@@ -229,5 +232,5 @@ func verifyMD5CheckSum(filePath string, checkSum []byte) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	return bytes.Compare(checkSumNew, checkSum) == 0, nil
+	return bytes.Equal(checkSumNew, checkSum), nil
 }
