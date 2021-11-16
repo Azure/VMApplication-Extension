@@ -13,7 +13,9 @@ import (
 )
 
 // Note: not const so test can change them
-var extensionVersion = "1.0.4"
+var (
+	extensionVersion = "1.0.5"
+)
 
 const (
 	vmPackagesSetting       = "vmPackages"
@@ -36,7 +38,7 @@ func getExtensionAndRun() error {
 	if err != nil {
 		return err
 	}
-	
+
 	ii.UpdateCallback = vmAppUpdateCallback
 
 	ext, err := vmextensionhelper.GetVMExtension(ii)
