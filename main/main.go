@@ -14,11 +14,7 @@ import (
 
 // Note: not const so test can change them
 var (
-	extensionVersion = "1.0.4"
-
-	// downloadDir is where we store the downloaded files in the "{downloadDir}/{seqnum}/file"
-	// format and the logs as "{downloadDir}/{seqnum}/std(out|err)". Stored under dataDir
-	downloadDir = "download"
+	extensionVersion = "1.0.5"
 )
 
 const (
@@ -28,21 +24,6 @@ const (
 	operationRemove         = "remove"
 	filelockTimeoutDuration = 15 * time.Minute
 )
-
-type vmPackageData struct {
-	Packages []vmPackage `json:"vmPackages"`
-}
-
-// Note that Name, Operation, and Version come from the protected settings sent by CRP
-// SequenceNumber comes from the Guest Agent and is added by this code
-// ProposedFileNumber is used only for proposal files. There is no need to serialize it.
-type vmPackage struct {
-	Name               string `json:"name"`
-	Operation          string `json:"operation"`
-	Version            string `json:"version"`
-	SequenceNumber     uint   `json:"sequenceNumber"`
-	ProposedFileNumber int
-}
 
 func main() {
 	err := getExtensionAndRun()
