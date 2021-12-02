@@ -14,7 +14,9 @@ import (
 )
 
 // Note: not const so test can change them
-var extensionVersion = "1.0.4"
+var (
+	extensionVersion = "1.0.5"
+)
 
 const (
 	vmPackagesSetting       = "vmPackages"
@@ -37,7 +39,7 @@ func getExtensionAndRun() error {
 	if err != nil {
 		return err
 	}
-	
+
 	ii.UpdateCallback = vmAppUpdateCallback
 
 	ext, err := vmextensionhelper.GetVMExtension(ii)
@@ -80,7 +82,7 @@ func doVmAppEnableCallback(ext *vmextensionhelper.VMExtension, hostGaCommunicato
 	if err != nil {
 		return "resolving packages failed", err
 	}
-	packageRegistry, err := packageregistry.New(ext.HandlerEnv, filelockTimeoutDuration)
+	packageRegistry, err := packageregistry.New(ext.ExtensionLogger, ext.HandlerEnv, filelockTimeoutDuration)
 	if err != nil {
 		return "could not create package registry", err
 	}
