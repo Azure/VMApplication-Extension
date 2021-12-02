@@ -3,10 +3,6 @@ package customactionplan
 import (
 	"bytes"
 	"fmt"
-	"github.com/Azure/VMApplication-Extension/internal/actionplan"
-	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
-	"github.com/Azure/azure-extension-platform/pkg/constants"
-	"github.com/stretchr/testify/assert"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -17,58 +13,12 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/Azure/VMApplication-Extension/internal/actionplan"
+	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
+	"github.com/Azure/azure-extension-platform/pkg/constants"
+	"github.com/stretchr/testify/assert"
 )
-
-func TestSingleCustomActionWithParameterWindows(t *testing.T) {
-	initializeTest(t)
-	defer cleanupTest()
-	action := []*VmAppSetting {
-		{
-			ApplicationName: "app1",
-			Order: &one,
-			Actions: []*ActionSetting{
-				{
-					ActionName: "action1",
-					ActionScript: "echo %CustomAction_FOO%",
-					Timestamp: "20210604T155300Z",
-					Parameters: []ActionParameter{
-						{
-							ParameterName: "FOO",
-							ParameterValue: "Hello World",
-						},
-					},
-					TickCount: 10193113,
-				},
-			},
-		},
-	}
-	newApp := packageregistry.VMAppPackageCurrent{
-		ApplicationName: "app1",
-		Version:         "1.0",
-		InstallCommand:  "install app1",
-		RemoveCommand:   "remove app1",
-		UpdateCommand:   "update app1",
-	}
-	newRegistry := packageregistry.CurrentPackageRegistry{
-		"app1": &newApp,
-	}
-	packageReg, err := packageregistry.New(environment, time.Second)
-	assert.NoError(t, err)
-	if err == nil {
-		defer packageReg.Close()
-	}
-	err = packageReg.WriteToDisk(newRegistry)
-	assert.NoError(t, err)
-	cmdHandler := NewCommandHandlerMock(mockCommandExecutorNoError)
-	appPackage, err := packageReg.GetExistingPackages()
-	_, statusMessage := executeActionPlan(t, action, appPackage, cmdHandler)
-
-	packageOperationResults, ok := statusMessage.(*actionplan.PackageOperationResults)
-	assert.True(t, ok)
-	assertTickCountFileCorrect(t, action[0].Actions[0].TickCount)
-	fmt.Println((*packageOperationResults))
-	assert.EqualValues(t, (*packageOperationResults)[0], actionplan.PackageOperationResult{Result: actionplan.Success, Operation: "action1", AppVersion: "1.0", PackageName: newApp.ApplicationName, Timestamp: "20210604T155300Z"})
-}
 
 var mockCommandExecutorSleepForAnHour CommandExecutor = func(s string, s2 string) (int, error) {
 	fmt.Sprint("sleeping for 1 hour")
@@ -77,7 +27,6 @@ var mockCommandExecutorSleepForAnHour CommandExecutor = func(s string, s2 string
 }
 
 func executeTestInAnotherThreadAndTerminateBeforeCompletion(t *testing.T, testName, packageDir, transcriptFile string, timeToWaitBeforeKilling time.Duration) {
-	// test still in progress - currently errors on on finding pid
 	stdinBuffer := &bytes.Buffer{}
 	stdoutBuffer := &bytes.Buffer{}
 	c := exec.Command("powershell.exe")
@@ -129,13 +78,17 @@ func executeTestInAnotherThreadAndTerminateBeforeCompletion(t *testing.T, testNa
 	assert.NoError(t, err)
 }
 
-func sendCtrlCToProcess(pid int) (error) {
-	c := exec.Command("powershell.exe", "-NoLogo", "-NoProfile", "-ExecutionPolicy", "bypass", "-Command", fmt.Sprintf("Add-Type -Names 'w' -Name 'k' -M '[DllImport(\"kernel32.dll\")]public static extern bool FreeConsole();[DllImport(\"kernel32.dll\")]public static extern bool AttachConsole(uint p);[DllImport(\"kernel32.dll\")]public static extern bool SetConsoleCtrlHandler(uint h, bool a);[DllImport(\"kernel32.dll\")]public static extern bool GenerateConsoleCtrlEvent(uint e, uint p);public static void SendCtrlC(uint p){FreeConsole();AttachConsole(p);GenerateConsoleCtrlEvent(0, 0);}';[w.k]::SendCtrlC(%d)", pid))
+func sendCtrlCToProcess(pid int) error {
+	c := exec.Command("powershell.exe", "-NoLogo", "-NoProfile", "-ExecutionPolicy", "bypass", "-Command", fmt.Sprintf("Add-Type -Names 'w' -Name 'k' -M '[DllImport(\"kernel32.dll\")]"+
+		"public static extern bool FreeConsole();[DllImport(\"kernel32.dll\")]"+
+		"public static extern bool AttachConsole(uint p);[DllImport(\"kernel32.dll\")]"+
+		"public static extern bool SetConsoleCtrlHandler(uint h, bool a);[DllImport(\"kernel32.dll\")]"+
+		"public static extern bool GenerateConsoleCtrlEvent(uint e, uint p);"+
+		"public static void SendCtrlC(uint p){FreeConsole();AttachConsole(p);GenerateConsoleCtrlEvent(0, 0);}';[w.k]::SendCtrlC(%d)", pid))
 	return c.Run()
 }
 
 func TestCommandExecutorCanHandleProcessBeingKilled(t *testing.T) {
-	//test still in progress
 	envVariables := os.Environ()
 	var wasStartedByAnotherProcess = false
 	for _, variable := range envVariables {
@@ -143,17 +96,17 @@ func TestCommandExecutorCanHandleProcessBeingKilled(t *testing.T) {
 			wasStartedByAnotherProcess = true
 		}
 	}
-	action := []*VmAppSetting {
+	action := []*VmAppSetting{
 		{
 			ApplicationName: "app1",
-			Order: &one,
+			Order:           &one,
 			Actions: []*ActionSetting{
 				{
-					ActionName: "action1",
+					ActionName:   "action1",
 					ActionScript: "echo hello",
-					Timestamp: "20210604T155300Z",
-					Parameters: []ActionParameter{},
-					TickCount: 10193113,
+					Timestamp:    "20210604T155300Z",
+					Parameters:   []ActionParameter{},
+					TickCount:    10193113,
 				},
 			},
 		},
@@ -177,14 +130,13 @@ func TestCommandExecutorCanHandleProcessBeingKilled(t *testing.T) {
 		}
 		err = packageReg.WriteToDisk(newRegistry)
 		assert.NoError(t, err)
-		cmdHandler := NewCommandHandlerMock(mockCommandExecutorNoError)
+		cmdHandler := NewCommandHandlerMock(mockCommandExecutorSleepForAnHour)
 		appPackage, err := packageReg.GetExistingPackages()
 		_, statusMessage := executeActionPlan(t, action, appPackage, cmdHandler)
 		packageOperationResults, ok := statusMessage.(*actionplan.PackageOperationResults)
 		assert.True(t, ok)
 		assertTickCountFileCorrect(t, action[0].Actions[0].TickCount)
 		assert.EqualValues(t, (*packageOperationResults)[0], actionplan.PackageOperationResult{Result: actionplan.Success, Operation: "action1", AppVersion: "1.0", PackageName: newApp.ApplicationName, Timestamp: "20210604T155300Z"})
-
 	} else {
 		defer cleanupTest()
 		currentDirAbsolutePath, err := filepath.Abs("")
@@ -199,7 +151,7 @@ func TestCommandExecutorCanHandleProcessBeingKilled(t *testing.T) {
 		}
 
 		// wait for another 3 seconds to ensure that the transcript file is written
-		time.Sleep(3 *time.Second)
+		time.Sleep(3 * time.Second)
 		transcriptFileBytes, error := ioutil.ReadFile(transcriptFile)
 		assert.NoError(t, error, "should be able to read transcript file")
 		stranscriptFileString := string(transcriptFileBytes)
