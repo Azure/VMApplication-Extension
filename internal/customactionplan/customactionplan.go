@@ -98,14 +98,14 @@ func New(settings []*VmAppSetting, appPackage packageregistry.CurrentPackageRegi
 		if app.Actions != nil && len(app.Actions) != 0 && containsApp {
 			for _, a := range app.Actions {
 				if uint64(tc) < a.TickCount {
-					logger.Info("adding custom action %v to custom action action plan", a.ActionName)
+					logger.Info("adding custom action %v to custom action plan", a.ActionName)
 					newAction := action{
 						vmAppPackage: *appPackage[app.ApplicationName],
 						Action:       *a,
 					}
 					actionPlan.sortedOrder = append(actionPlan.sortedOrder, &newAction)
 				} else {
-					logger.Info("custom action %v has a low tick count and will not be executed", a.ActionName)
+					logger.Info("custom action %v has a low tick count %v compared to %v and will not be executed", a.ActionName, a.TickCount, tc)
 				}
 			}
 		} else {

@@ -76,7 +76,7 @@ func TestCommandExecutorCanHandleProcessBeingKilled(t *testing.T) {
 
 	if wasStartedByAnotherProcess {
 		initializeTest(t)
-		packageReg, err := packageregistry.New(environment, time.Second)
+		packageReg, err := packageregistry.New(extLogger, environment, time.Second)
 		assert.NoError(t, err)
 		if err == nil {
 			defer packageReg.Close()

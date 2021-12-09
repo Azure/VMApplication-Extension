@@ -89,6 +89,7 @@ func sendCtrlCToProcess(pid int) error {
 }
 
 func TestCommandExecutorCanHandleProcessBeingKilled(t *testing.T) {
+	cleanupTest()
 	envVariables := os.Environ()
 	var wasStartedByAnotherProcess = false
 	for _, variable := range envVariables {
@@ -106,7 +107,7 @@ func TestCommandExecutorCanHandleProcessBeingKilled(t *testing.T) {
 					ActionScript: "echo hello",
 					Timestamp:    "20210604T155300Z",
 					Parameters:   []ActionParameter{},
-					TickCount:    10193113,
+					TickCount:    10193200,
 				},
 			},
 		},
@@ -122,8 +123,9 @@ func TestCommandExecutorCanHandleProcessBeingKilled(t *testing.T) {
 		"app1": &newApp,
 	}
 	if wasStartedByAnotherProcess {
+		cleanupTest()
 		initializeTest(t)
-		packageReg, err := packageregistry.New(environment, time.Second)
+		packageReg, err := packageregistry.New(extLogger, environment, time.Second)
 		assert.NoError(t, err)
 		if err == nil {
 			defer packageReg.Close()
@@ -138,13 +140,13 @@ func TestCommandExecutorCanHandleProcessBeingKilled(t *testing.T) {
 		assertTickCountFileCorrect(t, action[0].Actions[0].TickCount)
 		assert.EqualValues(t, (*packageOperationResults)[0], actionplan.PackageOperationResult{Result: actionplan.Success, Operation: "action1", AppVersion: "1.0", PackageName: newApp.ApplicationName, Timestamp: "20210604T155300Z"})
 	} else {
-		defer cleanupTest()
+		cleanupTest()
 		currentDirAbsolutePath, err := filepath.Abs("")
 		assert.NoError(t, err, "should be able to get absolute path")
 		transcriptFile := path.Join(currentDirAbsolutePath, testdir, "transcript.txt")
 		// test takes at least 5 seconds to start, need to give it time before killing it
 		executeTestInAnotherThreadAndTerminateBeforeCompletion(t, "TestCommandExecutorCanHandleProcessBeingKilled", currentDirAbsolutePath, transcriptFile, 10*time.Second)
-		pkr, err := packageregistry.New(environment, time.Second)
+		pkr, err := packageregistry.New(extLogger, environment, time.Second)
 		assert.NoError(t, err, "should be able to get current package registry")
 		if err == nil {
 			defer pkr.Close()

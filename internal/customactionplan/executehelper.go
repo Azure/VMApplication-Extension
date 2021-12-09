@@ -24,16 +24,18 @@ func (actionPlan *ActionPlan) executeHelper(
 	appName := act.vmAppPackage.ApplicationName
 	version := act.vmAppPackage.Version
 
-	tickCountFile := path.Join(actionPlan.environment.ConfigFolder, "tickCount")
+	tickCountFilePath := path.Join(actionPlan.environment.ConfigFolder, "tickCount")
 
-	if _, err := os.Stat(tickCountFile); os.IsNotExist(err) {
-		_, err = os.Create(tickCountFile)
+	if _, err := os.Stat(tickCountFilePath); os.IsNotExist(err) {
+		tickCountFile, err := os.Create(tickCountFilePath)
 		if err != nil {
 			eem.LogErrorEvent("CustomActionTickCountFileCreated", "could not create tick count file")
 			return err
 		}
 		eem.LogInformationalEvent("CustomActionTickCountFileCreated", "created tick count file")
+		tickCountFile.Close()
 	}
+
 
 	// record new operation in the packageRegistry
 	currAction := CustomActionPackage{}
@@ -111,7 +113,7 @@ func (actionPlan *ActionPlan) executeHelper(
 		return err
 	}
 
-	err = ioutil.WriteFile(tickCountFile, bytes, constants.FilePermissions_UserOnly_ReadWrite)
+	err = ioutil.WriteFile(tickCountFilePath, bytes, constants.FilePermissions_UserOnly_ReadWrite)
 	if err != nil {
 		currAction.Status = actionplan.Failed
 		return markCommandFailed(commandName, appName, version, err, act, eem)

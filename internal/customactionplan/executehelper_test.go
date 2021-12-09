@@ -96,7 +96,7 @@ func initTest(t *testing.T){
 	err = os.MkdirAll(handlerEnvironment.EventsFolder, constants.FilePermissions_UserOnly_ReadWriteExecute)
 	assert.NoError(t, err)
 
-	pkr, err := packageregistry.New(&handlerEnvironment, 1 * time.Minute)
+	pkr, err := packageregistry.New(extLogger, &handlerEnvironment, 1 * time.Minute)
 	assert.NoError(t, err)
 	packageRegistry = pkr
 }

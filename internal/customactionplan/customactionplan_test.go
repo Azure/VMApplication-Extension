@@ -23,7 +23,8 @@ import (
 const LaunchedFromAnotherProcessEnvVariable = "LAUNCHED_FROM_ANOTHER_PROCESS"
 
 var one = 1
-var el = logging.New(nil)
+var two = 2
+var extLogger = logging.New(nil)
 
 type CommandExecutor func(string, string) (int, error)
 
@@ -73,13 +74,13 @@ var environment = &handlerenv.HandlerEnvironment{
 func initializeTest(t *testing.T) {
 	err := os.MkdirAll(environment.ConfigFolder, constants.FilePermissions_UserOnly_ReadWriteExecute)
 	if err != nil {
-		os.Stderr.WriteString("could not create handler environment data directory")
+		os.Stderr.WriteString("could not create handler environment config directory")
 		t.Fatal(err)
 	}
 
 	err = os.MkdirAll(environment.DataFolder, constants.FilePermissions_UserOnly_ReadWriteExecute)
 	if err != nil {
-		os.Stderr.WriteString("could not create handler environment config directory")
+		os.Stderr.WriteString("could not create handler environment data directory")
 		t.Fatal(err)
 	}
 }
@@ -116,7 +117,7 @@ func TestSingleCustomAction(t *testing.T) {
 	newRegistry := packageregistry.CurrentPackageRegistry{
 		"app1": &newApp,
 	}
-	packageReg, err := packageregistry.New(environment, time.Second)
+	packageReg, err := packageregistry.New(extLogger, environment, time.Second)
 	assert.NoError(t, err)
 	if err == nil {
 		defer packageReg.Close()
@@ -168,7 +169,7 @@ func TestSingleCustomActionWithParameter(t *testing.T) {
 	newRegistry := packageregistry.CurrentPackageRegistry{
 		"app1": &newApp,
 	}
-	packageReg, err := packageregistry.New(environment, time.Second)
+	packageReg, err := packageregistry.New(extLogger, environment, time.Second)
 	assert.NoError(t, err)
 	if err == nil {
 		defer packageReg.Close()
@@ -206,7 +207,7 @@ func TestNoCustomAction(t *testing.T) {
 	newRegistry := packageregistry.CurrentPackageRegistry{
 		"app1": &newApp,
 	}
-	packageReg, err := packageregistry.New(environment, time.Second)
+	packageReg, err := packageregistry.New(extLogger, environment, time.Second)
 	assert.NoError(t, err)
 	if err == nil {
 		defer packageReg.Close()
@@ -224,7 +225,6 @@ func TestNoCustomAction(t *testing.T) {
 func TestDoubleCustomAction(t *testing.T) {
 	cleanupTest()
 	initializeTest(t)
-
 	action := []*VmAppSetting {
 		{
 			ApplicationName: "app1",
@@ -241,12 +241,12 @@ func TestDoubleCustomAction(t *testing.T) {
 		},
 		{
 			ApplicationName: "app2",
-			Order: &one,
+			Order: &two,
 			Actions: []*ActionSetting{
 				{
 					ActionName: "action2",
 					ActionScript: "echo world",
-					Timestamp: "20210604T155330Z",
+					Timestamp: "20210604T155300Z",
 					Parameters: []ActionParameter{},
 					TickCount: 10193115,
 				},
@@ -274,7 +274,7 @@ func TestDoubleCustomAction(t *testing.T) {
 		"app1": &newApp,
 		"app2": &newApp2,
 	}
-	packageReg, err := packageregistry.New(environment, time.Second)
+	packageReg, err := packageregistry.New(extLogger, environment, time.Second)
 	assert.NoError(t, err)
 	if err == nil {
 		defer packageReg.Close()
@@ -293,7 +293,7 @@ func TestDoubleCustomAction(t *testing.T) {
 	assertTickCountFileCorrect(t, action[1].Actions[0].TickCount)
 	assert.Len(t, *packageOperationResults, 2)
 	assert.EqualValues(t, (*packageOperationResults)[0], actionplan.PackageOperationResult{Result: actionplan.Success, Operation: "action1", AppVersion: "1.0", PackageName: action[0].ApplicationName, Timestamp: "20210604T155300Z"})
-	assert.EqualValues(t, (*packageOperationResults)[1], actionplan.PackageOperationResult{Result: actionplan.Success, Operation: "action2", AppVersion: "1.0", PackageName: action[1].ApplicationName, Timestamp: "20210604T155330Z"})
+	assert.EqualValues(t, (*packageOperationResults)[1], actionplan.PackageOperationResult{Result: actionplan.Success, Operation: "action2", AppVersion: "1.0", PackageName: action[1].ApplicationName, Timestamp: "20210604T155300Z"})
 }
 
 func TestDoubleCustomActionNonexistentApp(t *testing.T) {
@@ -337,7 +337,7 @@ func TestDoubleCustomActionNonexistentApp(t *testing.T) {
 	newRegistry := packageregistry.CurrentPackageRegistry{
 		"app1": &newApp,
 	}
-	packageReg, err := packageregistry.New(environment, time.Second)
+	packageReg, err := packageregistry.New(extLogger, environment, time.Second)
 	assert.NoError(t, err)
 	if err == nil {
 		defer packageReg.Close()
@@ -360,7 +360,6 @@ func TestDoubleCustomActionNonexistentApp(t *testing.T) {
 func TestDoubleCustomActionOldTickCount(t *testing.T) {
 	cleanupTest()
 	initializeTest(t)
-
 	action := []*VmAppSetting {
 		{
 			ApplicationName: "app1",
@@ -414,7 +413,7 @@ func TestDoubleCustomActionOldTickCount(t *testing.T) {
 		"app1": &newApp1,
 		"app2": &newApp2,
 	}
-	packageReg, err := packageregistry.New(environment, time.Second)
+	packageReg, err := packageregistry.New(extLogger, environment, time.Second)
 	assert.NoError(t, err)
 	if err == nil {
 		defer packageReg.Close()
@@ -552,7 +551,7 @@ func TestMaxCustomActions(t *testing.T) {
 					ActionScript: "echo hello",
 					Timestamp: "20210604T155300Z",
 					Parameters: []ActionParameter{},
-					TickCount: 10193113,
+					TickCount: 10193114,
 				},
 			},
 		},
@@ -567,7 +566,7 @@ func TestMaxCustomActions(t *testing.T) {
 	newRegistry := packageregistry.CurrentPackageRegistry{
 		"app1": &newApp,
 	}
-	packageReg, err := packageregistry.New(environment, time.Second)
+	packageReg, err := packageregistry.New(extLogger, environment, time.Second)
 	assert.NoError(t, err)
 	if err == nil {
 		defer packageReg.Close()
@@ -601,7 +600,6 @@ func TestMaxCustomActions(t *testing.T) {
 	assert.EqualValues(t, (*packageOperationResults)[13], actionplan.PackageOperationResult{Result: actionplan.Success, Operation: "action14", AppVersion: "1.0", PackageName: action[0].ApplicationName, Timestamp: "20210604T155300Z"})
 	assert.EqualValues(t, (*packageOperationResults)[14], actionplan.PackageOperationResult{Result: actionplan.Success, Operation: "action15", AppVersion: "1.0", PackageName: action[0].ApplicationName, Timestamp: "20210604T155300Z"})
 	assert.EqualValues(t, (*packageOperationResults)[15], actionplan.PackageOperationResult{Result: actionplan.Success, Operation: "action16", AppVersion: "1.0", PackageName: action[0].ApplicationName, Timestamp: "20210604T155300Z"})
-
 }
 
 func executeActionPlan(t *testing.T,
@@ -609,7 +607,7 @@ func executeActionPlan(t *testing.T,
 	appPackage packageregistry.CurrentPackageRegistry,
 	cmdHandler commandhandler.ICommandHandlerWithEnvVariables) ( *ActionPlan, actionplan.IResult) {
 
-	actionPlan, err := New(settings, appPackage, environment, el)
+	actionPlan, err := New(settings, appPackage, environment, extLogger)
 	assert.NoError(t, err)
 
 	extLogger := logging.New(nil)
