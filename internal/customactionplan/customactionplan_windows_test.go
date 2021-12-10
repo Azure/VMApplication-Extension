@@ -123,7 +123,6 @@ func TestCommandExecutorCanHandleProcessBeingKilled(t *testing.T) {
 		"app1": &newApp,
 	}
 	if wasStartedByAnotherProcess {
-		cleanupTest()
 		initializeTest(t)
 		packageReg, err := packageregistry.New(extLogger, environment, time.Second)
 		assert.NoError(t, err)
@@ -140,7 +139,6 @@ func TestCommandExecutorCanHandleProcessBeingKilled(t *testing.T) {
 		assertTickCountFileCorrect(t, action[0].Actions[0].TickCount)
 		assert.EqualValues(t, (*packageOperationResults)[0], actionplan.PackageOperationResult{Result: actionplan.Success, Operation: "action1", AppVersion: "1.0", PackageName: newApp.ApplicationName, Timestamp: "20210604T155300Z"})
 	} else {
-		cleanupTest()
 		currentDirAbsolutePath, err := filepath.Abs("")
 		assert.NoError(t, err, "should be able to get absolute path")
 		transcriptFile := path.Join(currentDirAbsolutePath, testdir, "transcript.txt")
