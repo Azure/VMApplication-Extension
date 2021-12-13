@@ -41,6 +41,7 @@ func getExtensionAndRun() error {
 	}
 
 	ii.UpdateCallback = vmAppUpdateCallback
+	ii.LogFileNamePattern = "VmAppExt_%v.log"
 
 	ext, err := vmextensionhelper.GetVMExtension(ii)
 	if err != nil {
