@@ -91,6 +91,7 @@ func New(settings []*VmAppSetting, appPackage packageregistry.CurrentPackageRegi
 		if err != nil {
 			logger.Error("Tick count from file cannot be converted to integer")
 		}
+		logger.Info("Tick count file read, tick count: %v", tc)
 	}
 
 	for _, app := range settings {

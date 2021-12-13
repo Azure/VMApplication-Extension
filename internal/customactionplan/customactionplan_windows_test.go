@@ -89,7 +89,6 @@ func sendCtrlCToProcess(pid int) error {
 }
 
 func TestCommandExecutorCanHandleProcessBeingKilled(t *testing.T) {
-	cleanupTest()
 	envVariables := os.Environ()
 	var wasStartedByAnotherProcess = false
 	for _, variable := range envVariables {
@@ -107,7 +106,7 @@ func TestCommandExecutorCanHandleProcessBeingKilled(t *testing.T) {
 					ActionScript: "echo hello",
 					Timestamp:    "20210604T155300Z",
 					Parameters:   []ActionParameter{},
-					TickCount:    10193200,
+					TickCount:    10193113,
 				},
 			},
 		},

@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
+	"os"
 )
 
 var mockCommandExecutorKillProcess CommandExecutor = func(s string, s2 string) (int, error) {

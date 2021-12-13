@@ -391,10 +391,11 @@ func TestDoubleCustomActionOldTickCount(t *testing.T) {
 
 	tickCountFile := path.Join(environment.ConfigFolder, "tickCount")
 
-	os.Create(tickCountFile)
+	tickCountFile1, err := os.Create(tickCountFile)
 	bytes, _ := json.Marshal(uint64(10193112))
 
 	ioutil.WriteFile(tickCountFile, bytes, constants.FilePermissions_UserOnly_ReadWrite)
+	tickCountFile1.Close()
 	newApp1 := packageregistry.VMAppPackageCurrent{
 		ApplicationName: "app1",
 		Version:         "1.0",
@@ -551,7 +552,7 @@ func TestMaxCustomActions(t *testing.T) {
 					ActionScript: "echo hello",
 					Timestamp: "20210604T155300Z",
 					Parameters: []ActionParameter{},
-					TickCount: 10193114,
+					TickCount: 10193113,
 				},
 			},
 		},
@@ -600,6 +601,7 @@ func TestMaxCustomActions(t *testing.T) {
 	assert.EqualValues(t, (*packageOperationResults)[13], actionplan.PackageOperationResult{Result: actionplan.Success, Operation: "action14", AppVersion: "1.0", PackageName: action[0].ApplicationName, Timestamp: "20210604T155300Z"})
 	assert.EqualValues(t, (*packageOperationResults)[14], actionplan.PackageOperationResult{Result: actionplan.Success, Operation: "action15", AppVersion: "1.0", PackageName: action[0].ApplicationName, Timestamp: "20210604T155300Z"})
 	assert.EqualValues(t, (*packageOperationResults)[15], actionplan.PackageOperationResult{Result: actionplan.Success, Operation: "action16", AppVersion: "1.0", PackageName: action[0].ApplicationName, Timestamp: "20210604T155300Z"})
+	cleanupTest()
 }
 
 func executeActionPlan(t *testing.T,

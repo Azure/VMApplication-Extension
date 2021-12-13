@@ -33,7 +33,7 @@ func (actionPlan *ActionPlan) executeHelper(
 			return err
 		}
 		eem.LogInformationalEvent("CustomActionTickCountFileCreated", "created tick count file")
-		tickCountFile.Close()
+		defer tickCountFile.Close()
 	}
 
 
