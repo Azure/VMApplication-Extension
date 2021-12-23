@@ -240,6 +240,7 @@ func Test_main_nothingToProcess(t *testing.T) {
 	require.NoError(t, err)
 }
 
+
 func resetExtensionVersion() {
 	extensionVersion = "1.0.0"
 }
@@ -292,3 +293,4 @@ func createTestVMExtension(t *testing.T, settings interface{}) *vmextension.VMEx
 		ExtensionEvents: eem,
 	}
 }
+

@@ -191,7 +191,6 @@ func (self *PackageRegistry) WriteToDisk(packageRegistry CurrentPackageRegistry)
 	}
 }
 
-
 func (self *PackageRegistry) getLocalApplicationRegistryFilePath() string {
 	return path.Join(self.handlerEnv.ConfigFolder, LocalApplicationRegistryFileName)
 }

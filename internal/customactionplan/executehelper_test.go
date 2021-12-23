@@ -133,5 +133,3 @@ func TestExecuteHelper(t *testing.T){
 	assertTickCountFileCorrect(t, act.Action.TickCount)
 
 }
-
-

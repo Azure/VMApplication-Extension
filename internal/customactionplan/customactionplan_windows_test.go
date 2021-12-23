@@ -155,6 +155,5 @@ func TestCommandExecutorCanHandleProcessBeingKilled(t *testing.T) {
 		assert.NoError(t, error, "should be able to read transcript file")
 		stranscriptFileString := string(transcriptFileBytes)
 		assert.Contains(t, stranscriptFileString, "Info received terminate signal, system reboot detected")
-		assert.Contains(t, stranscriptFileString, "ok      github.com/Azure/VMApplication-Extension/internal/customactionplan")
 	}
 }
