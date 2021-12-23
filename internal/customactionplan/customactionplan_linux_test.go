@@ -2,12 +2,19 @@ package customactionplan
 
 import (
 	"fmt"
-	"github.com/Azure/VMApplication-Extension/internal/actionplan"
+	actionplan "github.com/Azure/VMApplication-Extension/internal/actionplan"
 	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
 	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
 	"os"
+	"syscall"
+	"os/exec"
+	"strings"
+	"path"
+	"path/filepath"
+	"io/ioutil"
+
 )
 
 var mockCommandExecutorKillProcess CommandExecutor = func(s string, s2 string) (int, error) {
@@ -91,15 +98,16 @@ func TestCommandExecutorCanHandleProcessBeingKilled(t *testing.T) {
 		packageOperationResults, ok := statusMessage.(*actionplan.PackageOperationResults)
 		assert.True(t, ok)
 		assertTickCountFileCorrect(t, action[0].Actions[0].TickCount)
-		assert.EqualValues(t, (*packageOperationResults)[0], actionplan.PackageOperationResult{Result: Success, Operation: "action1", AppVersion: newApp.Version, PackageName: newApp.ApplicationName})
-
-	} else {
-		defer cleanupTest()
-		currentDirAbsolutePath, err := filepath.Abs("")
-		assert.NoError(t, err, "should be able to get absolute path")
-		transcriptFile := path.Join(currentDirAbsolutePath, testdir, "transcript.txt")
-		executeTestInAnotherThreadAndTerminateBeforeCompletion(t, "TestCommandExecutorCanHandleProcessBeingKilled", currentDirAbsolutePath, transcriptFile)
-		assertTickCountFileCorrect(t, action[0].Actions[0].TickCount)
-	}
-
+		assert.EqualValues(t, (*packageOperationResults)[0], actionplan.PackageOperationResult{Result: actionplan.Success, Operation: "action1", AppVersion: newApp.Version, PackageName: newApp.ApplicationName})
+		} else {
+			defer cleanupTest()
+			currentDirAbsolutePath, err := filepath.Abs("")
+			assert.NoError(t, err, "should be able to get absolute path")
+			transcriptFile := path.Join(currentDirAbsolutePath, testdir, "transcript.txt")
+			executeTestInAnotherThreadAndTerminateBeforeCompletion(t, "TestCommandExecutorCanHandleProcessBeingKilled", currentDirAbsolutePath, transcriptFile)
+			fileContent, err := ioutil.ReadFile(transcriptFile)
+			assert.Contains(t, string(fileContent), "system reboot detected")
+		}
 }
+
+
