@@ -1,0 +1,38 @@
+﻿**********************
+Windows PowerShell transcript start
+Start time: 20220120095810
+Username: REDMOND\norakoirala
+RunAs User: REDMOND\norakoirala
+Configuration Name: 
+Machine: DESKTOP-6T8H6KR (Microsoft Windows NT 10.0.22000.0)
+Host Application: C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe C:\Users\norakoirala\go\src\github.com\Azure\VMApplication-Extension\internal\customactionplan/test.ps1
+Process ID: 14828
+PSVersion: 5.1.22000.282
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.22000.282
+BuildVersion: 10.0.22000.282
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+Transcript started, output file is C:\Users\norakoirala\go\src\github.com\Azure\VMApplication-Extension\internal\customactionplan/testdir/transcript.txt
+=== RUN   TestCommandExecutorCanHandleProcessBeingKilled
+Info Wrote package registry to testdir/config/applicationRegistry.active
+Info Read package registry file testdir/config/applicationRegistry.active with 1 entries
+Info Tick count file not found, setting tick count to 0. All actions will be executed.
+Info adding custom action action1 to custom action plan
+Warning EventsFolder not set. Not writing event.
+Warning EventsFolder not set. Not writing event.
+Info received terminate signal, system reboot detected
+Warning EventsFolder not set. Not writing event.
+ok      github.com/Azure/VMApplication-Extension/internal/customactionplan      8.321s
+PS>TerminatingError(): "The pipeline has been stopped."
+>> TerminatingError(): "The pipeline has been stopped."
+>> TerminatingError(): "The pipeline has been stopped."
+>> $global:?
+False
+**********************
+Windows PowerShell transcript end
+End time: 20220120095820
+**********************
