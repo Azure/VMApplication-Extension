@@ -89,24 +89,59 @@ func cleanupTest() {
 	os.RemoveAll(testdir)
 }
 
-func TestSingleCustomAction(t *testing.T) {
+func actionSetup(t *testing.T, actionNum int, param bool) (actions []*VmAppSetting) {
 	cleanupTest()
 	initializeTest(t)
-	action := []*VmAppSetting {
-		{
-			ApplicationName: "app1",
-			Order: &one,
-			Actions: []*ActionSetting{
-				{
-					ActionName: "action1",
-					ActionScript: "echo hello",
-					Timestamp: "20210604T155300Z",
-					Parameters: []ActionParameter{},
-					TickCount: 10193113,
+
+	action := []*VmAppSetting{}
+	var setting *VmAppSetting
+	var tickCount uint64 = 10193113
+
+	for i :=1; i<=actionNum; i++ {
+		if param {
+			setting = &VmAppSetting{
+				ApplicationName: "app" + strconv.FormatInt(int64(i), 10),
+				Order:           &one,
+				Actions: []*ActionSetting{
+					{
+						ActionName:   "action" + strconv.FormatInt(int64(i), 10),
+						ActionScript: "echo hello",
+						Timestamp:    "20210604T155300Z",
+						Parameters:   []ActionParameter{
+							{
+								ParameterName:  "FOO",
+								ParameterValue: "Hello World",
+							},
+						},
+						TickCount:    tickCount,
+					},
 				},
-			},
-		},
+			}
+		} else {
+			setting = &VmAppSetting{
+				ApplicationName: "app" + strconv.FormatInt(int64(i), 10),
+				Order:           &one,
+				Actions: []*ActionSetting{
+					{
+						ActionName:   "action" + strconv.FormatInt(int64(i), 10),
+						ActionScript: "echo hello",
+						Timestamp:    "20210604T155300Z",
+						Parameters:   []ActionParameter{},
+						TickCount:    tickCount,
+					},
+				},
+			}
+		}
+
+		action = append(action, setting)
+		tickCount += 3
 	}
+
+	return action
+}
+
+func TestSingleCustomAction(t *testing.T) {
+	action := actionSetup(t, 1, false)
 	newApp := packageregistry.VMAppPackageCurrent{
 		ApplicationName: "app1",
 		Version:         "1.0",
@@ -117,6 +152,7 @@ func TestSingleCustomAction(t *testing.T) {
 	newRegistry := packageregistry.CurrentPackageRegistry{
 		"app1": &newApp,
 	}
+
 	packageReg, err := packageregistry.New(extLogger, environment, time.Second)
 	assert.NoError(t, err)
 	if err == nil {
@@ -126,39 +162,17 @@ func TestSingleCustomAction(t *testing.T) {
 	assert.NoError(t, err)
 	cmdHandler := NewCommandHandlerMock(mockCommandExecutorNoError)
 	appPackage, err := packageReg.GetExistingPackages()
-
 	_, statusMessage := executeActionPlan(t, action, appPackage, cmdHandler)
 
 	packageOperationResults, ok := statusMessage.(*actionplan.PackageOperationResults)
 	assert.True(t, ok)
 	assertTickCountFileCorrect(t, action[0].Actions[0].TickCount)
-	assert.EqualValues(t, (*packageOperationResults)[0], actionplan.PackageOperationResult{Result: actionplan.Success, Operation: "action1", AppVersion: "1.0", PackageName: newApp.ApplicationName, Timestamp: "20210604T155300Z"})
+	assert.EqualValues(t, (*packageOperationResults)[0], actionplan.PackageOperationResult{Result: actionplan.Success, Operation: "action1", AppVersion: "1.0", PackageName: "app1", Timestamp: "20210604T155300Z"})
 }
 
 
 func TestSingleCustomActionWithParameter(t *testing.T) {
-	cleanupTest()
-	initializeTest(t)
-	action := []*VmAppSetting{
-		{
-			ApplicationName: "app1",
-			Order:           &one,
-			Actions: []*ActionSetting{
-				{
-					ActionName:   "action1",
-					ActionScript: "echo %CustomAction_FOO%",
-					Timestamp:    "20210604T155300Z",
-					Parameters: []ActionParameter{
-						{
-							ParameterName:  "FOO",
-							ParameterValue: "Hello World",
-						},
-					},
-					TickCount: 10193113,
-				},
-			},
-		},
-	}
+	action := actionSetup(t, 1, true)
 	newApp := packageregistry.VMAppPackageCurrent{
 		ApplicationName: "app1",
 		Version:         "1.0",
@@ -197,6 +211,7 @@ func TestNoCustomAction(t *testing.T) {
 			Actions: []*ActionSetting{},
 		},
 	}
+
 	newApp := packageregistry.VMAppPackageCurrent{
 		ApplicationName: "app1",
 		Version:         "1.0",
@@ -223,37 +238,7 @@ func TestNoCustomAction(t *testing.T) {
 }
 
 func TestDoubleCustomAction(t *testing.T) {
-	cleanupTest()
-	initializeTest(t)
-	action := []*VmAppSetting {
-		{
-			ApplicationName: "app1",
-			Order: &one,
-			Actions: []*ActionSetting{
-				{
-					ActionName: "action1",
-					ActionScript: "echo hello",
-					Timestamp: "20210604T155300Z",
-					Parameters: []ActionParameter{},
-					TickCount: 10193113,
-				},
-			},
-		},
-		{
-			ApplicationName: "app2",
-			Order: &two,
-			Actions: []*ActionSetting{
-				{
-					ActionName: "action2",
-					ActionScript: "echo world",
-					Timestamp: "20210604T155300Z",
-					Parameters: []ActionParameter{},
-					TickCount: 10193115,
-				},
-			},
-		},
-	}
-
+	action := actionSetup(t, 2, false)
 	newApp := packageregistry.VMAppPackageCurrent{
 		ApplicationName: "app1",
 		Version:         "1.0",
@@ -261,7 +246,6 @@ func TestDoubleCustomAction(t *testing.T) {
 		RemoveCommand:   "remove app1",
 		UpdateCommand:   "update app1",
 	}
-
 	newApp2 := packageregistry.VMAppPackageCurrent{
 		ApplicationName: "app2",
 		Version:         "1.0",
@@ -269,11 +253,11 @@ func TestDoubleCustomAction(t *testing.T) {
 		RemoveCommand:   "remove app2",
 		UpdateCommand:   "update app2",
 	}
-
 	newRegistry := packageregistry.CurrentPackageRegistry{
 		"app1": &newApp,
 		"app2": &newApp2,
 	}
+
 	packageReg, err := packageregistry.New(extLogger, environment, time.Second)
 	assert.NoError(t, err)
 	if err == nil {
@@ -281,10 +265,8 @@ func TestDoubleCustomAction(t *testing.T) {
 	}
 	err = packageReg.WriteToDisk(newRegistry)
 	assert.NoError(t, err)
-
 	cmdHandler := NewCommandHandlerMock(mockCommandExecutorNoError)
 	appPackage, err := packageReg.GetExistingPackages()
-
 	actionPlan, statusMessage := executeActionPlan(t, action, appPackage, cmdHandler)
 	assertActionOrder(t, actionPlan)
 
@@ -297,36 +279,7 @@ func TestDoubleCustomAction(t *testing.T) {
 }
 
 func TestDoubleCustomActionNonexistentApp(t *testing.T) {
-	cleanupTest()
-	initializeTest(t)
-	action := []*VmAppSetting {
-		{
-			ApplicationName: "app1",
-			Order: &one,
-			Actions: []*ActionSetting{
-				{
-					ActionName: "action1",
-					ActionScript: "echo hello",
-					Timestamp: "20210604T155300Z",
-					Parameters: []ActionParameter{},
-					TickCount: 10193113,
-				},
-			},
-		},
-		{
-			ApplicationName: "app2",
-			Order: &one,
-			Actions: []*ActionSetting{
-				{
-					ActionName: "action2",
-					ActionScript: "echo world",
-					Timestamp: "20210604T155330Z",
-					Parameters: []ActionParameter{},
-					TickCount: 10193115,
-				},
-			},
-		},
-	}
+	action := actionSetup(t, 2, false)
 	newApp := packageregistry.VMAppPackageCurrent{
 		ApplicationName: "app1",
 		Version:         "1.0",
@@ -337,6 +290,7 @@ func TestDoubleCustomActionNonexistentApp(t *testing.T) {
 	newRegistry := packageregistry.CurrentPackageRegistry{
 		"app1": &newApp,
 	}
+
 	packageReg, err := packageregistry.New(extLogger, environment, time.Second)
 	assert.NoError(t, err)
 	if err == nil {
@@ -344,10 +298,8 @@ func TestDoubleCustomActionNonexistentApp(t *testing.T) {
 	}
 	err = packageReg.WriteToDisk(newRegistry)
 	assert.NoError(t, err)
-
 	cmdHandler := NewCommandHandlerMock(mockCommandExecutorNoError)
 	appPackage, err := packageReg.GetExistingPackages()
-
 	actionPlan, statusMessage := executeActionPlan(t, action, appPackage, cmdHandler)
 	assert.Len(t, actionPlan.sortedOrder, 1)
 
@@ -432,176 +384,6 @@ func TestDoubleCustomActionOldTickCount(t *testing.T) {
 	assert.True(t, ok)
 	assertTickCountFileCorrect(t, action[0].Actions[0].TickCount)
 	assert.EqualValues(t, (*packageOperationResults)[0], actionplan.PackageOperationResult{Result: actionplan.Success, Operation: "action1", AppVersion: "1.0", PackageName: newApp1.ApplicationName, Timestamp: "20210604T155300Z"})
-}
-
-func TestMaxCustomActions(t *testing.T) {
-	cleanupTest()
-	initializeTest(t)
-	action := []*VmAppSetting {
-		{
-			ApplicationName: "app1",
-			Order: &one,
-			Actions: []*ActionSetting{
-				{
-					ActionName: "action16",
-					ActionScript: "echo world",
-					Timestamp: "20210604T155300Z",
-					Parameters: []ActionParameter{},
-					TickCount: 10193143,
-				},
-				{
-					ActionName: "action15",
-					ActionScript: "echo world",
-					Timestamp: "20210604T155300Z",
-					Parameters: []ActionParameter{},
-					TickCount: 10193141,
-				},
-				{
-					ActionName: "action14",
-					ActionScript: "echo world",
-					Timestamp: "20210604T155300Z",
-					Parameters: []ActionParameter{},
-					TickCount: 10193139,
-				},
-				{
-					ActionName: "action13",
-					ActionScript: "echo world",
-					Timestamp: "20210604T155300Z",
-					Parameters: []ActionParameter{},
-					TickCount: 10193137,
-				},
-				{
-					ActionName: "action12",
-					ActionScript: "echo world",
-					Timestamp: "20210604T155300Z",
-					Parameters: []ActionParameter{},
-					TickCount: 10193135,
-				},
-				{
-					ActionName: "action11",
-					ActionScript: "echo world",
-					Timestamp: "20210604T155300Z",
-					Parameters: []ActionParameter{},
-					TickCount: 10193133,
-				},
-				{
-					ActionName: "action10",
-					ActionScript: "echo world",
-					Timestamp: "20210604T155300Z",
-					Parameters: []ActionParameter{},
-					TickCount: 10193131,
-				},
-				{
-					ActionName: "action9",
-					ActionScript: "echo hello",
-					Timestamp: "20210604T155300Z",
-					Parameters: []ActionParameter{},
-					TickCount: 10193129,
-				},
-				{
-					ActionName: "action8",
-					ActionScript: "echo world",
-					Timestamp: "20210604T155300Z",
-					Parameters: []ActionParameter{},
-					TickCount: 10193127,
-				},
-				{
-					ActionName: "action7",
-					ActionScript: "echo world",
-					Timestamp: "20210604T155300Z",
-					Parameters: []ActionParameter{},
-					TickCount: 10193125,
-				},
-				{
-					ActionName: "action6",
-					ActionScript: "echo world",
-					Timestamp: "20210604T155300Z",
-					Parameters: []ActionParameter{},
-					TickCount: 10193123,
-				},
-				{
-					ActionName: "action5",
-					ActionScript: "echo world",
-					Timestamp: "20210604T155300Z",
-					Parameters: []ActionParameter{},
-					TickCount: 10193121,
-				},
-				{
-					ActionName: "action4",
-					ActionScript: "echo world",
-					Timestamp: "20210604T155300Z",
-					Parameters: []ActionParameter{},
-					TickCount: 10193119,
-				},
-				{
-					ActionName: "action3",
-					ActionScript: "echo world",
-					Timestamp: "20210604T155300Z",
-					Parameters: []ActionParameter{},
-					TickCount: 10193117,
-				},
-				{
-					ActionName: "action2",
-					ActionScript: "echo world",
-					Timestamp: "20210604T155300Z",
-					Parameters: []ActionParameter{},
-					TickCount: 10193115,
-				},
-				{
-					ActionName: "action1",
-					ActionScript: "echo hello",
-					Timestamp: "20210604T155300Z",
-					Parameters: []ActionParameter{},
-					TickCount: 10193113,
-				},
-			},
-		},
-	}
-	newApp := packageregistry.VMAppPackageCurrent{
-		ApplicationName: "app1",
-		Version:         "1.0",
-		InstallCommand:  "install app1",
-		RemoveCommand:   "remove app1",
-		UpdateCommand:   "update app1",
-	}
-	newRegistry := packageregistry.CurrentPackageRegistry{
-		"app1": &newApp,
-	}
-	packageReg, err := packageregistry.New(extLogger, environment, time.Second)
-	assert.NoError(t, err)
-	if err == nil {
-		defer packageReg.Close()
-	}
-	err = packageReg.WriteToDisk(newRegistry)
-	assert.NoError(t, err)
-
-	cmdHandler := NewCommandHandlerMock(mockCommandExecutorNoError)
-	appPackage, err := packageReg.GetExistingPackages()
-
-	actionPlan, statusMessage := executeActionPlan(t, action, appPackage, cmdHandler)
-	assertActionOrder(t, actionPlan)
-
-	packageOperationResults, ok := statusMessage.(*actionplan.PackageOperationResults)
-	assert.True(t, ok)
-	assertTickCountFileCorrect(t, action[0].Actions[0].TickCount)
-	assert.Len(t, *packageOperationResults, 16)
-	assert.EqualValues(t, (*packageOperationResults)[0], actionplan.PackageOperationResult{Result: actionplan.Success, Operation: "action1", AppVersion: "1.0", PackageName: action[0].ApplicationName, Timestamp: "20210604T155300Z"})
-	assert.EqualValues(t, (*packageOperationResults)[1], actionplan.PackageOperationResult{Result: actionplan.Success, Operation: "action2", AppVersion: "1.0", PackageName: action[0].ApplicationName, Timestamp: "20210604T155300Z"})
-	assert.EqualValues(t, (*packageOperationResults)[2], actionplan.PackageOperationResult{Result: actionplan.Success, Operation: "action3", AppVersion: "1.0", PackageName: action[0].ApplicationName, Timestamp: "20210604T155300Z"})
-	assert.EqualValues(t, (*packageOperationResults)[3], actionplan.PackageOperationResult{Result: actionplan.Success, Operation: "action4", AppVersion: "1.0", PackageName: action[0].ApplicationName, Timestamp: "20210604T155300Z"})
-	assert.EqualValues(t, (*packageOperationResults)[4], actionplan.PackageOperationResult{Result: actionplan.Success, Operation: "action5", AppVersion: "1.0", PackageName: action[0].ApplicationName, Timestamp: "20210604T155300Z"})
-	assert.EqualValues(t, (*packageOperationResults)[5], actionplan.PackageOperationResult{Result: actionplan.Success, Operation: "action6", AppVersion: "1.0", PackageName: action[0].ApplicationName, Timestamp: "20210604T155300Z"})
-	assert.EqualValues(t, (*packageOperationResults)[6], actionplan.PackageOperationResult{Result: actionplan.Success, Operation: "action7", AppVersion: "1.0", PackageName: action[0].ApplicationName, Timestamp: "20210604T155300Z"})
-	assert.EqualValues(t, (*packageOperationResults)[7], actionplan.PackageOperationResult{Result: actionplan.Success, Operation: "action8", AppVersion: "1.0", PackageName: action[0].ApplicationName, Timestamp: "20210604T155300Z"})
-	assert.EqualValues(t, (*packageOperationResults)[8], actionplan.PackageOperationResult{Result: actionplan.Success, Operation: "action9", AppVersion: "1.0", PackageName: action[0].ApplicationName, Timestamp: "20210604T155300Z"})
-	assert.EqualValues(t, (*packageOperationResults)[9], actionplan.PackageOperationResult{Result: actionplan.Success, Operation: "action10", AppVersion: "1.0", PackageName: action[0].ApplicationName, Timestamp: "20210604T155300Z"})
-	assert.EqualValues(t, (*packageOperationResults)[10], actionplan.PackageOperationResult{Result: actionplan.Success, Operation: "action11", AppVersion: "1.0", PackageName: action[0].ApplicationName, Timestamp: "20210604T155300Z"})
-	assert.EqualValues(t, (*packageOperationResults)[11], actionplan.PackageOperationResult{Result: actionplan.Success, Operation: "action12", AppVersion: "1.0", PackageName: action[0].ApplicationName, Timestamp: "20210604T155300Z"})
-	assert.EqualValues(t, (*packageOperationResults)[12], actionplan.PackageOperationResult{Result: actionplan.Success, Operation: "action13", AppVersion: "1.0", PackageName: action[0].ApplicationName, Timestamp: "20210604T155300Z"})
-	assert.EqualValues(t, (*packageOperationResults)[13], actionplan.PackageOperationResult{Result: actionplan.Success, Operation: "action14", AppVersion: "1.0", PackageName: action[0].ApplicationName, Timestamp: "20210604T155300Z"})
-	assert.EqualValues(t, (*packageOperationResults)[14], actionplan.PackageOperationResult{Result: actionplan.Success, Operation: "action15", AppVersion: "1.0", PackageName: action[0].ApplicationName, Timestamp: "20210604T155300Z"})
-	assert.EqualValues(t, (*packageOperationResults)[15], actionplan.PackageOperationResult{Result: actionplan.Success, Operation: "action16", AppVersion: "1.0", PackageName: action[0].ApplicationName, Timestamp: "20210604T155300Z"})
-	cleanupTest()
 }
 
 func executeActionPlan(t *testing.T,

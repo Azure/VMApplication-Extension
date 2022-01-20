@@ -23,7 +23,6 @@ func (actionPlan *ActionPlan) executeHelper(
 	errorMessageToReturn = nil
 	appName := act.vmAppPackage.ApplicationName
 	version := act.vmAppPackage.Version
-
 	tickCountFilePath := path.Join(actionPlan.environment.ConfigFolder, "tickCount")
 
 	if _, err := os.Stat(tickCountFilePath); os.IsNotExist(err) {
@@ -36,38 +35,30 @@ func (actionPlan *ActionPlan) executeHelper(
 		defer tickCountFile.Close()
 	}
 
-
 	// record new operation in the packageRegistry
 	currAction := CustomActionPackage{}
 	vmAppPackageCurrent := act.vmAppPackage
 	registry[appName] = append(registry[appName], &currAction)
 	currAction.ApplicationName = appName
 	currAction.Version = version
-
-
 	commandToExecute := act.Action.ActionScript
 	commandParameters := act.Action.Parameters
 	commandName := act.Action.ActionName
-
 	currAction.ActionName = commandName
 	currAction.Timestamp = act.Action.Timestamp
 	currAction.Parameters = act.Action.Parameters
 	currAction.Status = "In Progress"
-
 	eem.LogInformationalEvent(
 	"CustomActionStarted",
 		fmt.Sprintf("Starting custom action cmd=%v, application=%v, version=%v, parameters=%v", commandName, appName, version, getParameterNames(act.Action)))
 
 	// try to execute only if you have a valid command to execute
-
 	if errorMessageToReturn == nil {
-
 		// handle termination signals to handle reboot
 		type ExecutionResult struct {
 			retCode int
 			err     error
 		}
-
 		completionSignal := make(chan ExecutionResult, 1)
 		interruptSignal := make(chan os.Signal, 1)
 		signal.Notify(interruptSignal, syscall.SIGTERM, syscall.SIGINT)

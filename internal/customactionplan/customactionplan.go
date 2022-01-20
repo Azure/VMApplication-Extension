@@ -80,7 +80,7 @@ func New(settings []*VmAppSetting, appPackage packageregistry.CurrentPackageRegi
 	tickCountFile := path.Join(actionPlan.environment.ConfigFolder, "tickCount")
 	_, err := os.Stat(tickCountFile)
 	if err != nil {
-		logger.Info("Tick count file not found, setting tick count to 0")
+		logger.Info("Tick count file not found, setting tick count to 0. All actions will be executed.")
 		tc = 0
 	} else {
 		tickCount, err := ioutil.ReadFile(tickCountFile)
@@ -106,7 +106,7 @@ func New(settings []*VmAppSetting, appPackage packageregistry.CurrentPackageRegi
 					}
 					actionPlan.sortedOrder = append(actionPlan.sortedOrder, &newAction)
 				} else {
-					logger.Info("custom action %v has a low tick count %v compared to %v and will not be executed", a.ActionName, a.TickCount, tc)
+					logger.Info("custom action %v has a low tick count (%v) compared to %v and will not be executed", a.ActionName, a.TickCount, tc)
 				}
 			}
 		} else {

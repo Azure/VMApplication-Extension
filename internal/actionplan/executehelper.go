@@ -25,7 +25,6 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 	errorMessageToReturn = nil
 	appName := act.vmAppPackage.ApplicationName
 	version := act.vmAppPackage.Version
-
 	// record new operation in the packageRegistry
 	vmAppPackageCurrent := act.vmAppPackage
 	registry[appName] = &vmAppPackageCurrent
@@ -36,7 +35,6 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 		delete(registry, appName)
 		return registryHandler.WriteToDisk(registry)
 	}
-
 	err := registryHandler.WriteToDisk(registry)
 	if err != nil {
 		return err
@@ -62,7 +60,6 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 		fmt.Sprintf("Starting cmd=%v, application=%v, version=%v", commandToExecute, appName, version))
 
 	// try to execute only if you have a valid command to execute
-
 	if errorMessageToReturn == nil {
 		if !isDeleteOperation {
 			downloadPath := vmAppPackageCurrent.GetWorkingDirectory(actionPlan.environment)
@@ -86,7 +83,6 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 						eem.LogWarningEvent("calculate checksum", fmt.Sprintf("could not get checksum for file %s, error: %s", downloadPackageFileName, err.Error()))
 					}
 				}
-
 				// download configuration
 				if vmAppPackageCurrent.ConfigExists {
 					downloadConfigFileName := path.Join(downloadPath, vmAppPackageCurrent.ConfigFileName)
@@ -125,7 +121,6 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 				}
 			}
 		}
-
 		// handle termination signals to handle reboot
 		type ExecutionResult struct {
 			retCode int

@@ -33,9 +33,9 @@ type CustomActionPackage struct {
 	ActionName   		string      		`json:"name"`
 	Timestamp    		string      		`json:"timestamp"`
 	Parameters			[]ActionParameter	`json:"parameterNames"`
-	Status				string				`json:"status"`
-	stderr				string				`json:"stderr"`
-	stdout				string				`json:"stdout"`
+	Status 				string 				`json:"status"`
+	Stderr 				string 				`json:"stderr"`
+	Stdout 				string 				`json:"stdout"`
 }
 
 type ActionPackageRegistry map[string][]*CustomActionPackage
@@ -46,13 +46,13 @@ func GetCurrentCustomActions(actions *ActionPlan) (*ActionPackageRegistry) {
 	for _, a := range actions.sortedOrder {
 		actionPackage = CustomActionPackage{
 			ApplicationName: a.vmAppPackage.ApplicationName,
-			Version: a.vmAppPackage.Version,
-			ActionName: a.Action.ActionName,
-			Timestamp: a.Action.Timestamp,
-			Parameters: a.Action.Parameters,
-			Status: "",
-			stderr: "",
-			stdout: "",
+			Version:         a.vmAppPackage.Version,
+			ActionName:      a.Action.ActionName,
+			Timestamp:       a.Action.Timestamp,
+			Parameters:      a.Action.Parameters,
+			Status:          "",
+			Stderr:          "",
+			Stdout:          "",
 		}
 		(act)[actionPackage.ApplicationName] = append((act)[actionPackage.ApplicationName], &actionPackage)
 	}
