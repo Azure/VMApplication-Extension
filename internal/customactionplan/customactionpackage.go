@@ -29,13 +29,13 @@ func getParameterNames (settings ActionSetting) ([]string) {
 
 type CustomActionPackage struct {
 	ApplicationName		string				`json:"application"`
-	Version             string     			`json:"version"`
-	ActionName   		string      		`json:"name"`
-	Timestamp    		string      		`json:"timestamp"`
-	Parameters			[]ActionParameter	`json:"parameterNames"`
-	Status 				string 				`json:"status"`
-	Stderr 				string 				`json:"stderr"`
-	Stdout 				string 				`json:"stdout"`
+	Version                 string     			`json:"version"`
+	ActionName   		string      			`json:"name"`
+	Timestamp    		string      			`json:"timestamp"`
+	Parameters		[]ActionParameter		`json:"parameterNames"`
+	Status 			string 				`json:"status"`
+	Stderr 			string 				`json:"stderr"`
+	Stdout 			string 				`json:"stdout"`
 }
 
 type ActionPackageRegistry map[string][]*CustomActionPackage
