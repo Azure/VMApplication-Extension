@@ -16,6 +16,10 @@ import (
 	"github.com/Azure/azure-extension-platform/pkg/logging"
 )
 
+const (
+	tickCountFile = "tickCount"
+)
+
 type action struct {
 	// vmAppPackage is not a pointer type on purpose, we don't want it to be mutated
 	vmAppPackage packageregistry.VMAppPackageCurrent
@@ -76,8 +80,8 @@ func New(settings []*VmAppSetting, appPackage packageregistry.CurrentPackageRegi
 		logger:      logger,
 	}
 
-	tc := int64(0)
-	tickCountFile := path.Join(actionPlan.environment.ConfigFolder, "tickCount")
+	tc := uint64(0)
+	tickCountFile := path.Join(actionPlan.environment.ConfigFolder, tickCountFile)
 	_, err := os.Stat(tickCountFile)
 	if err != nil {
 		logger.Info("Tick count file not found, setting tick count to 0. All actions will be executed.")
@@ -87,8 +91,9 @@ func New(settings []*VmAppSetting, appPackage packageregistry.CurrentPackageRegi
 		if err != nil {
 			logger.Error("Cannot read tick count file")
 		}
-		tc, err = strconv.ParseInt(string(tickCount), 10, 64)
+		tc, err = strconv.ParseUint(string(tickCount), 10, 64)
 		if err != nil {
+			tc = 0
 			logger.Error("Tick count from file cannot be converted to integer")
 		}
 		logger.Info("Tick count file read, tick count: %v", tc)
@@ -98,7 +103,7 @@ func New(settings []*VmAppSetting, appPackage packageregistry.CurrentPackageRegi
 		_, containsApp := appPackage[app.ApplicationName]
 		if app.Actions != nil && len(app.Actions) != 0 && containsApp {
 			for _, a := range app.Actions {
-				if uint64(tc) < a.TickCount {
+				if tc < a.TickCount {
 					logger.Info("adding custom action %v to custom action plan", a.ActionName)
 					newAction := action{
 						vmAppPackage: *appPackage[app.ApplicationName],
@@ -124,6 +129,10 @@ func (actionPlan *ActionPlan) Execute(extEventManager *extensionevents.Extension
 	for _, act := range actionPlan.sortedOrder {
 		newError := actionPlan.executeHelper(commandHandler, *actionRegistry, act, extEventManager)
 		combinedErrors = extensionerrors.CombineErrors(combinedErrors, newError)
+		if newError != nil { //errors w/ tickcountfile or CA exits non-zero
+			extEventManager.LogWarningEvent("CustomActionExecution", "Custom Action failed, remaining actions will not be executed")
+			break
+		}
 		appendExecutionResult(result, act, newError)
 	}
 

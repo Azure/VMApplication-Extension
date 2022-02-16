@@ -111,6 +111,9 @@ func doVmAppEnableCallback(ext *vmextensionhelper.VMExtension, hostGaCommunicato
 	if !ok {
 		return getStatusMessage(currentPackageRegistry.GetPackageCollection(), result), nil
 	}
+	if err != nil {
+		return "could not get package registry", err
+	}
 
 	customActionPlan, err := customactionplan.New(protSettings, currentPackageRegistry, ext.HandlerEnv, ext.ExtensionLogger)
 	if err != nil {

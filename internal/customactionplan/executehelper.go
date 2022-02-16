@@ -23,7 +23,7 @@ func (actionPlan *ActionPlan) executeHelper(
 	errorMessageToReturn = nil
 	appName := act.vmAppPackage.ApplicationName
 	version := act.vmAppPackage.Version
-	tickCountFilePath := path.Join(actionPlan.environment.ConfigFolder, "tickCount")
+	tickCountFilePath := path.Join(actionPlan.environment.ConfigFolder, tickCountFile)
 
 	if _, err := os.Stat(tickCountFilePath); os.IsNotExist(err) {
 		tickCountFile, err := os.Create(tickCountFilePath)
@@ -32,7 +32,7 @@ func (actionPlan *ActionPlan) executeHelper(
 			return err
 		}
 		eem.LogInformationalEvent("CustomActionTickCountFileCreated", "created tick count file")
-		defer tickCountFile.Close()
+		tickCountFile.Close()
 	}
 
 	// record new operation in the packageRegistry

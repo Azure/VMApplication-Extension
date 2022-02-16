@@ -418,7 +418,7 @@ func getHandlerEnvironment() *handlerenv.HandlerEnvironment {
 
 func assertTickCountFileCorrect(t *testing.T, tickCount uint64) {
 	tc := strconv.FormatUint(tickCount, 10)
-	tickCountFile := path.Join(environment.ConfigFolder, "tickCount")
+	tickCountFile := path.Join(environment.ConfigFolder, tickCountFile)
 	assert.FileExists(t, tickCountFile)
 	file, err := ioutil.ReadFile(tickCountFile)
 	assert.NoError(t, err)
