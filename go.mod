@@ -12,5 +12,9 @@ require (
 require (
 	github.com/ahmetb/go-httpbin v0.0.0-20200921172446-862fbad56b77 // indirect
 	github.com/andybalholm/brotli v1.0.3 // indirect
+	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/gorilla/mux v1.7.3 // indirect
+	github.com/pmezard/go-difflib v1.0.0 // indirect
+	golang.org/x/sys v0.0.0-20210309074719-68d13333faf2 // indirect
+	gopkg.in/yaml.v3 v3.0.0-20200313102051-9f266ea9e77c // indirect
 )
