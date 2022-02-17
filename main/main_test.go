@@ -2,12 +2,12 @@ package main
 
 import (
 	"encoding/json"
+	"github.com/Azure/VMApplication-Extension/internal/extdeserialization"
 	"io/ioutil"
 	"os"
 	"path"
 	"testing"
 
-	"github.com/Azure/VMApplication-Extension/internal/customactionplan"
 	"github.com/Azure/VMApplication-Extension/internal/hostgacommunicator"
 	"github.com/Azure/azure-extension-platform/pkg/constants"
 	"github.com/Azure/azure-extension-platform/pkg/extensionevents"
@@ -92,7 +92,7 @@ func Test_getVMPackageData_cannotDeserialize(t *testing.T) {
 }
 
 func Test_getVMPackageData_noApplications(t *testing.T) {
-	vmApplications := []customactionplan.VmAppSetting{}
+	vmApplications := []extdeserialization.VmAppSetting{}
 
 	ext := createTestVMExtension(t, vmApplications)
 	_, err := vmAppEnableCallback(ext)
@@ -101,8 +101,8 @@ func Test_getVMPackageData_noApplications(t *testing.T) {
 
 func Test_getVMPackageData_valid(t *testing.T) {
 	order := 1
-	vmApplications := []customactionplan.VmAppSetting{
-		customactionplan.VmAppSetting{
+	vmApplications := []extdeserialization.VmAppSetting{
+		extdeserialization.VmAppSetting{
 			ApplicationName: "iggy",
 			Order:           &order,
 		},
@@ -117,11 +117,11 @@ func Test_getVMPackageData_valid(t *testing.T) {
 
 func Test_getVMAppProtectedSettings_valid(t *testing.T) {
 	order := 1
-	actions := customactionplan.ActionSetting {
+	actions := extdeserialization.ActionSetting{
 		ActionName: "logging",
 		ActionScript: "echo %CustomAction_blobURL%",
 		Timestamp: "20210604T155300Z",
-		Parameters: []customactionplan.ActionParameter{
+		Parameters: []extdeserialization.ActionParameter{
 			{
 				ParameterName: "blobURL",
 				ParameterValue: "myaccount.blob.core.windows.net",
@@ -129,10 +129,10 @@ func Test_getVMAppProtectedSettings_valid(t *testing.T) {
 		},
 		TickCount: 10193113,
 	}
-	appSettings := customactionplan.VmAppSetting{
+	appSettings := extdeserialization.VmAppSetting{
 		ApplicationName: "iggy",
 		Order: &order,
-		Actions: []*customactionplan.ActionSetting {&actions},
+		Actions: []*extdeserialization.ActionSetting{&actions},
 
 	}
 	vmAppProtectedSettings := VmAppProtectedSettings{&appSettings}
@@ -152,8 +152,8 @@ func Test_getVMAppProtectedSettings_valid(t *testing.T) {
 
 func Test_getVMPackageData_noVersion(t *testing.T) {
 	order := 1
-	vmApplications := []customactionplan.VmAppSetting{
-		customactionplan.VmAppSetting{
+	vmApplications := []extdeserialization.VmAppSetting{
+		extdeserialization.VmAppSetting{
 			ApplicationName: "iggy",
 			Order:           &order,
 		},
@@ -168,18 +168,18 @@ func Test_getVMPackageData_noVersion(t *testing.T) {
 
 func Test_getVMPackageDataCustomAction_valid(t *testing.T) {
 	order := 1
-	actions := customactionplan.ActionSetting {
+	actions := extdeserialization.ActionSetting{
 				ActionName: "Action1",
 				ActionScript: "echo hello",
 				Timestamp: "20210604T155300Z",
-				Parameters: []customactionplan.ActionParameter{},
+				Parameters: []extdeserialization.ActionParameter{},
 				TickCount: 12346578,
 		}
-	vmApplications := []customactionplan.VmAppSetting{
-		customactionplan.VmAppSetting{
+	vmApplications := []extdeserialization.VmAppSetting{
+		extdeserialization.VmAppSetting{
 			ApplicationName: "iggy",
 			Order:           &order,
-			Actions:		[]*customactionplan.ActionSetting{&actions},
+			Actions:		[]*extdeserialization.ActionSetting{&actions},
 		},
 	}
 
@@ -192,18 +192,18 @@ func Test_getVMPackageDataCustomAction_valid(t *testing.T) {
 
 func Test_getVMPackageDataCustomAction_CriticalError(t *testing.T) {
 	order := 1
-	actions := customactionplan.ActionSetting {
+	actions := extdeserialization.ActionSetting{
 		ActionName: "Action1",
 		ActionScript: "echo hello",
 		Timestamp: "20210604T155300Z",
-		Parameters: []customactionplan.ActionParameter{},
+		Parameters: []extdeserialization.ActionParameter{},
 		TickCount: 12346578,
 	}
-	vmApplications := []customactionplan.VmAppSetting{
-		customactionplan.VmAppSetting{
+	vmApplications := []extdeserialization.VmAppSetting{
+		extdeserialization.VmAppSetting{
 			ApplicationName: "",
 			Order: &order,
-			Actions:		[]*customactionplan.ActionSetting{&actions},
+			Actions:		[]*extdeserialization.ActionSetting{&actions},
 		},
 	}
 
@@ -216,8 +216,8 @@ func Test_getVMPackageDataCustomAction_CriticalError(t *testing.T) {
 
 func Test_getVMPackageData_noApplicationName(t *testing.T) {
 	order := 1
-	vmApplications := []customactionplan.VmAppSetting{
-		customactionplan.VmAppSetting{
+	vmApplications := []extdeserialization.VmAppSetting{
+		extdeserialization.VmAppSetting{
 			ApplicationName: "",
 			Order:           &order,
 		},
@@ -232,7 +232,7 @@ func Test_getVMPackageData_noApplicationName(t *testing.T) {
 }
 
 func Test_main_nothingToProcess(t *testing.T) {
-	vmApplications := []customactionplan.VmAppSetting{}
+	vmApplications := []extdeserialization.VmAppSetting{}
 	ext := createTestVMExtension(t, vmApplications)
 
 	hostGaCommunicator := NoopHostGaCommunicator{}

@@ -2,7 +2,7 @@ package main
 
 import (
 	"bytes"
-	"github.com/Azure/VMApplication-Extension/internal/customactionplan"
+	"github.com/Azure/VMApplication-Extension/internal/extdeserialization"
 	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
 	"github.com/stretchr/testify/assert"
 	"io/ioutil"
@@ -14,8 +14,8 @@ import (
 func Test_didFileMove(t *testing.T) {
 	//set up test VM
 	order := 1
-	vmApplications := []customactionplan.VmAppSetting{
-		customactionplan.VmAppSetting{
+	vmApplications := []extdeserialization.VmAppSetting{
+		extdeserialization.VmAppSetting{
 			ApplicationName: "iggy",
 			Order:           &order,
 		},

@@ -2,13 +2,13 @@ package main
 
 import (
 	"encoding/json"
+	"github.com/Azure/VMApplication-Extension/internal/extdeserialization"
 	"github.com/Azure/azure-extension-platform/pkg/settings"
-	"github.com/Azure/VMApplication-Extension/internal/customactionplan"
 )
 
 
 
-type VmAppProtectedSettings []*customactionplan.VmAppSetting
+type VmAppProtectedSettings []*extdeserialization.VmAppSetting
 
 func getVMAppProtectedSettings(settings *settings.HandlerSettings) (VmAppProtectedSettings, error) {
 	vmAppProtectedSettings := VmAppProtectedSettings{}

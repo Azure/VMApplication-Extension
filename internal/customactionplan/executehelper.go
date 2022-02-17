@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/Azure/VMApplication-Extension/internal/actionplan"
+	"github.com/Azure/VMApplication-Extension/internal/extdeserialization"
 	"github.com/Azure/azure-extension-platform/pkg/commandhandler"
 	"github.com/Azure/azure-extension-platform/pkg/constants"
 	"github.com/Azure/azure-extension-platform/pkg/exithelper"
@@ -50,7 +51,7 @@ func (actionPlan *ActionPlan) executeHelper(
 	currAction.Status = "In Progress"
 	eem.LogInformationalEvent(
 	"CustomActionStarted",
-		fmt.Sprintf("Starting custom action cmd=%v, application=%v, version=%v, parameters=%v", commandName, appName, version, getParameterNames(act.Action)))
+		fmt.Sprintf("Starting custom action cmd=%v, application=%v, version=%v, parameters=%v", commandName, appName, version, extdeserialization.GetParameterNames(act.Action)))
 
 	// try to execute only if you have a valid command to execute
 	if errorMessageToReturn == nil {
@@ -86,7 +87,7 @@ func (actionPlan *ActionPlan) executeHelper(
 			actionPlan.logger.Info("received terminate signal, system reboot detected")
 			eem.LogInformationalEvent("System reboot detected",
 				fmt.Sprintf("Custom action cmd=%v, application=%v, version=%v, parameters=%v, result=SUCCESS",
-					commandName, appName, getParameterNames(act.Action), version))
+					commandName, appName, extdeserialization.GetParameterNames(act.Action), version))
 			vmAppPackageCurrent.Result = fmt.Sprintf("reboot detected during custom action %v, marking operation as success", commandName)
 			exithelper.Exiter.Exit(0)
 		}
@@ -114,7 +115,7 @@ func (actionPlan *ActionPlan) executeHelper(
 		currAction.Status = actionplan.Success
 		eem.LogInformationalEvent(
 			"CustomActionCompleted",
-			fmt.Sprintf("Completed custom action cmd=%v, application=%v, version=%v, parameters=%v, result=SUCCESS", commandName, appName, version, getParameterNames(act.Action)))
+			fmt.Sprintf("Completed custom action cmd=%v, application=%v, version=%v, parameters=%v, result=SUCCESS", commandName, appName, version, extdeserialization.GetParameterNames(act.Action)))
 		return
 	}
 	currAction.Status = actionplan.Failed
@@ -126,7 +127,7 @@ func markCommandFailed(commandToExecute string, appName string, version string, 
 		"CustomActionCompleted",
 		fmt.Sprintf(
 			"Completed custom action cmd=%v, application=%v, version=%v, parameters=%v, result=FAILED, reason=%v",
-			commandToExecute, appName, version, getParameterNames(act.Action), err.Error()))
+			commandToExecute, appName, version, extdeserialization.GetParameterNames(act.Action), err.Error()))
 
 	return err
 }

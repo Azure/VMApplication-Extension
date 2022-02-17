@@ -1,41 +1,16 @@
 package customactionplan
 
-type ActionParameter struct {
-	ParameterName  string `json:"name"`
-	ParameterValue string `json:"value"`
-}
-
-type ActionSetting struct {
-	ActionName   string            `json:"name"`
-	ActionScript string            `json:"script"`
-	Timestamp    string            `json:"timestamp"`
-	Parameters   []ActionParameter `json:"parameters"`
-	TickCount    uint64            `json:"tickCount"`
-}
-
-type VmAppSetting struct {
-	ApplicationName string           `json:"name"`
-	Order           *int             `json:"order"`
-	Actions         []*ActionSetting `json:"actions"`
-}
-
-func getParameterNames (settings ActionSetting) ([]string) {
-	var names []string
-	for _, param := range settings.Parameters {
-		names = append(names, param.ParameterName)
-	}
-	return names
-}
+import "github.com/Azure/VMApplication-Extension/internal/extdeserialization"
 
 type CustomActionPackage struct {
-	ApplicationName		string				`json:"application"`
-	Version                 string     			`json:"version"`
+	ApplicationName		string                              `json:"application"`
+	Version             string     			`json:"version"`
 	ActionName   		string      			`json:"name"`
-	Timestamp    		string      			`json:"timestamp"`
-	Parameters		[]ActionParameter		`json:"parameterNames"`
-	Status 			string 				`json:"status"`
-	Stderr 			string 				`json:"stderr"`
-	Stdout 			string 				`json:"stdout"`
+	Timestamp    		string                                `json:"timestamp"`
+	Parameters			[]extdeserialization.ActionParameter `json:"parameterNames"`
+	Status 				string                               `json:"status"`
+	Stderr 				string 				`json:"stderr"`
+	Stdout 				string 				`json:"stdout"`
 }
 
 type ActionPackageRegistry map[string][]*CustomActionPackage

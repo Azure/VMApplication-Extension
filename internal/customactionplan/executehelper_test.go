@@ -1,6 +1,7 @@
 package customactionplan
 
 import (
+	"github.com/Azure/VMApplication-Extension/internal/extdeserialization"
 	"github.com/Azure/VMApplication-Extension/internal/hostgacommunicator"
 	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
 	"github.com/Azure/azure-extension-platform/pkg/constants"
@@ -109,22 +110,22 @@ func cleanTest(){
 func TestExecuteHelper(t *testing.T){
 	initTest(t)
 	defer cleanTest()
-	act := action{vmAppPackageCurrent, ActionSetting{
+	act := action{vmAppPackageCurrent, extdeserialization.ActionSetting{
 		ActionName: "action1",
 		ActionScript: "echo hello",
 		Timestamp:"",
-		Parameters: []ActionParameter{},
+		Parameters: []extdeserialization.ActionParameter{},
 		TickCount: 1234567,
 	}}
 	err := actionPlan.executeHelper(commandHandler, ActionPackageRegistry{}, &act, extensionEventManager)
 	assert.NoError(t, err)
 	assertTickCountFileCorrect(t, act.Action.TickCount)
 
-	act = action{vmAppPackageCurrent, ActionSetting{
+	act = action{vmAppPackageCurrent, extdeserialization.ActionSetting{
 		ActionName: "action2",
 		ActionScript: "echo world",
 		Timestamp:"",
-		Parameters: []ActionParameter{},
+		Parameters: []extdeserialization.ActionParameter{},
 		TickCount: 1234568,
 	}}
 

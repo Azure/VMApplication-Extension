@@ -1,6 +1,7 @@
 package customactionplan
 
 import (
+	"github.com/Azure/VMApplication-Extension/internal/extdeserialization"
 	"io/ioutil"
 	"os"
 	"path"
@@ -23,7 +24,7 @@ const (
 type action struct {
 	// vmAppPackage is not a pointer type on purpose, we don't want it to be mutated
 	vmAppPackage packageregistry.VMAppPackageCurrent
-	Action       ActionSetting
+	Action       extdeserialization.ActionSetting
 }
 
 type ActionCollection []*action
@@ -72,7 +73,7 @@ func appendExecutionResult(executionResult *actionplan.PackageOperationResults, 
 	}
 }
 
-func New(settings []*VmAppSetting, appPackage packageregistry.CurrentPackageRegistry, environment *handlerenv.HandlerEnvironment, logger *logging.ExtensionLogger) (*ActionPlan, error) {
+func New(settings []*extdeserialization.VmAppSetting, appPackage packageregistry.CurrentPackageRegistry, environment *handlerenv.HandlerEnvironment, logger *logging.ExtensionLogger) (*ActionPlan, error) {
 
 	actionPlan := ActionPlan{
 		environment: environment,

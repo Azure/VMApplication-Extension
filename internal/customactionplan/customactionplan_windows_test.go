@@ -3,6 +3,7 @@ package customactionplan
 import (
 	"bytes"
 	"fmt"
+	"github.com/Azure/VMApplication-Extension/internal/extdeserialization"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -96,16 +97,16 @@ func TestCommandExecutorCanHandleProcessBeingKilled(t *testing.T) {
 			wasStartedByAnotherProcess = true
 		}
 	}
-	action := []*VmAppSetting{
+	action := []*extdeserialization.VmAppSetting{
 		{
 			ApplicationName: "app1",
 			Order:           &one,
-			Actions: []*ActionSetting{
+			Actions: []*extdeserialization.ActionSetting{
 				{
 					ActionName:   "action1",
 					ActionScript: "echo hello",
 					Timestamp:    "20210604T155300Z",
-					Parameters:   []ActionParameter{},
+					Parameters:   []extdeserialization.ActionParameter{},
 					TickCount:    10193113,
 				},
 			},

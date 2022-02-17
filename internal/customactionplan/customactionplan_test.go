@@ -3,6 +3,7 @@ package customactionplan
 import (
 	"encoding/json"
 	"github.com/Azure/VMApplication-Extension/internal/actionplan"
+	"github.com/Azure/VMApplication-Extension/internal/extdeserialization"
 	"io/ioutil"
 	"os"
 	"path"
@@ -89,25 +90,25 @@ func cleanupTest() {
 	os.RemoveAll(testdir)
 }
 
-func actionSetup(t *testing.T, actionNum int, param bool) (actions []*VmAppSetting) {
+func actionSetup(t *testing.T, actionNum int, param bool) (actions []*extdeserialization.VmAppSetting) {
 	cleanupTest()
 	initializeTest(t)
 
-	action := []*VmAppSetting{}
-	var setting *VmAppSetting
+	action := []*extdeserialization.VmAppSetting{}
+	var setting *extdeserialization.VmAppSetting
 	var tickCount uint64 = 10193113
 
 	for i :=1; i<=actionNum; i++ {
 		if param {
-			setting = &VmAppSetting{
+			setting = &extdeserialization.VmAppSetting{
 				ApplicationName: "app" + strconv.FormatInt(int64(i), 10),
 				Order:           &one,
-				Actions: []*ActionSetting{
+				Actions: []*extdeserialization.ActionSetting{
 					{
 						ActionName:   "action" + strconv.FormatInt(int64(i), 10),
 						ActionScript: "echo hello",
 						Timestamp:    "20210604T155300Z",
-						Parameters:   []ActionParameter{
+						Parameters:   []extdeserialization.ActionParameter{
 							{
 								ParameterName:  "FOO",
 								ParameterValue: "Hello World",
@@ -118,15 +119,15 @@ func actionSetup(t *testing.T, actionNum int, param bool) (actions []*VmAppSetti
 				},
 			}
 		} else {
-			setting = &VmAppSetting{
+			setting = &extdeserialization.VmAppSetting{
 				ApplicationName: "app" + strconv.FormatInt(int64(i), 10),
 				Order:           &one,
-				Actions: []*ActionSetting{
+				Actions: []*extdeserialization.ActionSetting{
 					{
 						ActionName:   "action" + strconv.FormatInt(int64(i), 10),
 						ActionScript: "echo hello",
 						Timestamp:    "20210604T155300Z",
-						Parameters:   []ActionParameter{},
+						Parameters:   []extdeserialization.ActionParameter{},
 						TickCount:    tickCount,
 					},
 				},
@@ -204,11 +205,11 @@ func TestSingleCustomActionWithParameter(t *testing.T) {
 func TestNoCustomAction(t *testing.T) {
 	cleanupTest()
 	initializeTest(t)
-	action := []*VmAppSetting {
+	action := []*extdeserialization.VmAppSetting{
 		{
 			ApplicationName: "app1",
 			Order: &one,
-			Actions: []*ActionSetting{},
+			Actions: []*extdeserialization.ActionSetting{},
 		},
 	}
 
@@ -312,16 +313,16 @@ func TestDoubleCustomActionNonexistentApp(t *testing.T) {
 func TestDoubleCustomActionOldTickCount(t *testing.T) {
 	cleanupTest()
 	initializeTest(t)
-	action := []*VmAppSetting {
+	action := []*extdeserialization.VmAppSetting{
 		{
 			ApplicationName: "app1",
 			Order: &one,
-			Actions: []*ActionSetting{
+			Actions: []*extdeserialization.ActionSetting{
 				{
 					ActionName: "action1",
 					ActionScript: "echo hello",
 					Timestamp: "20210604T155300Z",
-					Parameters: []ActionParameter{},
+					Parameters: []extdeserialization.ActionParameter{},
 					TickCount: 10193113,
 				},
 			},
@@ -329,12 +330,12 @@ func TestDoubleCustomActionOldTickCount(t *testing.T) {
 		{
 			ApplicationName: "app2",
 			Order: &one,
-			Actions: []*ActionSetting{
+			Actions: []*extdeserialization.ActionSetting{
 				{
 					ActionName: "action2",
 					ActionScript: "echo world",
 					Timestamp: "20210604T155330Z",
-					Parameters: []ActionParameter{},
+					Parameters: []extdeserialization.ActionParameter{},
 					TickCount: 10193110,
 				},
 			},
@@ -387,7 +388,7 @@ func TestDoubleCustomActionOldTickCount(t *testing.T) {
 }
 
 func executeActionPlan(t *testing.T,
-	settings []*VmAppSetting,
+	settings []*extdeserialization.VmAppSetting,
 	appPackage packageregistry.CurrentPackageRegistry,
 	cmdHandler commandhandler.ICommandHandlerWithEnvVariables) ( *ActionPlan, actionplan.IResult) {
 

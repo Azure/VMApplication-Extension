@@ -3,18 +3,18 @@ package customactionplan
 import (
 	"fmt"
 	actionplan "github.com/Azure/VMApplication-Extension/internal/actionplan"
+	"github.com/Azure/VMApplication-Extension/internal/extdeserialization"
 	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
 	"github.com/stretchr/testify/assert"
-	"testing"
-	"time"
+	"io/ioutil"
 	"os"
-	"syscall"
 	"os/exec"
-	"strings"
 	"path"
 	"path/filepath"
-	"io/ioutil"
-
+	"strings"
+	"syscall"
+	"testing"
+	"time"
 )
 
 var mockCommandExecutorKillProcess CommandExecutor = func(s string, s2 string) (int, error) {
@@ -56,16 +56,16 @@ func TestCommandExecutorCanHandleProcessBeingKilled(t *testing.T) {
 		}
 	}
 
-	action := []*VmAppSetting{
+	action := []*extdeserialization.VmAppSetting{
 		{
 			ApplicationName: "app1",
 			Order:           &one,
-			Actions: []*ActionSetting{
+			Actions: []*extdeserialization.ActionSetting{
 				{
 					ActionName:   "action1",
 					ActionScript: "echo hello",
 					Timestamp:    "20210604T155300Z",
-					Parameters:   []ActionParameter{},
+					Parameters:   []extdeserialization.ActionParameter{},
 					TickCount:    10193113,
 				},
 			},
