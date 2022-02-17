@@ -70,7 +70,7 @@ type PackageOperationResult struct {
 	AppVersion  string `json:"version"`
 	Operation   string `json:"operation"`
 	Result      string `json:"result"`
-	Timestamp	string `json:"timestamp"`
+	Timestamp   string `json:"timestamp"`
 }
 
 func appendExecutionResult(executionResult *PackageOperationResults, act *action, err error) {
