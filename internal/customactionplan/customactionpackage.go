@@ -3,14 +3,14 @@ package customactionplan
 import "github.com/Azure/VMApplication-Extension/internal/extdeserialization"
 
 type CustomActionPackage struct {
-	ApplicationName		string                              `json:"application"`
-	Version             string     			`json:"version"`
-	ActionName   		string      			`json:"name"`
-	Timestamp    		string                                `json:"timestamp"`
-	Parameters			[]extdeserialization.ActionParameter `json:"parameterNames"`
-	Status 				string                               `json:"status"`
-	Stderr 				string 				`json:"stderr"`
-	Stdout 				string 				`json:"stdout"`
+	ApplicationName		string                         		`json:"application"`
+	Version             	string     				`json:"version"`
+	ActionName   		string      				`json:"name"`
+	Timestamp    		string                                	`json:"timestamp"`
+	Parameters		[]extdeserialization.ActionParameter 	`json:"parameterNames"`
+	Status 			string                               	`json:"status"`
+	Stderr 			string 					`json:"stderr"`
+	Stdout 			string 					`json:"stdout"`
 }
 
 type ActionPackageRegistry map[string][]*CustomActionPackage
