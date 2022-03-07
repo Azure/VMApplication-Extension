@@ -77,6 +77,7 @@ type VMAppPackageCurrent struct {
 	DownloadDir            string     `json:"downloadDir"`
 	PackageFileName        string     `json:"packageFileName"`
 	ConfigFileName         string     `json:"configFileName"`
+	IsDeleted              bool       `json:"isDeleted"`
 	PackageFileMD5Checksum []byte     `json:"packageFileMD5Checksum"`
 	ConfigFileMD5Checksum  []byte     `json:"configFileMD5Checksum"`
 	Result                 string     `json:"result"`
@@ -99,6 +100,7 @@ type VMAppPackageIncoming struct {
 	ConfigExists       bool   `json:"configExists"`
 	PackageFileName    string `json:"packageFileName"`
 	ConfigFileName     string `json:"configFileName"`
+	IsDeleted          bool   `json:"isDeleted"`
 }
 
 type IPackageRegistry interface {
