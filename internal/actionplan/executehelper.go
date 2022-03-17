@@ -65,40 +65,49 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 
 	if errorMessageToReturn == nil {
 		if !isDeleteOperation {
-			downloadPath := vmAppPackageCurrent.GetWorkingDirectory(actionPlan.environment)
-			vmAppPackageCurrent.DownloadDir = downloadPath
+			if vmAppPackageCurrent.IsDeleted {
+				// application is marked as deleted. Provide a friendly error message to the customer
+				actionPlan.logger.Error("The application %v, version %v has been deleted in the repository", appName, version)
+				errorMessageToReturn = errors.Errorf(
+					"The application %v, version %v has been removed from the repository and cannot be installed. Please install a newer version of the application.",
+					appName, version)
+			} else {
+				// application is not marked as deleted
+				downloadPath := vmAppPackageCurrent.GetWorkingDirectory(actionPlan.environment)
+				vmAppPackageCurrent.DownloadDir = downloadPath
 
-			if err := os.MkdirAll(downloadPath, constants.FilePermissions_UserOnly_ReadWriteExecute); err != nil {
-				errorMessageToReturn = extensionerrors.CombineErrors(errorMessageToReturn, errors.Wrapf(err, "failed to create download directory %s", downloadPath))
-			}
-			// proceed only if there was no error in the previous operation
-			if err == nil {
-				// download packages
-				downloadPackageFileName := path.Join(downloadPath, vmAppPackageCurrent.PackageFileName)
-				if err := actionPlan.hostGaCommunicator.DownloadPackage(actionPlan.logger, vmAppPackageCurrent.ApplicationName, downloadPackageFileName); err != nil {
-					actionPlan.logger.Error("Failed to download package for application %v, version %v. Error: %v", appName, version, err.Error())
-					errorMessageToReturn = extensionerrors.CombineErrors(errorMessageToReturn, errors.Wrapf(err, "failed to download package file %s", downloadPackageFileName))
+				if err := os.MkdirAll(downloadPath, constants.FilePermissions_UserOnly_ReadWriteExecute); err != nil {
+					errorMessageToReturn = extensionerrors.CombineErrors(errorMessageToReturn, errors.Wrapf(err, "failed to create download directory %s", downloadPath))
 				}
+				// proceed only if there was no error in the previous operation
 				if err == nil {
-					if packageFileChecksum, err := getMD5CheckSum(downloadPackageFileName); err == nil {
-						vmAppPackageCurrent.PackageFileMD5Checksum = packageFileChecksum
-					} else {
-						eem.LogWarningEvent("calculate checksum", fmt.Sprintf("could not get checksum for file %s, error: %s", downloadPackageFileName, err.Error()))
-					}
-				}
-
-				// download configuration
-				if vmAppPackageCurrent.ConfigExists {
-					downloadConfigFileName := path.Join(downloadPath, vmAppPackageCurrent.ConfigFileName)
-					if err := actionPlan.hostGaCommunicator.DownloadConfig(actionPlan.logger, vmAppPackageCurrent.ApplicationName, downloadConfigFileName); err != nil {
-						actionPlan.logger.Error("Failed to download config for application %v, version %v. Error: %v", appName, version, err.Error())
-						errorMessageToReturn = extensionerrors.CombineErrors(errorMessageToReturn, errors.Wrapf(err, "failed to download config file %s", downloadConfigFileName))
+					// download packages
+					downloadPackageFileName := path.Join(downloadPath, vmAppPackageCurrent.PackageFileName)
+					if err := actionPlan.hostGaCommunicator.DownloadPackage(actionPlan.logger, vmAppPackageCurrent.ApplicationName, downloadPackageFileName); err != nil {
+						actionPlan.logger.Error("Failed to download package for application %v, version %v. Error: %v", appName, version, err.Error())
+						errorMessageToReturn = extensionerrors.CombineErrors(errorMessageToReturn, errors.Wrapf(err, "failed to download package file %s", downloadPackageFileName))
 					}
 					if err == nil {
-						if configFileChecksum, err := getMD5CheckSum(downloadConfigFileName); err == nil {
-							vmAppPackageCurrent.ConfigFileMD5Checksum = configFileChecksum
+						if packageFileChecksum, err := getMD5CheckSum(downloadPackageFileName); err == nil {
+							vmAppPackageCurrent.PackageFileMD5Checksum = packageFileChecksum
 						} else {
-							eem.LogWarningEvent("calculate checksum", fmt.Sprintf("could not get checksum for file %s, error: %s", downloadConfigFileName, err.Error()))
+							eem.LogWarningEvent("calculate checksum", fmt.Sprintf("could not get checksum for file %s, error: %s", downloadPackageFileName, err.Error()))
+						}
+					}
+
+					// download configuration
+					if vmAppPackageCurrent.ConfigExists {
+						downloadConfigFileName := path.Join(downloadPath, vmAppPackageCurrent.ConfigFileName)
+						if err := actionPlan.hostGaCommunicator.DownloadConfig(actionPlan.logger, vmAppPackageCurrent.ApplicationName, downloadConfigFileName); err != nil {
+							actionPlan.logger.Error("Failed to download config for application %v, version %v. Error: %v", appName, version, err.Error())
+							errorMessageToReturn = extensionerrors.CombineErrors(errorMessageToReturn, errors.Wrapf(err, "failed to download config file %s", downloadConfigFileName))
+						}
+						if err == nil {
+							if configFileChecksum, err := getMD5CheckSum(downloadConfigFileName); err == nil {
+								vmAppPackageCurrent.ConfigFileMD5Checksum = configFileChecksum
+							} else {
+								eem.LogWarningEvent("calculate checksum", fmt.Sprintf("could not get checksum for file %s, error: %s", downloadConfigFileName, err.Error()))
+							}
 						}
 					}
 				}

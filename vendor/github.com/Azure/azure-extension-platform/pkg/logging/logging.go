@@ -1,3 +1,5 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
 package logging
 
 import (
@@ -33,11 +35,20 @@ type ExtensionLogger struct {
 // New creates a new logging instance. If the handlerEnvironment is nil, we'll use a
 // standard output logger
 func New(he *handlerenv.HandlerEnvironment) *ExtensionLogger {
+	return NewWithName(he, "")
+}
+
+// Allows the caller to specify their own name for the file
+func NewWithName(he *handlerenv.HandlerEnvironment, logFileFormat string) *ExtensionLogger {
 	if he == nil {
 		return newStandardOutput()
 	}
 
-	fileName := fmt.Sprintf("log_%v", strconv.FormatInt(time.Now().UTC().Unix(), 10))
+	if logFileFormat == "" {
+		logFileFormat = "log_%v"
+	}
+
+	fileName := fmt.Sprintf(logFileFormat, strconv.FormatInt(time.Now().UTC().Unix(), 10))
 	filePath := path.Join(he.LogFolder, fileName)
 	writer, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
 	if err != nil {
@@ -74,18 +85,18 @@ func (logger *ExtensionLogger) Close() {
 
 // Error logs an error. Format is the same as fmt.Print
 func (logger *ExtensionLogger) Error(format string, v ...interface{}) {
-	logger.errorLogger.Printf(format, v...)
-	logger.errorLogger.Printf(GetCallStack())
+	logger.errorLogger.Printf(format+"\n", v...)
+	logger.errorLogger.Printf(GetCallStack() + "\n")
 }
 
 // Warn logs a warning. Format is the same as fmt.Print
 func (logger *ExtensionLogger) Warn(format string, v ...interface{}) {
-	logger.warnLogger.Printf(format, v...)
+	logger.warnLogger.Printf(format+"\n", v...)
 }
 
 // Info logs an information statement. Format is the same as fmt.Print
 func (logger *ExtensionLogger) Info(format string, v ...interface{}) {
-	logger.infoLogger.Printf(format, v...)
+	logger.infoLogger.Printf(format+"\n", v...)
 }
 
 // Error logs an error. Get the message from a stream directly
