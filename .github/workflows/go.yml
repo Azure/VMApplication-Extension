@@ -21,8 +21,8 @@ jobs:
     - name: Download dependencies
       run: go get ./...
 
-    - name: tidy modules
-      run: go mod tidy
+    - name: Tidy modules
+      run: go mod tidy -go=1.16 && go mod tidy -go=1.17
 
     - name: Build
       run: go build -v ./...
@@ -43,8 +43,8 @@ jobs:
     - name: Download dependencies
       run: go get ./...
 
-    - name: tidy modules
-      run: go mod tidy
+    - name: Tidy modules
+      run: go mod tidy -go=1.16 && go mod tidy -go=1.17
 
     - name: Build
       run: go build -v ./...
