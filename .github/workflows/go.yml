@@ -16,13 +16,13 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v2
       with:
-        go-version: 1.17
+        go-version: 1.15
 
     - name: Download dependencies
       run: go get ./...
 
     - name: Tidy modules
-      run: go mod tidy -go=1.16 && go mod tidy -go=1.17
+      run: go mod tidy
 
     - name: Build
       run: go build -v ./...
@@ -38,13 +38,13 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v2
       with:
-        go-version: 1.17
+        go-version: 1.15
 
     - name: Download dependencies
       run: go get ./...
 
     - name: Tidy modules
-      run: go mod tidy -go=1.16 && go mod tidy -go=1.17
+      run: go mod tidy
 
     - name: Build
       run: go build -v ./...
