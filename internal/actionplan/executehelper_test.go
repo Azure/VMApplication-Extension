@@ -97,6 +97,18 @@ var vmAppPackageCurrent = packageregistry.VMAppPackageCurrent{
 	ConfigFileName:  "config",
 }
 
+var vmAppPackageDeleted = packageregistry.VMAppPackageCurrent{
+	ApplicationName: "test app",
+	Version:         "1.0.0",
+	InstallCommand:  "install",
+	RemoveCommand:   "remove",
+	UpdateCommand:   "update",
+	ConfigExists:    true,
+	PackageFileName: "package",
+	ConfigFileName:  "config",
+	IsDeleted:       true,
+}
+
 var packageRegistry packageregistry.IPackageRegistry
 
 var mhgCommunicator *mockHostGaCommunicator
@@ -153,6 +165,14 @@ func TestExecuteHelper(t *testing.T) {
 	assert.Error(t, err, "downloadDir should be deleted")
 	_, ok := err.(*os.PathError)
 	assert.True(t, ok, "downloadDir should be deleted")
+}
+
+func TestDeletedApp(t *testing.T) {
+	initTest(t)
+	defer cleanTest()
+	action := action{vmAppPackageDeleted, packageregistry.Install}
+	err := actionPlan.executeHelper(packageRegistry, commandHandler, packageregistry.CurrentPackageRegistry{}, &action, extensionEventManager)
+	assert.Error(t, err, "The application test app, version 1.0.0 has been removed from the repository and cannot be installed. Please install a newer version of the application.")
 }
 
 func TestChecksum(t *testing.T) {
