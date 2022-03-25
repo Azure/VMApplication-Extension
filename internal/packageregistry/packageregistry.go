@@ -27,6 +27,7 @@ const (
 	Install
 	Update
 	Remove
+	RemoveForUpdate
 	Failed
 	Skipped
 	// cleanup happens when a VMApp was previously skipped due to failure of an operation with lower order
@@ -47,6 +48,8 @@ func (act ActionEnum) ToString() string {
 		return "Update"
 	case Remove:
 		return "Remove"
+	case RemoveForUpdate:
+		return "RemoveForUpdate"
 	case Failed:
 		return "Failed"
 	case Skipped:

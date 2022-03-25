@@ -127,7 +127,7 @@ func New(currentPackageRegistry packageregistry.CurrentPackageRegistry, desiredV
 					// not the same version and there is no update command
 					logger.Info("Application %v has version %v, but %v is desired. No update command exists, so removing and adding",
 						vmAppCurrent.ApplicationName, vmAppCurrent.Version, vmAppIncoming.Version)
-					deleteAction := &action{*vmAppCurrent, packageregistry.Remove} // delete current and install incoming
+					deleteAction := &action{*vmAppCurrent, packageregistry.RemoveForUpdate} // delete current and install incoming
 					installAction := &action{*packageregistry.VMAppPackageIncomingToVmAppPackageCurrent(vmAppIncoming), packageregistry.Install}
 					actionPlan.insertOperation(vmAppIncoming.Order, deleteAction, installAction)
 				} else {

@@ -184,7 +184,7 @@ func Test_uninstall_cannotReadPackageRegistry(t *testing.T) {
 
 	// Write an invalid registry so we can't create a package registry
 	appRegistryFilePath := path.Join(ext.HandlerEnv.ConfigFolder, packageregistry.LocalApplicationRegistryFileName)
-	os.WriteFile(appRegistryFilePath, []byte("}"), 0644)
+	ioutil.WriteFile(appRegistryFilePath, []byte("}"), 0644)
 	defer os.Remove(appRegistryFilePath)
 
 	err := doVmAppUninstallCallback(ext, &hostGaCommunicator)

@@ -47,6 +47,8 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 	switch act.actionToPerform {
 	case packageregistry.Install:
 		commandToExecute = vmAppPackageCurrent.InstallCommand
+	case packageregistry.RemoveForUpdate:
+		commandToExecute = vmAppPackageCurrent.RemoveCommand
 	case packageregistry.Remove:
 		isDeleteOperation = true
 		commandToExecute = vmAppPackageCurrent.RemoveCommand
@@ -180,6 +182,8 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 			case packageregistry.Update:
 				vmAppPackageCurrent.OngoingOperation = packageregistry.NoAction
 				vmAppPackageCurrent.Result = "reboot detected during update, marking operation as success"
+			case packageregistry.RemoveForUpdate:
+				fallthrough
 			case packageregistry.Remove:
 				delete(registry, appName)
 				os.RemoveAll(vmAppPackageCurrent.DownloadDir)
@@ -190,20 +194,21 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 		signal.Stop(interruptSignal)
 	}
 
+	if isDeleteOperation {
+		delete(registry, appName)
+		// also cleanup directory
+		deleteErr := os.RemoveAll(vmAppPackageCurrent.DownloadDir)
+		errorMessageToReturn = extensionerrors.CombineErrors(errorMessageToReturn, deleteErr)
+	}
+
 	if errorMessageToReturn != nil {
 		vmAppPackageCurrent.Result = fmt.Sprintf("%s %s %s", vmAppPackageCurrent.OngoingOperation.ToString(), Failed, errorMessageToReturn.Error())
 		vmAppPackageCurrent.OngoingOperation = packageregistry.Failed
 	} else {
-		if isDeleteOperation {
-			delete(registry, appName)
-			// also cleanup directory
-			deleteErr := os.RemoveAll(vmAppPackageCurrent.DownloadDir)
-			errorMessageToReturn = extensionerrors.CombineErrors(errorMessageToReturn, deleteErr)
-		} else {
-			vmAppPackageCurrent.Result = fmt.Sprintf("%s %s", vmAppPackageCurrent.OngoingOperation.ToString(), Success)
-			vmAppPackageCurrent.OngoingOperation = packageregistry.NoAction
-		}
+		vmAppPackageCurrent.Result = fmt.Sprintf("%s %s", vmAppPackageCurrent.OngoingOperation.ToString(), Success)
+		vmAppPackageCurrent.OngoingOperation = packageregistry.NoAction
 	}
+
 	err = registryHandler.WriteToDisk(registry)
 	if err != nil {
 		return markCommandFailed(commandToExecute, appName, version, err, eem)

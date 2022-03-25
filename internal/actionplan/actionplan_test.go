@@ -1,6 +1,7 @@
 package actionplan
 
 import (
+	"fmt"
 	"os"
 	"path"
 	"strings"
@@ -94,6 +95,17 @@ func cleanupTest() {
 	os.RemoveAll(testdir)
 }
 
+func getVmAppPackageCurrent(appName string, appVersion string) packageregistry.VMAppPackageCurrent {
+	return packageregistry.VMAppPackageCurrent{
+		ApplicationName:  appName,
+		Version:          appVersion,
+		InstallCommand:   fmt.Sprintf("install %v %v", appName, appVersion),
+		RemoveCommand:    fmt.Sprintf("remove %v %v", appName, appVersion),
+		UpdateCommand:    fmt.Sprintf("update %v %v", appName, appVersion),
+		OngoingOperation: packageregistry.NoAction,
+	}
+}
+
 func TestSingleInstallWithOrder(t *testing.T) {
 	initializeTest(t)
 	defer cleanupTest()
@@ -149,14 +161,7 @@ func TestSingleRemove(t *testing.T) {
 	initializeTest(t)
 	defer cleanupTest()
 
-	currentVmApp := packageregistry.VMAppPackageCurrent{
-		ApplicationName:  "app1",
-		Version:          "1.0",
-		InstallCommand:   "install app1",
-		RemoveCommand:    "remove app1",
-		UpdateCommand:    "update app1",
-		OngoingOperation: packageregistry.NoAction,
-	}
+	currentVmApp := getVmAppPackageCurrent("app1", "1.0")
 
 	existingApps := packageregistry.VMAppPackageCurrentCollection{&currentVmApp}
 	incomingApps := packageregistry.VMAppPackageIncomingCollection{}
@@ -175,14 +180,8 @@ func TestSingleRemove(t *testing.T) {
 func TestUpdateCommandIsCalledWhenPresent(t *testing.T) {
 	initializeTest(t)
 	defer cleanupTest()
-	oldVersion := packageregistry.VMAppPackageCurrent{
-		ApplicationName:  "app1",
-		Version:          "1.0",
-		InstallCommand:   "install app1 1.0",
-		RemoveCommand:    "remove app1 1.0",
-		UpdateCommand:    "update app1 1.0",
-		OngoingOperation: packageregistry.NoAction,
-	}
+	oldVersion := getVmAppPackageCurrent("app1", "1.0")
+
 	newVersion := packageregistry.VMAppPackageIncoming{
 		ApplicationName: "app1",
 		Order:           nil,
@@ -228,14 +227,8 @@ func TestUpdateCommandIsCalledWhenPresent(t *testing.T) {
 func TestDependentActionsAreCreatedForUpdatesWithoutUpdateCommand(t *testing.T) {
 	initializeTest(t)
 	defer cleanupTest()
-	oldVersion := packageregistry.VMAppPackageCurrent{
-		ApplicationName:  "app1",
-		Version:          "1.0",
-		InstallCommand:   "install app1 1.0",
-		RemoveCommand:    "remove app1 1.0",
-		UpdateCommand:    "update app1 1.0",
-		OngoingOperation: packageregistry.NoAction,
-	}
+	oldVersion := getVmAppPackageCurrent("app1", "1.0")
+
 	newVersion := packageregistry.VMAppPackageIncoming{
 		ApplicationName: "app1",
 		Order:           nil,
@@ -259,7 +252,7 @@ func TestDependentActionsAreCreatedForUpdatesWithoutUpdateCommand(t *testing.T) 
 
 	packageOperationResults, ok := statusMessage.(*PackageOperationResults)
 	assert.True(t, ok)
-	assert.EqualValues(t, (*packageOperationResults)[0], PackageOperationResult{Result: Success, Operation: packageregistry.Remove.ToString(), AppVersion: oldVersion.Version, PackageName: oldVersion.ApplicationName})
+	assert.EqualValues(t, (*packageOperationResults)[0], PackageOperationResult{Result: Success, Operation: packageregistry.RemoveForUpdate.ToString(), AppVersion: oldVersion.Version, PackageName: oldVersion.ApplicationName})
 	assert.EqualValues(t, (*packageOperationResults)[1], PackageOperationResult{Result: Success, Operation: packageregistry.Install.ToString(), AppVersion: newVersion.Version, PackageName: newVersion.ApplicationName})
 
 	// test the same for ordered actions
@@ -278,7 +271,7 @@ func TestDependentActionsAreCreatedForUpdatesWithoutUpdateCommand(t *testing.T) 
 
 	packageOperationResults, ok = statusMessage.(*PackageOperationResults)
 	assert.True(t, ok)
-	assert.EqualValues(t, (*packageOperationResults)[0], PackageOperationResult{Result: Success, Operation: packageregistry.Remove.ToString(), AppVersion: oldVersion.Version, PackageName: oldVersion.ApplicationName})
+	assert.EqualValues(t, (*packageOperationResults)[0], PackageOperationResult{Result: Success, Operation: packageregistry.RemoveForUpdate.ToString(), AppVersion: oldVersion.Version, PackageName: oldVersion.ApplicationName})
 	assert.EqualValues(t, (*packageOperationResults)[1], PackageOperationResult{Result: Success, Operation: packageregistry.Install.ToString(), AppVersion: newVersion.Version, PackageName: newVersion.ApplicationName})
 }
 
@@ -293,6 +286,7 @@ func TestDependantActionsAreCancelled(t *testing.T) {
 		UpdateCommand:    "update app1 1.0",
 		OngoingOperation: packageregistry.NoAction,
 	}
+
 	newVersion := packageregistry.VMAppPackageIncoming{
 		ApplicationName: "app1",
 		Order:           nil,
@@ -316,33 +310,41 @@ func TestDependantActionsAreCancelled(t *testing.T) {
 	assert.Contains(t, (*packageOperationResults)[0].Result, errorString)
 }
 
+func TestRemovedAppsAreRemovedFromRegistryEvenWhenFailed(t *testing.T) {
+	initializeTest(t)
+	defer cleanupTest()
+
+	old1 := getVmAppPackageCurrent("app1", "1.0")
+	old2 := getVmAppPackageCurrent("app2", "1.0")
+	old3 := getVmAppPackageCurrent("app3", "1.0")
+	old2.RemoveCommand = "fail"
+
+	// Existing state: 3 apps installed. Desired state: no apps installed
+	existingApps := packageregistry.VMAppPackageCurrentCollection{&old1, &old2, &old3}
+	incomingApps := packageregistry.VMAppPackageIncomingCollection{}
+	cmdHandler := NewCommandHandlerMock(mockCommandFailOnDemand)
+	newReg, actionPlan, statusMessage := executeActionPlan(t, existingApps, incomingApps, cmdHandler)
+
+	assertPackageRegistryHasBeenUpdatedProperly(t, newReg, incomingApps)
+	assert.Equal(t, 3, len(actionPlan.unorderedImplicitUninstalls), "we are expecting 3 unordered operations")
+	assert.Equal(t, 3, len(cmdHandler.Result), "3 total command executions are expected")
+
+	expectedError := "Error executing command fail: command failed as expected"
+	packageOperationResults, ok := statusMessage.(*PackageOperationResults)
+	assert.True(t, ok)
+	assert.EqualValues(t, PackageOperationResult{Result: Success, Operation: packageregistry.Remove.ToString(), AppVersion: old1.Version, PackageName: old1.ApplicationName}, (*packageOperationResults)[0])
+	assert.EqualValues(t, PackageOperationResult{Result: expectedError, Operation: packageregistry.Remove.ToString(), AppVersion: old2.Version, PackageName: old2.ApplicationName}, (*packageOperationResults)[1])
+	assert.EqualValues(t, PackageOperationResult{Result: Success, Operation: packageregistry.Remove.ToString(), AppVersion: old3.Version, PackageName: old3.ApplicationName}, (*packageOperationResults)[2])
+}
+
 func TestOrderIsMaintainedAndHigherOrderOperationsAreSkippedOnFailure(t *testing.T) {
 	initializeTest(t)
 	defer cleanupTest()
-	old1 := packageregistry.VMAppPackageCurrent{
-		ApplicationName:  "app1",
-		Version:          "1.0",
-		InstallCommand:   "install app1 1.0",
-		RemoveCommand:    "remove app1 1.0",
-		UpdateCommand:    "update app1 1.0",
-		OngoingOperation: packageregistry.NoAction,
-	}
-	old2 := packageregistry.VMAppPackageCurrent{
-		ApplicationName:  "app2",
-		Version:          "1.0",
-		InstallCommand:   "install app2 1.0",
-		RemoveCommand:    "remove app2 1.0",
-		UpdateCommand:    "update app2 1.0",
-		OngoingOperation: packageregistry.NoAction,
-	}
-	old3 := packageregistry.VMAppPackageCurrent{
-		ApplicationName:  "app3",
-		Version:          "1.0",
-		InstallCommand:   "install app3 1.0",
-		RemoveCommand:    "remove app3 1.0",
-		UpdateCommand:    "update app3 1.0",
-		OngoingOperation: packageregistry.NoAction,
-	}
+
+	old1 := getVmAppPackageCurrent("app1", "1.0")
+	old2 := getVmAppPackageCurrent("app2", "1.0")
+	old3 := getVmAppPackageCurrent("app3", "1.0")
+
 	new1 := packageregistry.VMAppPackageIncoming{
 		ApplicationName: "app1",
 		Version:         "1.1",
@@ -501,14 +503,8 @@ func TestOrderIsMaintainedAndHigherOrderOperationsAreSkippedOnFailure(t *testing
 func TestSkippedPackagesAreCleanedUpWhenRemovedFromApplicationProfile(t *testing.T) {
 	initializeTest(t)
 	defer cleanupTest()
-	old1 := packageregistry.VMAppPackageCurrent{
-		ApplicationName:  "app1",
-		Version:          "1.0",
-		InstallCommand:   "install app1 1.0",
-		RemoveCommand:    "remove app1 1.0",
-		UpdateCommand:    "update app1 1.0",
-		OngoingOperation: packageregistry.NoAction,
-	}
+
+	old1 := getVmAppPackageCurrent("app1", "1.0")
 	old2 := packageregistry.VMAppPackageCurrent{
 		ApplicationName:  "app2",
 		Version:          "1.0",
@@ -517,14 +513,8 @@ func TestSkippedPackagesAreCleanedUpWhenRemovedFromApplicationProfile(t *testing
 		UpdateCommand:    "update app2 1.0",
 		OngoingOperation: packageregistry.Skipped,
 	}
-	old3 := packageregistry.VMAppPackageCurrent{
-		ApplicationName:  "app3",
-		Version:          "1.0",
-		InstallCommand:   "install app3 1.0",
-		RemoveCommand:    "remove app3 1.0",
-		UpdateCommand:    "update app3 1.0",
-		OngoingOperation: packageregistry.NoAction,
-	}
+	old3 := getVmAppPackageCurrent("app3", "1.0")
+
 	existingApps := packageregistry.VMAppPackageCurrentCollection{&old1, &old2, &old3}
 	incomingApps := packageregistry.VMAppPackageIncomingCollection{}
 	cmdHandler := NewCommandHandlerMock(mockCommandFailOnDemand)
