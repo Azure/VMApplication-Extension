@@ -116,6 +116,8 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 			// this is a delete operation, refrain from downloading anything just load existing packages
 			// verify checksum
 			packageFilePath := path.Join(vmAppPackageCurrent.DownloadDir, vmAppPackageCurrent.PackageFileName)
+			downloadPath := vmAppPackageCurrent.GetWorkingDirectory(actionPlan.environment)
+			vmAppPackageCurrent.DownloadDir = downloadPath
 			if vmAppPackageCurrent.PackageFileMD5Checksum != nil {
 				isMatch, err := verifyMD5CheckSum(packageFilePath, vmAppPackageCurrent.PackageFileMD5Checksum)
 				if err != nil {
@@ -147,6 +149,12 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 
 		go func() {
 			rCode, err := commandHandler.Execute(commandToExecute, vmAppPackageCurrent.DownloadDir, vmAppPackageCurrent.DownloadDir, true, actionPlan.logger)
+			if err != nil {
+				actionPlan.logger.Info(fmt.Sprintf("Command failed in directory '%v'. Details: %v", vmAppPackageCurrent.DownloadDir, err))
+				eem.LogInformationalEvent("Command failed",
+					fmt.Sprintf("cmd=%v, application=%v, version=%v, details=%v",
+						commandToExecute, appName, version, err))
+			}
 			completionSignal <- ExecutionResult{retCode: rCode, err: err}
 			close(completionSignal)
 		}()

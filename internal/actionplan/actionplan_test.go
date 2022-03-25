@@ -47,8 +47,6 @@ func (commandHandlerMock *CommandHandlerMock) Execute(command string, workingDir
 	return
 }
 
-
-
 var mockCommandExecutorNoError CommandExecutor = func(string, string) (int, error) {
 	return 0, nil
 }
@@ -500,7 +498,7 @@ func TestOrderIsMaintainedAndHigherOrderOperationsAreSkippedOnFailure(t *testing
 	assertAllActionsSucceeded(t, newReg)
 }
 
-func TestSkippedPackagesAreCleanedUpWhenRemovedFromApplicationProfile(t *testing.T){
+func TestSkippedPackagesAreCleanedUpWhenRemovedFromApplicationProfile(t *testing.T) {
 	initializeTest(t)
 	defer cleanupTest()
 	old1 := packageregistry.VMAppPackageCurrent{
@@ -534,7 +532,7 @@ func TestSkippedPackagesAreCleanedUpWhenRemovedFromApplicationProfile(t *testing
 	assertAllActionsSucceeded(t, newReg)
 	assertPackageRegistryHasBeenUpdatedProperly(t, newReg, incomingApps)
 	assert.Equal(t, 3, len(actionPlan.unorderedImplicitUninstalls), "we are expecting 3 uninstall operations")
-	assert.Equal(t,2,  len(cmdHandler.Result), "only 2 commands should be invoked")
+	assert.Equal(t, 2, len(cmdHandler.Result), "only 2 commands should be invoked")
 
 	packageOperationResults, ok := statusMessage.(*PackageOperationResults)
 	assert.True(t, ok)
@@ -557,8 +555,7 @@ func executeActionPlan(t *testing.T,
 	}
 	err = packageReg.WriteToDisk(currentReg)
 	assert.NoError(t, err)
-	actionPlan, err := New(currentReg, incomingPackages, environment, new(NoopHostGaComminucator), el)
-	assert.NoError(t, err)
+	actionPlan := New(currentReg, incomingPackages, environment, new(NoopHostGaComminucator), el)
 
 	el := logging.New(nil)
 	he := getHandlerEnvironment()

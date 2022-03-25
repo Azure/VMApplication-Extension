@@ -84,7 +84,7 @@ func appendExecutionResultExplicit(executionResult *PackageOperationResults, act
 	*executionResult = append(*executionResult, PackageOperationResult{PackageName: act.vmAppPackage.ApplicationName, AppVersion: act.vmAppPackage.Version, Operation: act.actionToPerform.ToString(), Result: result})
 }
 
-func New(currentPackageRegistry packageregistry.CurrentPackageRegistry, desiredVMAppCollection packageregistry.VMAppPackageIncomingCollection, environment *handlerenv.HandlerEnvironment, hostGaCommunicator hostgacommunicator.IHostGaCommunicator, logger *logging.ExtensionLogger) (*ActionPlan, error) {
+func New(currentPackageRegistry packageregistry.CurrentPackageRegistry, desiredVMAppCollection packageregistry.VMAppPackageIncomingCollection, environment *handlerenv.HandlerEnvironment, hostGaCommunicator hostgacommunicator.IHostGaCommunicator, logger *logging.ExtensionLogger) *ActionPlan {
 
 	actionPlan := &ActionPlan{
 		environment:                 environment,
@@ -147,7 +147,7 @@ func New(currentPackageRegistry packageregistry.CurrentPackageRegistry, desiredV
 
 	sort.Ints(actionPlan.sortedOrder)
 
-	return actionPlan, nil
+	return actionPlan
 }
 
 func (actionPlan *ActionPlan) insertOperation(order *int, dependentActions1 ...*action) {

@@ -10,6 +10,7 @@ import (
 	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
 	"github.com/Azure/azure-extension-platform/pkg/commandhandler"
 	vmextensionhelper "github.com/Azure/azure-extension-platform/vmextension"
+	"github.com/pkg/errors"
 )
 
 // Note: not const so test can change them
@@ -39,6 +40,7 @@ func getExtensionAndRun() error {
 		return err
 	}
 
+	ii.UninstallCallback = vmAppUninstallCallback
 	ii.UpdateCallback = vmAppUpdateCallback
 	ii.LogFileNamePattern = "VmAppExt_%v.log"
 
@@ -52,7 +54,7 @@ func getExtensionAndRun() error {
 	return nil
 }
 
-// Callback indicating the operation is enable and the sequence number has changed
+// Callback indicating the operation is enable
 func vmAppEnableCallback(ext *vmextensionhelper.VMExtension) (string, error) {
 	ext.ExtensionEvents.LogInformationalEvent("Starting", "VmApplications extension starting")
 	hostGaCommunicator := hostgacommunicator.HostGaCommunicator{}
@@ -87,11 +89,7 @@ func doVmAppEnableCallback(ext *vmextensionhelper.VMExtension, hostGaCommunicato
 		return "could not read current package registry", err
 	}
 
-	actionPlan, err := actionplan.New(currentPackageRegistry, vmAppIncomingCollection, ext.HandlerEnv, hostGaCommunicator, ext.ExtensionLogger)
-	if err != nil {
-		return "could not create action plan", err
-	}
-
+	actionPlan := actionplan.New(currentPackageRegistry, vmAppIncomingCollection, ext.HandlerEnv, hostGaCommunicator, ext.ExtensionLogger)
 	commandHandler := commandhandler.CommandHandler{}
 
 	// actionPlan.Execute can fail partially, but we mark the overall process as success
@@ -104,4 +102,44 @@ func doVmAppEnableCallback(ext *vmextensionhelper.VMExtension, hostGaCommunicato
 	}
 
 	return getStatusMessage(currentPackageRegistry.GetPackageCollection(), result), nil
+}
+
+// Callback indicating the extension is being removed
+func vmAppUninstallCallback(ext *vmextensionhelper.VMExtension) error {
+	ext.ExtensionEvents.LogInformationalEvent("Uninstalling", "VmApplications extension - removing all applications for uninstall")
+	hostGaCommunicator := hostgacommunicator.HostGaCommunicator{}
+	err := doVmAppUninstallCallback(ext, &hostGaCommunicator)
+	if err == nil {
+		ext.ExtensionEvents.LogInformationalEvent("Completed", "VmApplications extension uninstalled. Result=Success")
+	} else {
+		ext.ExtensionEvents.LogInformationalEvent(
+			"Completed",
+			fmt.Sprintf("VmApplications extension uninstall finished. Result=Failure;Reason=%v", err.Error()))
+	}
+
+	return err
+}
+
+func doVmAppUninstallCallback(ext *vmextensionhelper.VMExtension, hostGaCommunicator hostgacommunicator.IHostGaCommunicator) error {
+	packageRegistry, err := packageregistry.New(ext.ExtensionLogger, ext.HandlerEnv, filelockTimeoutDuration)
+	if err != nil {
+		return errors.Wrapf(err, "could not create package registry")
+	}
+	defer packageRegistry.Close()
+
+	currentPackageRegistry, err := packageRegistry.GetExistingPackages()
+	if err != nil {
+		return errors.Wrapf(err, "could not read current package registry")
+	}
+
+	// Create an empty incoming collection so we'll create an action plan to remove all applications
+	emptyIncomingCollection := make(packageregistry.VMAppPackageIncomingCollection, 0)
+
+	actionPlan := actionplan.New(currentPackageRegistry, emptyIncomingCollection, ext.HandlerEnv, hostGaCommunicator, ext.ExtensionLogger)
+	commandHandler := commandhandler.CommandHandler{}
+
+	// Removing applications is best effort, so even if there are errors here, we ignore them
+	_, _ = actionPlan.Execute(packageRegistry, ext.ExtensionEvents, &commandHandler)
+
+	return nil
 }
