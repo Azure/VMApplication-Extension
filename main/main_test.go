@@ -174,7 +174,7 @@ func Test_uninstall_cannotCreatePackageRegistry(t *testing.T) {
 
 	err := doVmAppUninstallCallback(ext, &hostGaCommunicator)
 	require.Error(t, err)
-	require.EqualError(t, err, "could not create package registry: The system cannot find the path specified.")
+	require.EqualError(t, err, cannotCreatePackageRegistryError)
 }
 
 func Test_uninstall_cannotReadPackageRegistry(t *testing.T) {
