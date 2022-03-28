@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"path"
 	"syscall"
+	"time"
 
 	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
 	"github.com/Azure/azure-extension-platform/pkg/commandhandler"
@@ -58,7 +59,7 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 		errorMessageToReturn = errors.Errorf("Unexpected Action to perform encountered %v", act.actionToPerform)
 	}
 
-	actionPlan.logger.Info("Calling command %v for application %v, version %v", commandToExecute, appName, version)
+	actionPlan.logger.Info("Calling command '%v' for application %v, version %v", commandToExecute, appName, version)
 	eem.LogInformationalEvent(
 		"CommandStarted",
 		fmt.Sprintf("Starting cmd=%v, application=%v, version=%v", commandToExecute, appName, version))
@@ -150,7 +151,12 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 		signal.Notify(interruptSignal, syscall.SIGTERM, syscall.SIGINT)
 
 		go func() {
+			start := time.Now().UnixNano() / int64(time.Millisecond)
 			rCode, err := commandHandler.Execute(commandToExecute, vmAppPackageCurrent.DownloadDir, vmAppPackageCurrent.DownloadDir, true, actionPlan.logger)
+			end := time.Now().UnixNano() / int64(time.Millisecond)
+			executionInMs := end - start
+			actionPlan.logger.Info("Command completed in %v ms", executionInMs)
+
 			if err != nil {
 				actionPlan.logger.Info(fmt.Sprintf("Command failed in directory '%v'. Details: %v", vmAppPackageCurrent.DownloadDir, err))
 				eem.LogInformationalEvent("Command failed",
