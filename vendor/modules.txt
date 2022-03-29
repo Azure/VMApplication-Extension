@@ -1,4 +1,4 @@
-# github.com/Azure/azure-extension-platform v0.0.0-20220210175837-37d64a2291f7
+# github.com/Azure/azure-extension-platform v0.0.0-20220301222126-2656bbc0a09f
 ## explicit
 github.com/Azure/azure-extension-platform/pkg/commandhandler
 github.com/Azure/azure-extension-platform/pkg/constants
@@ -40,7 +40,7 @@ github.com/pmezard/go-difflib/difflib
 ## explicit
 github.com/stretchr/testify/assert
 github.com/stretchr/testify/require
-# golang.org/x/sys v0.0.0-20220209214540-3681064d5158
+# golang.org/x/sys v0.0.0-20220317061510-51cd9980dadf
 ## explicit
 golang.org/x/sys/internal/unsafeheader
 golang.org/x/sys/unix
