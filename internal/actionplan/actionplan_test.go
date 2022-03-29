@@ -332,9 +332,17 @@ func TestRemovedAppsAreRemovedFromRegistryEvenWhenFailed(t *testing.T) {
 	expectedError := "Error executing command fail: command failed as expected"
 	packageOperationResults, ok := statusMessage.(*PackageOperationResults)
 	assert.True(t, ok)
-	assert.EqualValues(t, PackageOperationResult{Result: Success, Operation: packageregistry.Remove.ToString(), AppVersion: old1.Version, PackageName: old1.ApplicationName}, (*packageOperationResults)[0])
-	assert.EqualValues(t, PackageOperationResult{Result: expectedError, Operation: packageregistry.Remove.ToString(), AppVersion: old2.Version, PackageName: old2.ApplicationName}, (*packageOperationResults)[1])
-	assert.EqualValues(t, PackageOperationResult{Result: Success, Operation: packageregistry.Remove.ToString(), AppVersion: old3.Version, PackageName: old3.ApplicationName}, (*packageOperationResults)[2])
+	verifyPackageOperationResult(t, &PackageOperationResult{Result: Success, Operation: packageregistry.Remove.ToString(), AppVersion: old1.Version, PackageName: old1.ApplicationName}, packageOperationResults)
+	verifyPackageOperationResult(t, &PackageOperationResult{Result: expectedError, Operation: packageregistry.Remove.ToString(), AppVersion: old2.Version, PackageName: old2.ApplicationName}, packageOperationResults)
+	verifyPackageOperationResult(t, &PackageOperationResult{Result: Success, Operation: packageregistry.Remove.ToString(), AppVersion: old3.Version, PackageName: old3.ApplicationName}, packageOperationResults)
+}
+
+func verifyPackageOperationResult(t *testing.T, expectedResult *PackageOperationResult, actualResults *PackageOperationResults) {
+	for i := 0; i < len((*actualResults)); i++ {
+		if expectedResult.PackageName == (*actualResults)[i].PackageName && expectedResult.AppVersion == (*actualResults)[i].AppVersion {
+			assert.EqualValues(t, (*expectedResult), (*actualResults)[i])
+		}
+	}
 }
 
 func TestOrderIsMaintainedAndHigherOrderOperationsAreSkippedOnFailure(t *testing.T) {
