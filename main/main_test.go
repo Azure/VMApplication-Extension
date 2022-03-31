@@ -2,18 +2,23 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path"
 	"testing"
+	"time"
 
 	"github.com/Azure/VMApplication-Extension/internal/hostgacommunicator"
+	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
 	"github.com/Azure/azure-extension-platform/pkg/constants"
 	"github.com/Azure/azure-extension-platform/pkg/extensionevents"
 	"github.com/Azure/azure-extension-platform/pkg/handlerenv"
 	"github.com/Azure/azure-extension-platform/pkg/logging"
 	handlersettings "github.com/Azure/azure-extension-platform/pkg/settings"
 	"github.com/Azure/azure-extension-platform/vmextension"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -41,6 +46,10 @@ func (communicator *NoopHostGaCommunicator) SetupVMAppInfo(appName string, versi
 		UpdateCommand:      "",
 		Version:            version,
 	}
+}
+
+func nopLog() *logging.ExtensionLogger {
+	return logging.New(nil)
 }
 
 var maintestdir string
@@ -153,6 +162,92 @@ func Test_main_nothingToProcess(t *testing.T) {
 	hostGaCommunicator := NoopHostGaCommunicator{}
 	_, err := doVmAppEnableCallback(ext, &hostGaCommunicator)
 	require.NoError(t, err)
+}
+
+func Test_uninstall_cannotCreatePackageRegistry(t *testing.T) {
+	vmApplications := []VmAppSetting{}
+	ext := createTestVMExtension(t, vmApplications)
+	hostGaCommunicator := NoopHostGaCommunicator{}
+
+	// Set the config folder to an invalid path so we can't create a package registry
+	ext.HandlerEnv.ConfigFolder = "/yabaflarg/flarpaglarp"
+
+	err := doVmAppUninstallCallback(ext, &hostGaCommunicator)
+	require.Error(t, err)
+	require.EqualError(t, err, cannotCreatePackageRegistryError)
+}
+
+func Test_uninstall_cannotReadPackageRegistry(t *testing.T) {
+	vmApplications := []VmAppSetting{}
+	ext := createTestVMExtension(t, vmApplications)
+	hostGaCommunicator := NoopHostGaCommunicator{}
+
+	// Write an invalid registry so we can't create a package registry
+	appRegistryFilePath := path.Join(ext.HandlerEnv.ConfigFolder, packageregistry.LocalApplicationRegistryFileName)
+	ioutil.WriteFile(appRegistryFilePath, []byte("}"), 0644)
+	defer os.Remove(appRegistryFilePath)
+
+	err := doVmAppUninstallCallback(ext, &hostGaCommunicator)
+	require.Error(t, err)
+	require.EqualError(t, err, "could not read current package registry: invalid character '}' looking for beginning of value")
+}
+
+func Test_uninstall_noAppsToUninstall(t *testing.T) {
+	vmApplications := []VmAppSetting{}
+	ext := createTestVMExtension(t, vmApplications)
+	hostGaCommunicator := NoopHostGaCommunicator{}
+
+	package1 := path.Join(ext.HandlerEnv.ConfigFolder, "package1")
+	package2 := path.Join(ext.HandlerEnv.ConfigFolder, "package2")
+	package1Quotes := fmt.Sprintf("\"%v\"", package1)
+	package2Quotes := fmt.Sprintf("\"%v\"", package2)
+
+	// Create a package registry where the remove commands will write their respective files
+	reg := packageregistry.CurrentPackageRegistry{"package1": &packageregistry.VMAppPackageCurrent{
+		ApplicationName:    "package1",
+		DirectDownloadOnly: false,
+		InstallCommand:     "dontcare",
+		RemoveCommand:      "echo moein > " + package1Quotes,
+		UpdateCommand:      "dontcare",
+		Version:            "1.2.3.1",
+	}, "package2": &packageregistry.VMAppPackageCurrent{
+		ApplicationName:    "package2",
+		DirectDownloadOnly: true,
+		InstallCommand:     "dontcare",
+		RemoveCommand:      "echo moein > " + package2Quotes,
+		UpdateCommand:      "dontcare",
+		Version:            "1.2.3.2",
+	}}
+
+	pkgHndlr, err := packageregistry.New(nopLog(), ext.HandlerEnv, time.Second)
+	assert.NoError(t, err, "operation should not throw error")
+	err = pkgHndlr.WriteToDisk(reg)
+	assert.NoError(t, err, "Should be able to write package registry to disk")
+	pkgHndlr.Close()
+
+	err = doVmAppUninstallCallback(ext, &hostGaCommunicator)
+	require.NoError(t, err)
+
+	// Verify we removed both apps, which deleted the files
+	require.True(t, fileExists(package1), "First application was not removed")
+	require.True(t, fileExists(package2), "Second application was not removed")
+}
+
+func Test_uninstall_uninstallApps(t *testing.T) {
+	vmApplications := []VmAppSetting{}
+	ext := createTestVMExtension(t, vmApplications)
+	hostGaCommunicator := NoopHostGaCommunicator{}
+
+	err := doVmAppUninstallCallback(ext, &hostGaCommunicator)
+	require.NoError(t, err)
+}
+
+func fileExists(filePath string) bool {
+	if _, err := os.Stat(filePath); errors.Is(err, os.ErrNotExist) {
+		return false
+	}
+
+	return true
 }
 
 func resetExtensionVersion() {

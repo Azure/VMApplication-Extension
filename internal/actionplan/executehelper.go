@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"path"
 	"syscall"
+	"time"
 
 	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
 	"github.com/Azure/azure-extension-platform/pkg/commandhandler"
@@ -47,6 +48,8 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 	switch act.actionToPerform {
 	case packageregistry.Install:
 		commandToExecute = vmAppPackageCurrent.InstallCommand
+	case packageregistry.RemoveForUpdate:
+		commandToExecute = vmAppPackageCurrent.RemoveCommand
 	case packageregistry.Remove:
 		isDeleteOperation = true
 		commandToExecute = vmAppPackageCurrent.RemoveCommand
@@ -56,7 +59,7 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 		errorMessageToReturn = errors.Errorf("Unexpected Action to perform encountered %v", act.actionToPerform)
 	}
 
-	actionPlan.logger.Info("Calling command %v for application %v, version %v", commandToExecute, appName, version)
+	actionPlan.logger.Info("Calling command '%v' for application %v, version %v", commandToExecute, appName, version)
 	eem.LogInformationalEvent(
 		"CommandStarted",
 		fmt.Sprintf("Starting cmd=%v, application=%v, version=%v", commandToExecute, appName, version))
@@ -116,6 +119,8 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 			// this is a delete operation, refrain from downloading anything just load existing packages
 			// verify checksum
 			packageFilePath := path.Join(vmAppPackageCurrent.DownloadDir, vmAppPackageCurrent.PackageFileName)
+			downloadPath := vmAppPackageCurrent.GetWorkingDirectory(actionPlan.environment)
+			vmAppPackageCurrent.DownloadDir = downloadPath
 			if vmAppPackageCurrent.PackageFileMD5Checksum != nil {
 				isMatch, err := verifyMD5CheckSum(packageFilePath, vmAppPackageCurrent.PackageFileMD5Checksum)
 				if err != nil {
@@ -146,7 +151,18 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 		signal.Notify(interruptSignal, syscall.SIGTERM, syscall.SIGINT)
 
 		go func() {
+			start := time.Now().UnixNano() / int64(time.Millisecond)
 			rCode, err := commandHandler.Execute(commandToExecute, vmAppPackageCurrent.DownloadDir, vmAppPackageCurrent.DownloadDir, true, actionPlan.logger)
+			end := time.Now().UnixNano() / int64(time.Millisecond)
+			executionInMs := end - start
+			actionPlan.logger.Info("Command completed in %v ms", executionInMs)
+
+			if err != nil {
+				actionPlan.logger.Info(fmt.Sprintf("Command failed in directory '%v'. Details: %v", vmAppPackageCurrent.DownloadDir, err))
+				eem.LogInformationalEvent("Command failed",
+					fmt.Sprintf("cmd=%v, application=%v, version=%v, details=%v",
+						commandToExecute, appName, version, err))
+			}
 			completionSignal <- ExecutionResult{retCode: rCode, err: err}
 			close(completionSignal)
 		}()
@@ -172,6 +188,8 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 			case packageregistry.Update:
 				vmAppPackageCurrent.OngoingOperation = packageregistry.NoAction
 				vmAppPackageCurrent.Result = "reboot detected during update, marking operation as success"
+			case packageregistry.RemoveForUpdate:
+				fallthrough
 			case packageregistry.Remove:
 				delete(registry, appName)
 				os.RemoveAll(vmAppPackageCurrent.DownloadDir)
@@ -182,20 +200,21 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 		signal.Stop(interruptSignal)
 	}
 
+	if isDeleteOperation {
+		delete(registry, appName)
+		// also cleanup directory
+		deleteErr := os.RemoveAll(vmAppPackageCurrent.DownloadDir)
+		errorMessageToReturn = extensionerrors.CombineErrors(errorMessageToReturn, deleteErr)
+	}
+
 	if errorMessageToReturn != nil {
 		vmAppPackageCurrent.Result = fmt.Sprintf("%s %s %s", vmAppPackageCurrent.OngoingOperation.ToString(), Failed, errorMessageToReturn.Error())
 		vmAppPackageCurrent.OngoingOperation = packageregistry.Failed
 	} else {
-		if isDeleteOperation {
-			delete(registry, appName)
-			// also cleanup directory
-			deleteErr := os.RemoveAll(vmAppPackageCurrent.DownloadDir)
-			errorMessageToReturn = extensionerrors.CombineErrors(errorMessageToReturn, deleteErr)
-		} else {
-			vmAppPackageCurrent.Result = fmt.Sprintf("%s %s", vmAppPackageCurrent.OngoingOperation.ToString(), Success)
-			vmAppPackageCurrent.OngoingOperation = packageregistry.NoAction
-		}
+		vmAppPackageCurrent.Result = fmt.Sprintf("%s %s", vmAppPackageCurrent.OngoingOperation.ToString(), Success)
+		vmAppPackageCurrent.OngoingOperation = packageregistry.NoAction
 	}
+
 	err = registryHandler.WriteToDisk(registry)
 	if err != nil {
 		return markCommandFailed(commandToExecute, appName, version, err, eem)

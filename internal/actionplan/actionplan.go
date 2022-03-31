@@ -84,7 +84,7 @@ func appendExecutionResultExplicit(executionResult *PackageOperationResults, act
 	*executionResult = append(*executionResult, PackageOperationResult{PackageName: act.vmAppPackage.ApplicationName, AppVersion: act.vmAppPackage.Version, Operation: act.actionToPerform.ToString(), Result: result})
 }
 
-func New(currentPackageRegistry packageregistry.CurrentPackageRegistry, desiredVMAppCollection packageregistry.VMAppPackageIncomingCollection, environment *handlerenv.HandlerEnvironment, hostGaCommunicator hostgacommunicator.IHostGaCommunicator, logger *logging.ExtensionLogger) (*ActionPlan, error) {
+func New(currentPackageRegistry packageregistry.CurrentPackageRegistry, desiredVMAppCollection packageregistry.VMAppPackageIncomingCollection, environment *handlerenv.HandlerEnvironment, hostGaCommunicator hostgacommunicator.IHostGaCommunicator, logger *logging.ExtensionLogger) *ActionPlan {
 
 	actionPlan := &ActionPlan{
 		environment:                 environment,
@@ -127,7 +127,7 @@ func New(currentPackageRegistry packageregistry.CurrentPackageRegistry, desiredV
 					// not the same version and there is no update command
 					logger.Info("Application %v has version %v, but %v is desired. No update command exists, so removing and adding",
 						vmAppCurrent.ApplicationName, vmAppCurrent.Version, vmAppIncoming.Version)
-					deleteAction := &action{*vmAppCurrent, packageregistry.Remove} // delete current and install incoming
+					deleteAction := &action{*vmAppCurrent, packageregistry.RemoveForUpdate} // delete current and install incoming
 					installAction := &action{*packageregistry.VMAppPackageIncomingToVmAppPackageCurrent(vmAppIncoming), packageregistry.Install}
 					actionPlan.insertOperation(vmAppIncoming.Order, deleteAction, installAction)
 				} else {
@@ -147,7 +147,7 @@ func New(currentPackageRegistry packageregistry.CurrentPackageRegistry, desiredV
 
 	sort.Ints(actionPlan.sortedOrder)
 
-	return actionPlan, nil
+	return actionPlan
 }
 
 func (actionPlan *ActionPlan) insertOperation(order *int, dependentActions1 ...*action) {
