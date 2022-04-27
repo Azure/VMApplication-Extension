@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/Azure/VMApplication-Extension/internal/customactionplan"
 	"os"
 	"time"
 
@@ -75,7 +76,12 @@ func doVmAppEnableCallback(ext *vmextensionhelper.VMExtension, hostGaCommunicato
 	if err != nil {
 		return "could not get extension settings", err
 	}
-	vmAppIncomingCollection, err := getVMAppIncomingCollection(settings, hostGaCommunicator, ext.ExtensionLogger)
+
+	protSettings, err := getVMAppProtectedSettings(settings)
+	if err != nil {
+		return "Could not deserialize protected settings", err
+	}
+	vmAppIncomingCollection, err := getVMAppIncomingCollection(protSettings, hostGaCommunicator, ext.ExtensionLogger)
 	if err != nil {
 		return "resolving packages failed", err
 	}
@@ -85,6 +91,7 @@ func doVmAppEnableCallback(ext *vmextensionhelper.VMExtension, hostGaCommunicato
 	}
 	defer packageRegistry.Close()
 	currentPackageRegistry, err := packageRegistry.GetExistingPackages()
+
 	if err != nil {
 		return "could not read current package registry", err
 	}
@@ -96,12 +103,23 @@ func doVmAppEnableCallback(ext *vmextensionhelper.VMExtension, hostGaCommunicato
 	// errors are sent in the status message
 	_, result := actionPlan.Execute(packageRegistry, ext.ExtensionEvents, &commandHandler)
 
+	//check result
+	vmAppResults, ok := result.(*actionplan.PackageOperationResults)
 	currentPackageRegistry, err = packageRegistry.GetExistingPackages()
+	if !ok {
+		return getStatusMessage(currentPackageRegistry.GetPackageCollection(), result), nil
+	}
 	if err != nil {
-		return "could not read current package registry", err
+		return "could not get package registry", err
 	}
 
-	return getStatusMessage(currentPackageRegistry.GetPackageCollection(), result), nil
+	customActionPlan, err := customactionplan.New(protSettings, currentPackageRegistry, ext.HandlerEnv, ext.ExtensionLogger)
+	if err != nil {
+		return "could not create custom action action plan", err
+	}
+	_, customActionResults := customActionPlan.Execute(ext.ExtensionEvents, &commandHandler, vmAppResults)
+
+	return getStatusMessage(currentPackageRegistry.GetPackageCollection(), customActionResults), nil
 }
 
 // Callback indicating the extension is being removed

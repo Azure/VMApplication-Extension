@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"github.com/Azure/VMApplication-Extension/internal/extdeserialization"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -100,7 +101,7 @@ func Test_getVMPackageData_cannotDeserialize(t *testing.T) {
 }
 
 func Test_getVMPackageData_noApplications(t *testing.T) {
-	vmApplications := []VmAppSetting{}
+	vmApplications := []extdeserialization.VmAppSetting{}
 
 	ext := createTestVMExtension(t, vmApplications)
 	_, err := vmAppEnableCallback(ext)
@@ -109,8 +110,8 @@ func Test_getVMPackageData_noApplications(t *testing.T) {
 
 func Test_getVMPackageData_valid(t *testing.T) {
 	order := 1
-	vmApplications := []VmAppSetting{
-		{
+	vmApplications := []extdeserialization.VmAppSetting{
+		extdeserialization.VmAppSetting{
 			ApplicationName: "iggy",
 			Order:           &order,
 		},
@@ -123,10 +124,45 @@ func Test_getVMPackageData_valid(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func Test_getVMAppProtectedSettings_valid(t *testing.T) {
+	order := 1
+	actions := extdeserialization.ActionSetting{
+		ActionName: "logging",
+		ActionScript: "echo %CustomAction_blobURL%",
+		Timestamp: "20210604T155300Z",
+		Parameters: []extdeserialization.ActionParameter{
+			{
+				ParameterName: "blobURL",
+				ParameterValue: "myaccount.blob.core.windows.net",
+			},
+		},
+		TickCount: 10193113,
+	}
+	appSettings := extdeserialization.VmAppSetting{
+		ApplicationName: "iggy",
+		Order: &order,
+		Actions: []*extdeserialization.ActionSetting{&actions},
+
+	}
+	vmAppProtectedSettings := VmAppProtectedSettings{&appSettings}
+	testSettings := handlersettings.HandlerSettings {
+		PublicSettings: "{}",
+		ProtectedSettings: "[{\"name\": \"iggy\", \"order\": 1, \"actions\": [{\"name\": \"logging\",\"script\": \"echo %CustomAction_blobURL%\",\"timestamp\": \"20210604T155300Z\",\"parameters\": [{\"name\": \"blobURL\",\"value\": \"myaccount.blob.core.windows.net\"}],\"tickCount\": 10193113}]}]",
+	}
+
+	out, err := getVMAppProtectedSettings(&testSettings)
+	require.NoError(t, err)
+
+	require.EqualValues(t, vmAppProtectedSettings[0].ApplicationName, out[0].ApplicationName)
+	require.EqualValues(t, *vmAppProtectedSettings[0].Order, *out[0].Order)
+	require.EqualValues(t, *vmAppProtectedSettings[0].Actions[0], *out[0].Actions[0])
+
+}
+
 func Test_getVMPackageData_noVersion(t *testing.T) {
 	order := 1
-	vmApplications := []VmAppSetting{
-		{
+	vmApplications := []extdeserialization.VmAppSetting{
+		extdeserialization.VmAppSetting{
 			ApplicationName: "iggy",
 			Order:           &order,
 		},
@@ -139,10 +175,58 @@ func Test_getVMPackageData_noVersion(t *testing.T) {
 	require.Error(t, err)
 }
 
+func Test_getVMPackageDataCustomAction_valid(t *testing.T) {
+	order := 1
+	actions := extdeserialization.ActionSetting{
+				ActionName: "Action1",
+				ActionScript: "echo hello",
+				Timestamp: "20210604T155300Z",
+				Parameters: []extdeserialization.ActionParameter{},
+				TickCount: 12346578,
+		}
+	vmApplications := []extdeserialization.VmAppSetting{
+		extdeserialization.VmAppSetting{
+			ApplicationName: "iggy",
+			Order:           &order,
+			Actions:		[]*extdeserialization.ActionSetting{&actions},
+		},
+	}
+
+	ext := createTestVMExtension(t, vmApplications)
+	hostGaCommunicator := NoopHostGaCommunicator{}
+	hostGaCommunicator.SetupVMAppInfo("iggy", "1.0.1", "install")
+	_, err := doVmAppEnableCallback(ext, &hostGaCommunicator)
+	require.NoError(t, err)
+}
+
+func Test_getVMPackageDataCustomAction_CriticalError(t *testing.T) {
+	order := 1
+	actions := extdeserialization.ActionSetting{
+		ActionName: "Action1",
+		ActionScript: "echo hello",
+		Timestamp: "20210604T155300Z",
+		Parameters: []extdeserialization.ActionParameter{},
+		TickCount: 12346578,
+	}
+	vmApplications := []extdeserialization.VmAppSetting{
+		extdeserialization.VmAppSetting{
+			ApplicationName: "",
+			Order: &order,
+			Actions:		[]*extdeserialization.ActionSetting{&actions},
+		},
+	}
+
+	ext := createTestVMExtension(t, vmApplications)
+	hostGaCommunicator := NoopHostGaCommunicator{}
+	hostGaCommunicator.SetupVMAppInfo("iggy", "1.0.1", "install")
+	_, err := doVmAppEnableCallback(ext, &hostGaCommunicator)
+	require.Error(t, err)
+}
+
 func Test_getVMPackageData_noApplicationName(t *testing.T) {
 	order := 1
-	vmApplications := []VmAppSetting{
-		{
+	vmApplications := []extdeserialization.VmAppSetting{
+		extdeserialization.VmAppSetting{
 			ApplicationName: "",
 			Order:           &order,
 		},
@@ -152,11 +236,12 @@ func Test_getVMPackageData_noApplicationName(t *testing.T) {
 	hostGaCommunicator.SetupVMAppInfo("iggy", "1.0.1", "install")
 	ext := createTestVMExtension(t, vmApplications)
 	_, err := doVmAppEnableCallback(ext, &hostGaCommunicator)
+
 	require.Error(t, err)
 }
 
 func Test_main_nothingToProcess(t *testing.T) {
-	vmApplications := []VmAppSetting{}
+	vmApplications := []extdeserialization.VmAppSetting{}
 	ext := createTestVMExtension(t, vmApplications)
 
 	hostGaCommunicator := NoopHostGaCommunicator{}
@@ -302,3 +387,4 @@ func createTestVMExtension(t *testing.T, settings interface{}) *vmextension.VMEx
 		ExtensionEvents: eem,
 	}
 }
+
