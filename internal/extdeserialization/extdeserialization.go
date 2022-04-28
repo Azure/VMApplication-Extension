@@ -26,4 +26,3 @@ func GetParameterNames(settings ActionSetting) []string {
 	}
 	return names
 }
-

@@ -18,17 +18,17 @@ func vmAppUpdateCallback(ext *vmextensionhelper.VMExtension) error {
 	//loop to find directory that contains current version
 	for {
 		currentFolderName = filepath.Base(folderPath)
-		if strings.Contains(currentFolderName,extensionVersion) {
+		if strings.Contains(currentFolderName, extensionVersion) {
 			break
 		}
 		pathToFile = filepath.Join(currentFolderName, pathToFile) //keeping track of full path to file
-		folderPath = filepath.Dir(folderPath) //update folderpath to walk up directory
+		folderPath = filepath.Dir(folderPath)                     //update folderpath to walk up directory
 		if folderPath == "." {
 			return nil //breaks at root of path if version directory is not found, update doesn't take place
 		}
 	}
 
-	folderPath = filepath.Dir(folderPath) 	//folder that contains all the versions
+	folderPath = filepath.Dir(folderPath)         //folder that contains all the versions
 	dirContent, err := ioutil.ReadDir(folderPath) //reads directory and returns content in sorted order
 	if err != nil {
 		return err

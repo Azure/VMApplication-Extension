@@ -24,9 +24,9 @@ func Test_didFileMove(t *testing.T) {
 
 	//set up test files
 	runtimeFolderName := "RuntimeSettings"
-	testFolderPath := ext.HandlerEnv.ConfigFolder //path to create test version folders
+	testFolderPath := ext.HandlerEnv.ConfigFolder                                                                 //path to create test version folders
 	ext.HandlerEnv.ConfigFolder = filepath.Join(ext.HandlerEnv.ConfigFolder, extensionVersion, runtimeFolderName) //overwrite to match path pattern of config folder in VM
-	err := os.MkdirAll(ext.HandlerEnv.ConfigFolder, os.ModeDir) //creates new folders
+	err := os.MkdirAll(ext.HandlerEnv.ConfigFolder, os.ModeDir)                                                   //creates new folders
 	if err != nil {
 		return
 	}
@@ -43,9 +43,9 @@ func Test_didFileMove(t *testing.T) {
 	}
 
 	//checks
-	assert.NoError(t, err) 	//check for errors
+	assert.NoError(t, err) //check for errors
 	isSame := compareFiles(filepath.Join(testFolderPath, "1.0.3", runtimeFolderName, fileName), filepath.Join(ext.HandlerEnv.ConfigFolder, fileName))
-	assert.True(t, isSame) 	//check if correct file was moved
+	assert.True(t, isSame) //check if correct file was moved
 
 	//cleanup
 	os.RemoveAll(maintestdir)

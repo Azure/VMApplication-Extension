@@ -84,11 +84,11 @@ func assertCollectionsMatch(t *testing.T, vmAppCurrentCollection packageregistry
 	}
 }
 
-func generateRandomStringOfLength(length int)(string) {
+func generateRandomStringOfLength(length int) string {
 	charset := "abcdABCD1234"
 	charsetLength := len(charset)
 	sb := strings.Builder{}
-	for i := 0; i < length; i ++ {
+	for i := 0; i < length; i++ {
 		randChar := charset[rand.Intn(charsetLength)]
 		sb.WriteString(string(randChar))
 	}
