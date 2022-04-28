@@ -5,10 +5,9 @@
 package windows
 
 import (
+	"internal/unsafeheader"
 	"syscall"
 	"unsafe"
-
-	"golang.org/x/sys/internal/unsafeheader"
 )
 
 const (
