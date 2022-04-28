@@ -3,8 +3,8 @@
 package extensionerrors
 
 import (
-	"errors"
 	"fmt"
+	"github.com/pkg/errors"
 	"runtime/debug"
 )
 
