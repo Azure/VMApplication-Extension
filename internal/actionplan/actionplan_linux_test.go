@@ -31,7 +31,6 @@ var mockCommandExecutorKillProcess CommandExecutor = func(s string, s2 string) (
 	return 0, nil
 }
 
-
 func executeTestInAnotherThreadAndTerminateBeforeCompletion(t *testing.T, testName, packageDir, transcriptFile string) {
 	initializeTest(t)
 	file, err := os.Create(transcriptFile)
@@ -96,5 +95,3 @@ func TestCommandExecutorCanHandleProcessBeingKilled(t *testing.T) {
 		assert.Contains(t, app.Result, "reboot detected")
 	}
 }
-
-

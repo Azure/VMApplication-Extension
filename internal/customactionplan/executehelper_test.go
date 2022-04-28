@@ -68,23 +68,22 @@ var commandHandler = NewCommandHandlerMock(mockCommandExecutorNoError)
 var extensionLogger = logging.New(nil)
 var extensionEventManager = extensionevents.New(extensionLogger, &handlerEnvironment)
 var vmAppPackageCurrent = packageregistry.VMAppPackageCurrent{
-	ApplicationName:"test app",
-	Version:"1.0.0",
-	InstallCommand:"install",
-	RemoveCommand:"remove",
-	UpdateCommand:"update",
-	ConfigExists:true,
-	PackageFileName:"package",
-	ConfigFileName:"config",
-
+	ApplicationName: "test app",
+	Version:         "1.0.0",
+	InstallCommand:  "install",
+	RemoveCommand:   "remove",
+	UpdateCommand:   "update",
+	ConfigExists:    true,
+	PackageFileName: "package",
+	ConfigFileName:  "config",
 }
 
 var packageRegistry packageregistry.IPackageRegistry
 
-func initTest(t *testing.T){
+func initTest(t *testing.T) {
 	actionPlan = ActionPlan{
-		environment :       &handlerEnvironment,
-		logger:             extensionLogger,
+		environment: &handlerEnvironment,
+		logger:      extensionLogger,
 	}
 	err := os.MkdirAll(handlerEnvironment.ConfigFolder, constants.FilePermissions_UserOnly_ReadWriteExecute)
 	assert.NoError(t, err)
@@ -97,36 +96,36 @@ func initTest(t *testing.T){
 	err = os.MkdirAll(handlerEnvironment.EventsFolder, constants.FilePermissions_UserOnly_ReadWriteExecute)
 	assert.NoError(t, err)
 
-	pkr, err := packageregistry.New(extLogger, &handlerEnvironment, 1 * time.Minute)
+	pkr, err := packageregistry.New(extLogger, &handlerEnvironment, 1*time.Minute)
 	assert.NoError(t, err)
 	packageRegistry = pkr
 }
 
-func cleanTest(){
+func cleanTest() {
 	packageRegistry.Close()
 	os.RemoveAll(testdir)
 }
 
-func TestExecuteHelper(t *testing.T){
+func TestExecuteHelper(t *testing.T) {
 	initTest(t)
 	defer cleanTest()
 	act := action{vmAppPackageCurrent, extdeserialization.ActionSetting{
-		ActionName: "action1",
+		ActionName:   "action1",
 		ActionScript: "echo hello",
-		Timestamp:"",
-		Parameters: []extdeserialization.ActionParameter{},
-		TickCount: 1234567,
+		Timestamp:    "",
+		Parameters:   []extdeserialization.ActionParameter{},
+		TickCount:    1234567,
 	}}
 	err := actionPlan.executeHelper(commandHandler, ActionPackageRegistry{}, &act, extensionEventManager)
 	assert.NoError(t, err)
 	assertTickCountFileCorrect(t, act.Action.TickCount)
 
 	act = action{vmAppPackageCurrent, extdeserialization.ActionSetting{
-		ActionName: "action2",
+		ActionName:   "action2",
 		ActionScript: "echo world",
-		Timestamp:"",
-		Parameters: []extdeserialization.ActionParameter{},
-		TickCount: 1234568,
+		Timestamp:    "",
+		Parameters:   []extdeserialization.ActionParameter{},
+		TickCount:    1234568,
 	}}
 
 	err = actionPlan.executeHelper(commandHandler, ActionPackageRegistry{}, &act, extensionEventManager)

@@ -44,7 +44,7 @@ func NewCommandHandlerMock(executor func(string, string) (int, error)) *CommandH
 	return &CommandHandlerMock{Result: []commandResult{}, Executor: executor}
 }
 
-func (commandHandlerMock *CommandHandlerMock) ExecuteWithEnvVariables(command string, workingDir, logDir string, waitForCompletion bool, el *logging.ExtensionLogger,  params *map[string]string ) (returnCode int, err error) {
+func (commandHandlerMock *CommandHandlerMock) ExecuteWithEnvVariables(command string, workingDir, logDir string, waitForCompletion bool, el *logging.ExtensionLogger, params *map[string]string) (returnCode int, err error) {
 	returnCode, err = commandHandlerMock.Executor(command, workingDir)
 	commandHandlerMock.Result = append(commandHandlerMock.Result, commandResult{command, returnCode, err})
 	return
@@ -98,7 +98,7 @@ func actionSetup(t *testing.T, actionNum int, param bool) (actions []*extdeseria
 	var setting *extdeserialization.VmAppSetting
 	var tickCount uint64 = 10193113
 
-	for i :=1; i<=actionNum; i++ {
+	for i := 1; i <= actionNum; i++ {
 		if param {
 			setting = &extdeserialization.VmAppSetting{
 				ApplicationName: "app" + strconv.FormatInt(int64(i), 10),
@@ -108,13 +108,13 @@ func actionSetup(t *testing.T, actionNum int, param bool) (actions []*extdeseria
 						ActionName:   "action" + strconv.FormatInt(int64(i), 10),
 						ActionScript: "echo hello",
 						Timestamp:    "20210604T155300Z",
-						Parameters:   []extdeserialization.ActionParameter{
+						Parameters: []extdeserialization.ActionParameter{
 							{
 								ParameterName:  "FOO",
 								ParameterValue: "Hello World",
 							},
 						},
-						TickCount:    tickCount,
+						TickCount: tickCount,
 					},
 				},
 			}
@@ -171,7 +171,6 @@ func TestSingleCustomAction(t *testing.T) {
 	assert.EqualValues(t, (*packageOperationResults)[0], actionplan.PackageOperationResult{Result: actionplan.Success, Operation: "action1", AppVersion: "1.0", PackageName: "app1", Timestamp: "20210604T155300Z"})
 }
 
-
 func TestSingleCustomActionWithParameter(t *testing.T) {
 	action := actionSetup(t, 1, true)
 	newApp := packageregistry.VMAppPackageCurrent{
@@ -201,15 +200,14 @@ func TestSingleCustomActionWithParameter(t *testing.T) {
 	assert.EqualValues(t, (*packageOperationResults)[0], actionplan.PackageOperationResult{Result: actionplan.Success, Operation: "action1", AppVersion: "1.0", PackageName: newApp.ApplicationName, Timestamp: "20210604T155300Z"})
 }
 
-
 func TestNoCustomAction(t *testing.T) {
 	cleanupTest()
 	initializeTest(t)
 	action := []*extdeserialization.VmAppSetting{
 		{
 			ApplicationName: "app1",
-			Order: &one,
-			Actions: []*extdeserialization.ActionSetting{},
+			Order:           &one,
+			Actions:         []*extdeserialization.ActionSetting{},
 		},
 	}
 
@@ -316,27 +314,27 @@ func TestDoubleCustomActionOldTickCount(t *testing.T) {
 	action := []*extdeserialization.VmAppSetting{
 		{
 			ApplicationName: "app1",
-			Order: &one,
+			Order:           &one,
 			Actions: []*extdeserialization.ActionSetting{
 				{
-					ActionName: "action1",
+					ActionName:   "action1",
 					ActionScript: "echo hello",
-					Timestamp: "20210604T155300Z",
-					Parameters: []extdeserialization.ActionParameter{},
-					TickCount: 10193113,
+					Timestamp:    "20210604T155300Z",
+					Parameters:   []extdeserialization.ActionParameter{},
+					TickCount:    10193113,
 				},
 			},
 		},
 		{
 			ApplicationName: "app2",
-			Order: &one,
+			Order:           &one,
 			Actions: []*extdeserialization.ActionSetting{
 				{
-					ActionName: "action2",
+					ActionName:   "action2",
 					ActionScript: "echo world",
-					Timestamp: "20210604T155330Z",
-					Parameters: []extdeserialization.ActionParameter{},
-					TickCount: 10193110,
+					Timestamp:    "20210604T155330Z",
+					Parameters:   []extdeserialization.ActionParameter{},
+					TickCount:    10193110,
 				},
 			},
 		},
@@ -390,7 +388,7 @@ func TestDoubleCustomActionOldTickCount(t *testing.T) {
 func executeActionPlan(t *testing.T,
 	settings []*extdeserialization.VmAppSetting,
 	appPackage packageregistry.CurrentPackageRegistry,
-	cmdHandler commandhandler.ICommandHandlerWithEnvVariables) ( *ActionPlan, actionplan.IResult) {
+	cmdHandler commandhandler.ICommandHandlerWithEnvVariables) (*ActionPlan, actionplan.IResult) {
 
 	actionPlan, err := New(settings, appPackage, environment, extLogger)
 	assert.NoError(t, err)
@@ -401,7 +399,7 @@ func executeActionPlan(t *testing.T,
 
 	vmAppResult := actionplan.PackageOperationResults{}
 
- 	_, statusMessage := actionPlan.Execute(extEventManager, cmdHandler, &vmAppResult)
+	_, statusMessage := actionPlan.Execute(extEventManager, cmdHandler, &vmAppResult)
 	assert.NoError(t, err)
 	return actionPlan, statusMessage
 }
@@ -427,10 +425,9 @@ func assertTickCountFileCorrect(t *testing.T, tickCount uint64) {
 }
 
 func assertActionOrder(t *testing.T, actionPlan *ActionPlan) {
-	currTickCount :=uint64(0)
+	currTickCount := uint64(0)
 	for _, act := range actionPlan.sortedOrder {
 		assert.Less(t, currTickCount, act.Action.TickCount)
 		currTickCount = act.Action.TickCount
 	}
 }
-  

@@ -50,7 +50,7 @@ func (actionPlan *ActionPlan) executeHelper(
 	currAction.Parameters = act.Action.Parameters
 	currAction.Status = "In Progress"
 	eem.LogInformationalEvent(
-	"CustomActionStarted",
+		"CustomActionStarted",
 		fmt.Sprintf("Starting custom action cmd=%v, application=%v, version=%v, parameters=%v", commandName, appName, version, extdeserialization.GetParameterNames(act.Action)))
 
 	// try to execute only if you have a valid command to execute
@@ -65,7 +65,7 @@ func (actionPlan *ActionPlan) executeHelper(
 		signal.Notify(interruptSignal, syscall.SIGTERM, syscall.SIGINT)
 
 		params := make(map[string]string)
-		for _,actionparams := range commandParameters {
+		for _, actionparams := range commandParameters {
 			params[actionparams.ParameterName] = actionparams.ParameterValue
 		}
 
