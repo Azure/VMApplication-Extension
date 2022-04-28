@@ -44,7 +44,7 @@ type VMAppMetadataReceiver struct {
 	ConfigFileName     string `json:"configFileName"`
 }
 
-func (receiver *VMAppMetadataReceiver) MapToVMAppMetadata() (*VMAppMetadata) {
+func (receiver *VMAppMetadataReceiver) MapToVMAppMetadata() *VMAppMetadata {
 	directDownloadOnly, err := strconv.ParseBool(receiver.DirectDownloadOnly)
 	if err != nil {
 		// assume directDownloadOnly is false when parsing fails

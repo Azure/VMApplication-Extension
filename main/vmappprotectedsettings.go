@@ -6,8 +6,6 @@ import (
 	"github.com/Azure/azure-extension-platform/pkg/settings"
 )
 
-
-
 type VmAppProtectedSettings []*extdeserialization.VmAppSetting
 
 func getVMAppProtectedSettings(settings *settings.HandlerSettings) (VmAppProtectedSettings, error) {
