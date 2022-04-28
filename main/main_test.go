@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"github.com/Azure/VMApplication-Extension/internal/extdeserialization"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -10,6 +9,8 @@ import (
 	"path"
 	"testing"
 	"time"
+
+	"github.com/Azure/VMApplication-Extension/internal/extdeserialization"
 
 	"github.com/Azure/VMApplication-Extension/internal/hostgacommunicator"
 	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
@@ -127,12 +128,12 @@ func Test_getVMPackageData_valid(t *testing.T) {
 func Test_getVMAppProtectedSettings_valid(t *testing.T) {
 	order := 1
 	actions := extdeserialization.ActionSetting{
-		ActionName: "logging",
+		ActionName:   "logging",
 		ActionScript: "echo %CustomAction_blobURL%",
-		Timestamp: "20210604T155300Z",
+		Timestamp:    "20210604T155300Z",
 		Parameters: []extdeserialization.ActionParameter{
 			{
-				ParameterName: "blobURL",
+				ParameterName:  "blobURL",
 				ParameterValue: "myaccount.blob.core.windows.net",
 			},
 		},
@@ -140,13 +141,12 @@ func Test_getVMAppProtectedSettings_valid(t *testing.T) {
 	}
 	appSettings := extdeserialization.VmAppSetting{
 		ApplicationName: "iggy",
-		Order: &order,
-		Actions: []*extdeserialization.ActionSetting{&actions},
-
+		Order:           &order,
+		Actions:         []*extdeserialization.ActionSetting{&actions},
 	}
 	vmAppProtectedSettings := VmAppProtectedSettings{&appSettings}
-	testSettings := handlersettings.HandlerSettings {
-		PublicSettings: "{}",
+	testSettings := handlersettings.HandlerSettings{
+		PublicSettings:    "{}",
 		ProtectedSettings: "[{\"name\": \"iggy\", \"order\": 1, \"actions\": [{\"name\": \"logging\",\"script\": \"echo %CustomAction_blobURL%\",\"timestamp\": \"20210604T155300Z\",\"parameters\": [{\"name\": \"blobURL\",\"value\": \"myaccount.blob.core.windows.net\"}],\"tickCount\": 10193113}]}]",
 	}
 
@@ -178,17 +178,17 @@ func Test_getVMPackageData_noVersion(t *testing.T) {
 func Test_getVMPackageDataCustomAction_valid(t *testing.T) {
 	order := 1
 	actions := extdeserialization.ActionSetting{
-				ActionName: "Action1",
-				ActionScript: "echo hello",
-				Timestamp: "20210604T155300Z",
-				Parameters: []extdeserialization.ActionParameter{},
-				TickCount: 12346578,
-		}
+		ActionName:   "Action1",
+		ActionScript: "echo hello",
+		Timestamp:    "20210604T155300Z",
+		Parameters:   []extdeserialization.ActionParameter{},
+		TickCount:    12346578,
+	}
 	vmApplications := []extdeserialization.VmAppSetting{
 		extdeserialization.VmAppSetting{
 			ApplicationName: "iggy",
 			Order:           &order,
-			Actions:		[]*extdeserialization.ActionSetting{&actions},
+			Actions:         []*extdeserialization.ActionSetting{&actions},
 		},
 	}
 
@@ -202,17 +202,17 @@ func Test_getVMPackageDataCustomAction_valid(t *testing.T) {
 func Test_getVMPackageDataCustomAction_CriticalError(t *testing.T) {
 	order := 1
 	actions := extdeserialization.ActionSetting{
-		ActionName: "Action1",
+		ActionName:   "Action1",
 		ActionScript: "echo hello",
-		Timestamp: "20210604T155300Z",
-		Parameters: []extdeserialization.ActionParameter{},
-		TickCount: 12346578,
+		Timestamp:    "20210604T155300Z",
+		Parameters:   []extdeserialization.ActionParameter{},
+		TickCount:    12346578,
 	}
 	vmApplications := []extdeserialization.VmAppSetting{
 		extdeserialization.VmAppSetting{
 			ApplicationName: "",
-			Order: &order,
-			Actions:		[]*extdeserialization.ActionSetting{&actions},
+			Order:           &order,
+			Actions:         []*extdeserialization.ActionSetting{&actions},
 		},
 	}
 
@@ -250,7 +250,7 @@ func Test_main_nothingToProcess(t *testing.T) {
 }
 
 func Test_uninstall_cannotCreatePackageRegistry(t *testing.T) {
-	vmApplications := []VmAppSetting{}
+	vmApplications := []extdeserialization.VmAppSetting{}
 	ext := createTestVMExtension(t, vmApplications)
 	hostGaCommunicator := NoopHostGaCommunicator{}
 
@@ -263,7 +263,7 @@ func Test_uninstall_cannotCreatePackageRegistry(t *testing.T) {
 }
 
 func Test_uninstall_cannotReadPackageRegistry(t *testing.T) {
-	vmApplications := []VmAppSetting{}
+	vmApplications := []extdeserialization.VmAppSetting{}
 	ext := createTestVMExtension(t, vmApplications)
 	hostGaCommunicator := NoopHostGaCommunicator{}
 
@@ -278,7 +278,7 @@ func Test_uninstall_cannotReadPackageRegistry(t *testing.T) {
 }
 
 func Test_uninstall_noAppsToUninstall(t *testing.T) {
-	vmApplications := []VmAppSetting{}
+	vmApplications := []extdeserialization.VmAppSetting{}
 	ext := createTestVMExtension(t, vmApplications)
 	hostGaCommunicator := NoopHostGaCommunicator{}
 
@@ -319,7 +319,7 @@ func Test_uninstall_noAppsToUninstall(t *testing.T) {
 }
 
 func Test_uninstall_uninstallApps(t *testing.T) {
-	vmApplications := []VmAppSetting{}
+	vmApplications := []extdeserialization.VmAppSetting{}
 	ext := createTestVMExtension(t, vmApplications)
 	hostGaCommunicator := NoopHostGaCommunicator{}
 
@@ -387,4 +387,3 @@ func createTestVMExtension(t *testing.T, settings interface{}) *vmextension.VMEx
 		ExtensionEvents: eem,
 	}
 }
-
