@@ -27,7 +27,6 @@ type StatusMessage2 struct {
 	CriticalError string                                 `json:"CriticalError"`
 }
 
-
 func getVmAppCurrentForStatus(vmAppCurrentCollection packageregistry.VMAppPackageCurrentCollection) VmAppPackageCurrentForStatusCollection {
 	vmAppCurrentForStatusCollection := make(VmAppPackageCurrentForStatusCollection, 0)
 	for _, vmApp := range vmAppCurrentCollection {
@@ -47,8 +46,8 @@ func getStatusMessage(vmAppCurrentCollection packageregistry.VMAppPackageCurrent
 
 	if ok {
 		statusMessageA := StatusMessage1{
-			CurrentState:     		vmAppCurrentForStatusCollection,
-			ActionsPerformed: 		*packageOperationResults,
+			CurrentState:     vmAppCurrentForStatusCollection,
+			ActionsPerformed: *packageOperationResults,
 		}
 
 		statusM, err := json.MarshalIndent(statusMessageA, "", " ")
@@ -58,10 +57,10 @@ func getStatusMessage(vmAppCurrentCollection packageregistry.VMAppPackageCurrent
 			statusMessageString = string(statusM)
 		}
 
-	}  else {
+	} else {
 		statusMessage := StatusMessage2{
-			CurrentState:  		vmAppCurrentForStatusCollection,
-			CriticalError: 		result.ToJsonString(),
+			CurrentState:  vmAppCurrentForStatusCollection,
+			CriticalError: result.ToJsonString(),
 		}
 		statusM, err := json.MarshalIndent(statusMessage, "", " ")
 		if err != nil {

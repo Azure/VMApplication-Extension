@@ -7,16 +7,16 @@ import (
 
 func TestVMAppPackageIncomingToVmAppPackageCurrent(t *testing.T) {
 	incoming := &VMAppPackageIncoming{
-		ApplicationName: "TestApplication",
-		Version: "3.0.1",
-		PackageFileName: "installer_executable",
-		ConfigFileName: "configFile",
-		InstallCommand: "invoke_install --install",
-		RemoveCommand: "invoke_remove --remove",
-		UpdateCommand: "invoke_update --update",
-		ConfigExists: true,
+		ApplicationName:    "TestApplication",
+		Version:            "3.0.1",
+		PackageFileName:    "installer_executable",
+		ConfigFileName:     "configFile",
+		InstallCommand:     "invoke_install --install",
+		RemoveCommand:      "invoke_remove --remove",
+		UpdateCommand:      "invoke_update --update",
+		ConfigExists:       true,
 		DirectDownloadOnly: false,
-		Order: nil,
+		Order:              nil,
 	}
 	current := VMAppPackageIncomingToVmAppPackageCurrent(incoming)
 	assert.Equal(t, incoming.ApplicationName, current.ApplicationName)
@@ -29,11 +29,10 @@ func TestVMAppPackageIncomingToVmAppPackageCurrent(t *testing.T) {
 	assert.Equal(t, incoming.ConfigExists, current.ConfigExists)
 	assert.Equal(t, incoming.DirectDownloadOnly, current.DirectDownloadOnly)
 
-
 	incoming.PackageFileName = ""
 	incoming.ConfigFileName = ""
 	current = VMAppPackageIncomingToVmAppPackageCurrent(incoming)
 	assert.Equal(t, incoming.ApplicationName, current.PackageFileName)
-	assert.Equal(t, incoming.ApplicationName + defaultConfigFileNameSuffix, current.ConfigFileName)
+	assert.Equal(t, incoming.ApplicationName+defaultConfigFileNameSuffix, current.ConfigFileName)
 
 }

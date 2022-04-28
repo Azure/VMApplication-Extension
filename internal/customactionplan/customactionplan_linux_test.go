@@ -32,7 +32,6 @@ var mockCommandExecutorKillProcess CommandExecutor = func(s string, s2 string) (
 	return 0, nil
 }
 
-
 func executeTestInAnotherThreadAndTerminateBeforeCompletion(t *testing.T, testName, packageDir, transcriptFile string) {
 	initializeTest(t)
 	file, err := os.Create(transcriptFile)
@@ -49,7 +48,7 @@ func executeTestInAnotherThreadAndTerminateBeforeCompletion(t *testing.T, testNa
 
 func TestCommandExecutorCanHandleProcessBeingKilled(t *testing.T) {
 	envVariables := os.Environ()
-	var wasStartedByAnotherProcess= false
+	var wasStartedByAnotherProcess = false
 	for _, variable := range envVariables {
 		if strings.Contains(variable, LaunchedFromAnotherProcessEnvVariable) {
 			wasStartedByAnotherProcess = true
@@ -99,15 +98,13 @@ func TestCommandExecutorCanHandleProcessBeingKilled(t *testing.T) {
 		assert.True(t, ok)
 		assertTickCountFileCorrect(t, action[0].Actions[0].TickCount)
 		assert.EqualValues(t, (*packageOperationResults)[0], actionplan.PackageOperationResult{Result: actionplan.Success, Operation: "action1", AppVersion: newApp.Version, PackageName: newApp.ApplicationName})
-		} else {
-			defer cleanupTest()
-			currentDirAbsolutePath, err := filepath.Abs("")
-			assert.NoError(t, err, "should be able to get absolute path")
-			transcriptFile := path.Join(currentDirAbsolutePath, testdir, "transcript.txt")
-			executeTestInAnotherThreadAndTerminateBeforeCompletion(t, "TestCommandExecutorCanHandleProcessBeingKilled", currentDirAbsolutePath, transcriptFile)
-			fileContent, err := ioutil.ReadFile(transcriptFile)
-			assert.Contains(t, string(fileContent), "system reboot detected")
-		}
+	} else {
+		defer cleanupTest()
+		currentDirAbsolutePath, err := filepath.Abs("")
+		assert.NoError(t, err, "should be able to get absolute path")
+		transcriptFile := path.Join(currentDirAbsolutePath, testdir, "transcript.txt")
+		executeTestInAnotherThreadAndTerminateBeforeCompletion(t, "TestCommandExecutorCanHandleProcessBeingKilled", currentDirAbsolutePath, transcriptFile)
+		fileContent, err := ioutil.ReadFile(transcriptFile)
+		assert.Contains(t, string(fileContent), "system reboot detected")
+	}
 }
-
-
