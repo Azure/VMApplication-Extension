@@ -2,9 +2,10 @@ package main
 
 import (
 	"fmt"
-	"github.com/Azure/VMApplication-Extension/internal/customactionplan"
 	"os"
 	"time"
+
+	"github.com/Azure/VMApplication-Extension/internal/customactionplan"
 
 	"github.com/Azure/VMApplication-Extension/internal/actionplan"
 	"github.com/Azure/VMApplication-Extension/internal/hostgacommunicator"
@@ -16,7 +17,7 @@ import (
 
 // Note: not const so test can change them
 var (
-	extensionVersion = "1.0.6"
+	extensionVersion = "1.0.7"
 )
 
 const (

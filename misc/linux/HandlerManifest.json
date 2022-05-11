@@ -4,7 +4,7 @@
     "installCommand": "bin/vm-application-manager install",
     "uninstallCommand": "bin/vm-application-manager uninstall",
     "updateCommand": "bin/vm-application-manager update",
-    "enableCommand": "bin/extension-launcher -extensionname 'Microsoft.CPlat.Core.VMApplicationManagerLinux' -extensionversion '1.0.6' -exename ./vm-application-manager -operation enable",
+    "enableCommand": "bin/extension-launcher -extensionname 'Microsoft.CPlat.Core.VMApplicationManagerLinux' -extensionversion '1.0.7' -exename ./vm-application-manager -operation enable",
     "disableCommand": "bin/vm-application-manager disable",
     "rebootAfterInstall": false,
     "reportHeartbeat": false,
