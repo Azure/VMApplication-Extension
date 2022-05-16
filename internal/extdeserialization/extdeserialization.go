@@ -14,9 +14,10 @@ type ActionSetting struct {
 }
 
 type VmAppSetting struct {
-	ApplicationName string           `json:"name"`
-	Order           *int             `json:"order"`
-	Actions         []*ActionSetting `json:"actions"`
+	ApplicationName                 string           `json:"applicationName"`
+	Order                           *int             `json:"order"`
+	TreatFailureAsDeploymentFailure bool             `json:"treatFailureAsDeploymentFailure"`
+	Actions                         []*ActionSetting `json:"actions"`
 }
 
 func GetParameterNames(settings ActionSetting) []string {

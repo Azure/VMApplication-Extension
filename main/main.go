@@ -17,7 +17,7 @@ import (
 
 // Note: not const so test can change them
 var (
-	extensionVersion = "1.0.7"
+	extensionVersion = "1.0.8"
 )
 
 const (
