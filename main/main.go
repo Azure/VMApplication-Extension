@@ -103,7 +103,7 @@ func doVmAppEnableCallback(ext *vmextensionhelper.VMExtension, hostGaCommunicato
 
 	// actionPlan.Execute can fail partially, but we mark the overall process as success
 	// errors are sent in the status message
-	_, result := actionPlan.Execute(packageRegistry, ext.ExtensionEvents, &commandHandler)
+	executeError, result := actionPlan.Execute(packageRegistry, ext.ExtensionEvents, &commandHandler)
 
 	//check result
 	vmAppResults, ok := result.(*actionplan.PackageOperationResults)
@@ -120,8 +120,7 @@ func doVmAppEnableCallback(ext *vmextensionhelper.VMExtension, hostGaCommunicato
 		return "could not create custom action action plan", err
 	}
 	_, customActionResults := customActionPlan.Execute(ext.ExtensionEvents, &commandHandler, vmAppResults)
-
-	return getStatusMessage(currentPackageRegistry.GetPackageCollection(), customActionResults), nil
+	return getStatusMessage(currentPackageRegistry.GetPackageCollection(), customActionResults), executeError.GetErrorIfDeploymentFailed()
 }
 
 // Callback indicating the extension is being removed

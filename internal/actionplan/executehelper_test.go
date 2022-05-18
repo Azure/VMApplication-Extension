@@ -146,7 +146,7 @@ func cleanTest() {
 func TestExecuteHelper(t *testing.T) {
 	initTest(t)
 	defer cleanTest()
-	action := action{vmAppPackageCurrent, packageregistry.Install}
+	action := action{vmAppPackageCurrent, false, packageregistry.Install}
 	err := actionPlan.executeHelper(packageRegistry, commandHandler, packageregistry.CurrentPackageRegistry{}, &action, extensionEventManager)
 	assert.NoError(t, err)
 	assert.EqualValues(t, 1, mhgCommunicator.DownloadPackageCount, "download package count should be 1")
@@ -170,7 +170,7 @@ func TestExecuteHelper(t *testing.T) {
 func TestDeletedApp(t *testing.T) {
 	initTest(t)
 	defer cleanTest()
-	action := action{vmAppPackageDeleted, packageregistry.Install}
+	action := action{vmAppPackageDeleted, false, packageregistry.Install}
 	err := actionPlan.executeHelper(packageRegistry, commandHandler, packageregistry.CurrentPackageRegistry{}, &action, extensionEventManager)
 	assert.Error(t, err, "The application test app, version 1.0.0 has been removed from the repository and cannot be installed. Please install a newer version of the application.")
 }

@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"strings"
 
 	"github.com/Azure/VMApplication-Extension/internal/hostgacommunicator"
 	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
 	"github.com/Azure/VMApplication-Extension/pkg/utils"
 	"github.com/Azure/azure-extension-platform/pkg/commandhandler"
+	"github.com/Azure/azure-extension-platform/pkg/constants"
 	"github.com/Azure/azure-extension-platform/pkg/extensionerrors"
 	"github.com/Azure/azure-extension-platform/pkg/extensionevents"
 	"github.com/Azure/azure-extension-platform/pkg/handlerenv"
@@ -18,8 +20,9 @@ import (
 
 type action struct {
 	// vmAppPackage is not a pointer type on purpose, we don't want it to be mutated
-	vmAppPackage    packageregistry.VMAppPackageCurrent
-	actionToPerform packageregistry.ActionEnum
+	vmAppPackage                    packageregistry.VMAppPackageCurrent
+	treatFailureAsDeploymentFailure bool
+	actionToPerform                 packageregistry.ActionEnum
 }
 
 const Success = "SUCCESS"
@@ -85,6 +88,50 @@ func appendExecutionResultExplicit(executionResult *PackageOperationResults, act
 	*executionResult = append(*executionResult, PackageOperationResult{PackageName: act.vmAppPackage.ApplicationName, AppVersion: act.vmAppPackage.Version, Operation: act.actionToPerform.ToString(), Result: result})
 }
 
+type failedDeploymentError struct {
+	appsWithTreatFailureAsDeploymentFailure []string
+	additionalErrorForContext               error
+}
+
+func (err *failedDeploymentError) Error() string {
+	stringBuilder := strings.Builder{}
+	stringBuilder.WriteString("Extension returned error because install/update failed for the following apps with 'TreatFailureAsDeploymentFailure' set to true:" + constants.NewLineCharacter)
+	stringBuilder.WriteString(strings.Join(err.appsWithTreatFailureAsDeploymentFailure, constants.NewLineCharacter))
+	stringBuilder.WriteString(constants.NewLineCharacter)
+	if err.additionalErrorForContext != nil {
+		stringBuilder.WriteString(fmt.Sprintf("Additional errors: %s%s", err.additionalErrorForContext.Error(), constants.NewLineCharacter))
+	}
+	return stringBuilder.String()
+}
+
+func updateFailDeploymentError(failDeploymentError *failedDeploymentError, act *action, singleExecutionError error) *failedDeploymentError {
+	if singleExecutionError != nil && act.treatFailureAsDeploymentFailure && (act.actionToPerform == packageregistry.Install || act.actionToPerform == packageregistry.Update) {
+		if failDeploymentError == nil {
+			failDeploymentError = &failedDeploymentError{appsWithTreatFailureAsDeploymentFailure: make([]string, 1)}
+		}
+		failDeploymentError.appsWithTreatFailureAsDeploymentFailure = append(failDeploymentError.appsWithTreatFailureAsDeploymentFailure, act.vmAppPackage.ApplicationName)
+	}
+	return failDeploymentError
+}
+
+type ExecuteError struct {
+	failedDeploymentErr   *failedDeploymentError
+	combinedExecuteErrors error
+}
+
+func (exeucuteError *ExecuteError) update(act *action, singleExecutionError error) {
+	exeucuteError.failedDeploymentErr = updateFailDeploymentError(exeucuteError.failedDeploymentErr, act, singleExecutionError)
+	exeucuteError.combinedExecuteErrors = extensionerrors.CombineErrors(exeucuteError.combinedExecuteErrors, singleExecutionError)
+}
+
+func (exeucuteError *ExecuteError) GetErrorIfDeploymentFailed() error {
+	if exeucuteError.failedDeploymentErr == nil {
+		return nil
+	}
+	exeucuteError.failedDeploymentErr.additionalErrorForContext = exeucuteError.combinedExecuteErrors
+	return exeucuteError.failedDeploymentErr
+}
+
 func New(currentPackageRegistry packageregistry.CurrentPackageRegistry, desiredVMAppCollection packageregistry.VMAppPackageIncomingCollection, environment *handlerenv.HandlerEnvironment, hostGaCommunicator hostgacommunicator.IHostGaCommunicator, logger *logging.ExtensionLogger) *ActionPlan {
 
 	actionPlan := &ActionPlan{
@@ -104,14 +151,14 @@ func New(currentPackageRegistry packageregistry.CurrentPackageRegistry, desiredV
 	for _, vmAppCurrent := range vmAppCurrentCollection {
 		_, existsInNewConfiguration := packageRegistryIncoming[vmAppCurrent.ApplicationName]
 		if !existsInNewConfiguration {
-			if vmAppCurrent.OngoingOperation != packageregistry.Skipped {
-				logger.Info("Application %v not in incoming package collection. Marking to delete.", vmAppCurrent.ApplicationName)
-				deleteAction := &action{*vmAppCurrent, packageregistry.Remove}
+			if vmAppCurrent.OngoingOperation == packageregistry.Skipped {
+				// remove the package without from the registry without calling the remove command
+				logger.Info("Application %v not in incoming package collection. Cleaning up data for previously skipped installation.", vmAppCurrent.ApplicationName)
+				deleteAction := &action{*vmAppCurrent, false, packageregistry.Cleanup}
 				actionPlan.unorderedImplicitUninstalls = append(actionPlan.unorderedImplicitUninstalls, deleteAction)
 			} else {
-				// remove the package without from the registry without calling the remove command
-				logger.Info("Application %v not in incoming package collection. Removing.", vmAppCurrent.ApplicationName)
-				deleteAction := &action{*vmAppCurrent, packageregistry.Cleanup}
+				logger.Info("Application %v not in incoming package collection. Marking to delete.", vmAppCurrent.ApplicationName)
+				deleteAction := &action{*vmAppCurrent, false, packageregistry.Remove}
 				actionPlan.unorderedImplicitUninstalls = append(actionPlan.unorderedImplicitUninstalls, deleteAction)
 			}
 		}
@@ -128,20 +175,20 @@ func New(currentPackageRegistry packageregistry.CurrentPackageRegistry, desiredV
 					// not the same version and there is no update command
 					logger.Info("Application %v has version %v, but %v is desired. No update command exists, so removing and adding",
 						vmAppCurrent.ApplicationName, vmAppCurrent.Version, vmAppIncoming.Version)
-					deleteAction := &action{*vmAppCurrent, packageregistry.RemoveForUpdate} // delete current and install incoming
-					installAction := &action{*packageregistry.VMAppPackageIncomingToVmAppPackageCurrent(vmAppIncoming), packageregistry.Install}
+					deleteAction := &action{*vmAppCurrent, false, packageregistry.RemoveForUpdate} // delete current and install incoming
+					installAction := &action{*packageregistry.VMAppPackageIncomingToVmAppPackageCurrent(vmAppIncoming), vmAppIncoming.TreatFailureAsDeploymentFailure, packageregistry.Install}
 					actionPlan.insertOperation(vmAppIncoming.Order, deleteAction, installAction)
 				} else {
 					logger.Info("Application %v has version %v, but %v is desired. Will call update.",
 						vmAppCurrent.ApplicationName, vmAppCurrent.Version, vmAppIncoming.Version)
-					updateAction := &action{*packageregistry.VMAppPackageIncomingToVmAppPackageCurrent(vmAppIncoming), packageregistry.Update}
+					updateAction := &action{*packageregistry.VMAppPackageIncomingToVmAppPackageCurrent(vmAppIncoming), vmAppIncoming.TreatFailureAsDeploymentFailure, packageregistry.Update}
 					actionPlan.insertOperation(vmAppIncoming.Order, updateAction)
 				}
 			}
 		} else {
 			// installs
 			logger.Info("Application %v does not exist on the system. Installing", vmAppIncoming.ApplicationName)
-			installAction := &action{*packageregistry.VMAppPackageIncomingToVmAppPackageCurrent(vmAppIncoming), packageregistry.Install}
+			installAction := &action{*packageregistry.VMAppPackageIncomingToVmAppPackageCurrent(vmAppIncoming), vmAppIncoming.TreatFailureAsDeploymentFailure, packageregistry.Install}
 			actionPlan.insertOperation(vmAppIncoming.Order, installAction)
 		}
 	}
@@ -165,21 +212,20 @@ func (actionPlan *ActionPlan) insertOperation(order *int, dependentActions1 ...*
 	}
 }
 
-func (actionPlan *ActionPlan) Execute(registryHandler packageregistry.IPackageRegistry, eem *extensionevents.ExtensionEventManager, commandHandler commandhandler.ICommandHandler) (error, IResult) {
+func (actionPlan *ActionPlan) Execute(registryHandler packageregistry.IPackageRegistry, eem *extensionevents.ExtensionEventManager, commandHandler commandhandler.ICommandHandler) (*ExecuteError, IResult) {
+	var executeError *ExecuteError = &ExecuteError{failedDeploymentErr: nil, combinedExecuteErrors: nil}
 	// registry will be mutated and written to disk so that we can keep track of all the actions that have happened
 	registry, err := registryHandler.GetExistingPackages()
 	if err != nil {
-		return err, StatusErrorMessage(err.Error())
+		return executeError, StatusErrorMessage(err.Error())
 	}
-
-	var combinedErrors error = nil
 	executionResult := make(PackageOperationResults, 0)
 
 	// handle unordered implicit uninstalls
 	for _, act := range actionPlan.unorderedImplicitUninstalls {
 		newError := actionPlan.executeHelper(registryHandler, commandHandler, registry, act, eem)
 		appendExecutionResult(&executionResult, act, newError)
-		combinedErrors = extensionerrors.CombineErrors(combinedErrors, newError)
+		executeError.update(act, newError)
 	}
 
 	// handle ordered operations
@@ -202,14 +248,14 @@ func (actionPlan *ActionPlan) Execute(registryHandler packageregistry.IPackageRe
 
 					err = registryHandler.WriteToDisk(registry)
 					if err != nil {
-						combinedErrors = extensionerrors.CombineErrors(combinedErrors, err)
-						return combinedErrors, &executionResult
+						executeError.combinedExecuteErrors = extensionerrors.CombineErrors(executeError.combinedExecuteErrors, err)
+						return executeError, &executionResult
 					}
 					break
 				}
 
 				newError := actionPlan.executeHelper(registryHandler, commandHandler, registry, act, eem)
-				combinedErrors = extensionerrors.CombineErrors(combinedErrors, newError)
+				executeError.update(act, newError)
 				appendExecutionResult(&executionResult, act, newError)
 
 				if newError != nil {
@@ -227,7 +273,7 @@ func (actionPlan *ActionPlan) Execute(registryHandler packageregistry.IPackageRe
 	for _, depActions := range actionPlan.unorderedOperations {
 		for _, act := range depActions {
 			newError := actionPlan.executeHelper(registryHandler, commandHandler, registry, act, eem)
-			combinedErrors = extensionerrors.CombineErrors(combinedErrors, newError)
+			executeError.update(act, newError)
 			appendExecutionResult(&executionResult, act, newError)
 
 			if newError != nil {
@@ -236,5 +282,5 @@ func (actionPlan *ActionPlan) Execute(registryHandler packageregistry.IPackageRe
 			}
 		}
 	}
-	return combinedErrors, &executionResult
+	return executeError, &executionResult
 }

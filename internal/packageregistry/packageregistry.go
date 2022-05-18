@@ -93,17 +93,18 @@ func (vmAppPackageCurrent *VMAppPackageCurrent) GetWorkingDirectory(environment 
 type VMAppPackageIncomingCollection []*VMAppPackageIncoming
 
 type VMAppPackageIncoming struct {
-	ApplicationName    string `json:"applicationName"`
-	Version            string `json:"version"`
-	InstallCommand     string `json:"install"`
-	RemoveCommand      string `json:"remove"`
-	UpdateCommand      string `json:"update"`
-	DirectDownloadOnly bool   `json:"directOnly"`
-	Order              *int   `json:"order"`
-	ConfigExists       bool   `json:"configExists"`
-	PackageFileName    string `json:"packageFileName"`
-	ConfigFileName     string `json:"configFileName"`
-	IsDeleted          bool   `json:"isDeleted"`
+	ApplicationName                 string `json:"applicationName"`
+	Version                         string `json:"version"`
+	InstallCommand                  string `json:"install"`
+	RemoveCommand                   string `json:"remove"`
+	UpdateCommand                   string `json:"update"`
+	DirectDownloadOnly              bool   `json:"directOnly"`
+	Order                           *int   `json:"order"`
+	ConfigExists                    bool   `json:"configExists"`
+	PackageFileName                 string `json:"packageFileName"`
+	ConfigFileName                  string `json:"configFileName"`
+	IsDeleted                       bool   `json:"isDeleted"`
+	TreatFailureAsDeploymentFailure bool   `json:"treatFailureAsDeploymentFailure"`
 }
 
 type IPackageRegistry interface {

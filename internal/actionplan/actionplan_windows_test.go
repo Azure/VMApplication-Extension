@@ -20,7 +20,7 @@ import (
 )
 
 var mockCommandExecutorSleepForAnHour CommandExecutor = func(s string, s2 string) (int, error) {
-	fmt.Sprint("sleeping for 1 hour")
+	fmt.Print("sleeping for 1 hour")
 	time.Sleep(1 * time.Hour)
 	return 0, nil
 }
