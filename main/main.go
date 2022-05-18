@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/Azure/VMApplication-Extension/internal/customactionplan"
+	"github.com/Azure/VMApplication-Extension/internal/extdeserialization"
 
 	"github.com/Azure/VMApplication-Extension/internal/actionplan"
 	"github.com/Azure/VMApplication-Extension/internal/hostgacommunicator"
@@ -78,7 +79,7 @@ func doVmAppEnableCallback(ext *vmextensionhelper.VMExtension, hostGaCommunicato
 		return "could not get extension settings", err
 	}
 
-	protSettings, err := getVMAppProtectedSettings(settings)
+	protSettings, err := extdeserialization.GetVMAppProtectedSettings(settings)
 	if err != nil {
 		return "Could not deserialize protected settings", err
 	}

@@ -144,13 +144,13 @@ func Test_getVMAppProtectedSettings_valid(t *testing.T) {
 		Order:           &order,
 		Actions:         []*extdeserialization.ActionSetting{&actions},
 	}
-	vmAppProtectedSettings := VmAppProtectedSettings{&appSettings}
+	vmAppProtectedSettings := extdeserialization.VmAppProtectedSettings{&appSettings}
 	testSettings := handlersettings.HandlerSettings{
 		PublicSettings:    "{}",
 		ProtectedSettings: "[{\"applicationName\": \"iggy\", \"order\": 1, \"actions\": [{\"name\": \"logging\",\"script\": \"echo %CustomAction_blobURL%\",\"timestamp\": \"20210604T155300Z\",\"parameters\": [{\"name\": \"blobURL\",\"value\": \"myaccount.blob.core.windows.net\"}],\"tickCount\": 10193113}]}]",
 	}
 
-	out, err := getVMAppProtectedSettings(&testSettings)
+	out, err := extdeserialization.GetVMAppProtectedSettings(&testSettings)
 	require.NoError(t, err)
 
 	require.EqualValues(t, vmAppProtectedSettings[0].ApplicationName, out[0].ApplicationName)
@@ -165,13 +165,13 @@ func Test_getVMAppProtectedSettings_valid_no_custom_actions(t *testing.T) {
 		ApplicationName: "iggy",
 		Order:           &order,
 	}
-	vmAppProtectedSettings := VmAppProtectedSettings{&appSettings}
+	vmAppProtectedSettings := extdeserialization.VmAppProtectedSettings{&appSettings}
 	testSettings := handlersettings.HandlerSettings{
 		PublicSettings:    "{}",
 		ProtectedSettings: "[{\"applicationName\": \"iggy\", \"order\": 1, \"tickCount\": 10193113}]",
 	}
 
-	out, err := getVMAppProtectedSettings(&testSettings)
+	out, err := extdeserialization.GetVMAppProtectedSettings(&testSettings)
 	require.NoError(t, err)
 
 	require.EqualValues(t, vmAppProtectedSettings[0].ApplicationName, out[0].ApplicationName)

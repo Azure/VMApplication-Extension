@@ -3,12 +3,13 @@ package main
 import (
 	"errors"
 
+	"github.com/Azure/VMApplication-Extension/internal/extdeserialization"
 	"github.com/Azure/VMApplication-Extension/internal/hostgacommunicator"
 	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
 	"github.com/Azure/azure-extension-platform/pkg/logging"
 )
 
-func getVMAppIncomingCollection(settings VmAppProtectedSettings, communicator hostgacommunicator.IHostGaCommunicator, el *logging.ExtensionLogger) (packageregistry.VMAppPackageIncomingCollection, error) {
+func getVMAppIncomingCollection(settings extdeserialization.VmAppProtectedSettings, communicator hostgacommunicator.IHostGaCommunicator, el *logging.ExtensionLogger) (packageregistry.VMAppPackageIncomingCollection, error) {
 
 	incomingCollection := make(packageregistry.VMAppPackageIncomingCollection, 0)
 	for _, app := range settings {
