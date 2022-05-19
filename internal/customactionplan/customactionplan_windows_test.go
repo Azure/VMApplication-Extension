@@ -3,7 +3,6 @@ package customactionplan
 import (
 	"bytes"
 	"fmt"
-	"github.com/Azure/VMApplication-Extension/internal/extdeserialization"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -15,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Azure/VMApplication-Extension/internal/extdeserialization"
+
 	"github.com/Azure/VMApplication-Extension/internal/actionplan"
 	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
 	"github.com/Azure/azure-extension-platform/pkg/constants"
@@ -22,7 +23,7 @@ import (
 )
 
 var mockCommandExecutorSleepForAnHour CommandExecutor = func(s string, s2 string) (int, error) {
-	fmt.Sprint("sleeping for 1 hour")
+	fmt.Print("sleeping for 1 hour")
 	time.Sleep(1 * time.Hour)
 	return 0, nil
 }

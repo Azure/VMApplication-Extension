@@ -65,7 +65,7 @@ func vmAppEnableCallback(ext *vmextensionhelper.VMExtension) (string, error) {
 	if err == nil {
 		ext.ExtensionEvents.LogInformationalEvent("Completed", "VmApplications extension finished. Result=Success")
 	} else {
-		ext.ExtensionEvents.LogInformationalEvent(
+		ext.ExtensionEvents.LogErrorEvent(
 			"Completed",
 			fmt.Sprintf("VmApplications extension finished. Result=Failure;Reason=%v", err.Error()))
 	}
