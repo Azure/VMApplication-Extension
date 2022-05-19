@@ -3,6 +3,12 @@ package customactionplan
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"os"
+	"os/signal"
+	"path"
+	"syscall"
+
 	"github.com/Azure/VMApplication-Extension/internal/actionplan"
 	"github.com/Azure/VMApplication-Extension/internal/extdeserialization"
 	"github.com/Azure/azure-extension-platform/pkg/commandhandler"
@@ -11,11 +17,6 @@ import (
 	"github.com/Azure/azure-extension-platform/pkg/extensionerrors"
 	"github.com/Azure/azure-extension-platform/pkg/extensionevents"
 	"github.com/pkg/errors"
-	"io/ioutil"
-	"os"
-	"os/signal"
-	"path"
-	"syscall"
 )
 
 func (actionPlan *ActionPlan) executeHelper(
@@ -78,9 +79,9 @@ func (actionPlan *ActionPlan) executeHelper(
 		select {
 		case compSignal := <-completionSignal:
 			if compSignal.err != nil {
-				errorMessageToReturn = extensionerrors.CombineErrors(errorMessageToReturn, errors.Wrapf(compSignal.err, "Error executing custom action %v: %v", commandName, commandToExecute))
+				errorMessageToReturn = extensionerrors.CombineErrors(errorMessageToReturn, errors.Wrapf(compSignal.err, "Error executing custom action '%v': '%v'", commandName, commandToExecute))
 			} else if compSignal.retCode != 0 {
-				errorMessageToReturn = extensionerrors.CombineErrors(errorMessageToReturn, errors.Errorf("Custom action %v exited with non-zero error code: %v", commandName, commandToExecute))
+				errorMessageToReturn = extensionerrors.CombineErrors(errorMessageToReturn, errors.Errorf("Custom action '%v' exited with non-zero error code: %v", commandName, commandToExecute))
 			}
 		case <-interruptSignal:
 			// the command that we executed resulted in system reboot handle system reboot

@@ -107,7 +107,7 @@ func (err *failedDeploymentError) Error() string {
 func updateFailDeploymentError(failDeploymentError *failedDeploymentError, act *action, singleExecutionError error) *failedDeploymentError {
 	if singleExecutionError != nil && act.treatFailureAsDeploymentFailure && (act.actionToPerform == packageregistry.Install || act.actionToPerform == packageregistry.Update) {
 		if failDeploymentError == nil {
-			failDeploymentError = &failedDeploymentError{appsWithTreatFailureAsDeploymentFailure: make([]string, 1)}
+			failDeploymentError = &failedDeploymentError{appsWithTreatFailureAsDeploymentFailure: []string{}}
 		}
 		failDeploymentError.appsWithTreatFailureAsDeploymentFailure = append(failDeploymentError.appsWithTreatFailureAsDeploymentFailure, act.vmAppPackage.ApplicationName)
 	}
