@@ -112,7 +112,7 @@ func Test_getVMPackageData_noApplications(t *testing.T) {
 func Test_getVMPackageData_valid(t *testing.T) {
 	order := 1
 	vmApplications := []extdeserialization.VmAppSetting{
-		extdeserialization.VmAppSetting{
+		{
 			ApplicationName: "iggy",
 			Order:           &order,
 		},
@@ -144,13 +144,13 @@ func Test_getVMAppProtectedSettings_valid(t *testing.T) {
 		Order:           &order,
 		Actions:         []*extdeserialization.ActionSetting{&actions},
 	}
-	vmAppProtectedSettings := VmAppProtectedSettings{&appSettings}
+	vmAppProtectedSettings := extdeserialization.VmAppProtectedSettings{&appSettings}
 	testSettings := handlersettings.HandlerSettings{
 		PublicSettings:    "{}",
 		ProtectedSettings: "[{\"applicationName\": \"iggy\", \"order\": 1, \"actions\": [{\"name\": \"logging\",\"script\": \"echo %CustomAction_blobURL%\",\"timestamp\": \"20210604T155300Z\",\"parameters\": [{\"name\": \"blobURL\",\"value\": \"myaccount.blob.core.windows.net\"}],\"tickCount\": 10193113}]}]",
 	}
 
-	out, err := getVMAppProtectedSettings(&testSettings)
+	out, err := extdeserialization.GetVMAppProtectedSettings(&testSettings)
 	require.NoError(t, err)
 
 	require.EqualValues(t, vmAppProtectedSettings[0].ApplicationName, out[0].ApplicationName)
@@ -165,13 +165,13 @@ func Test_getVMAppProtectedSettings_valid_no_custom_actions(t *testing.T) {
 		ApplicationName: "iggy",
 		Order:           &order,
 	}
-	vmAppProtectedSettings := VmAppProtectedSettings{&appSettings}
+	vmAppProtectedSettings := extdeserialization.VmAppProtectedSettings{&appSettings}
 	testSettings := handlersettings.HandlerSettings{
 		PublicSettings:    "{}",
 		ProtectedSettings: "[{\"applicationName\": \"iggy\", \"order\": 1, \"tickCount\": 10193113}]",
 	}
 
-	out, err := getVMAppProtectedSettings(&testSettings)
+	out, err := extdeserialization.GetVMAppProtectedSettings(&testSettings)
 	require.NoError(t, err)
 
 	require.EqualValues(t, vmAppProtectedSettings[0].ApplicationName, out[0].ApplicationName)
@@ -181,7 +181,7 @@ func Test_getVMAppProtectedSettings_valid_no_custom_actions(t *testing.T) {
 func Test_getVMPackageData_noVersion(t *testing.T) {
 	order := 1
 	vmApplications := []extdeserialization.VmAppSetting{
-		extdeserialization.VmAppSetting{
+		{
 			ApplicationName: "iggy",
 			Order:           &order,
 		},
@@ -204,7 +204,7 @@ func Test_getVMPackageDataCustomAction_valid(t *testing.T) {
 		TickCount:    12346578,
 	}
 	vmApplications := []extdeserialization.VmAppSetting{
-		extdeserialization.VmAppSetting{
+		{
 			ApplicationName: "iggy",
 			Order:           &order,
 			Actions:         []*extdeserialization.ActionSetting{&actions},
@@ -228,7 +228,7 @@ func Test_getVMPackageDataCustomAction_CriticalError(t *testing.T) {
 		TickCount:    12346578,
 	}
 	vmApplications := []extdeserialization.VmAppSetting{
-		extdeserialization.VmAppSetting{
+		{
 			ApplicationName: "",
 			Order:           &order,
 			Actions:         []*extdeserialization.ActionSetting{&actions},
@@ -245,7 +245,7 @@ func Test_getVMPackageDataCustomAction_CriticalError(t *testing.T) {
 func Test_getVMPackageData_noApplicationName(t *testing.T) {
 	order := 1
 	vmApplications := []extdeserialization.VmAppSetting{
-		extdeserialization.VmAppSetting{
+		{
 			ApplicationName: "",
 			Order:           &order,
 		},

@@ -166,9 +166,9 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 		select {
 		case compSignal := <-completionSignal:
 			if compSignal.err != nil {
-				errorMessageToReturn = extensionerrors.CombineErrors(errorMessageToReturn, errors.Wrapf(compSignal.err, "Error executing command %v", commandToExecute))
+				errorMessageToReturn = extensionerrors.CombineErrors(errorMessageToReturn, errors.Wrapf(compSignal.err, "Error executing command '%v'", commandToExecute))
 			} else if compSignal.retCode != 0 {
-				errorMessageToReturn = extensionerrors.CombineErrors(errorMessageToReturn, errors.Errorf("Command %v exited with non-zero error code", commandToExecute))
+				errorMessageToReturn = extensionerrors.CombineErrors(errorMessageToReturn, errors.Errorf("Command '%v' exited with non-zero error code", commandToExecute))
 			}
 		case <-interruptSignal:
 			// the command that we executed resulted in system reboot handle system reboot

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/Azure/VMApplication-Extension/internal/customactionplan"
+	"github.com/Azure/VMApplication-Extension/internal/extdeserialization"
 
 	"github.com/Azure/VMApplication-Extension/internal/actionplan"
 	"github.com/Azure/VMApplication-Extension/internal/hostgacommunicator"
@@ -17,7 +18,7 @@ import (
 
 // Note: not const so test can change them
 var (
-	extensionVersion = "1.0.8"
+	extensionVersion = "1.0.9"
 )
 
 const (
@@ -64,7 +65,7 @@ func vmAppEnableCallback(ext *vmextensionhelper.VMExtension) (string, error) {
 	if err == nil {
 		ext.ExtensionEvents.LogInformationalEvent("Completed", "VmApplications extension finished. Result=Success")
 	} else {
-		ext.ExtensionEvents.LogInformationalEvent(
+		ext.ExtensionEvents.LogErrorEvent(
 			"Completed",
 			fmt.Sprintf("VmApplications extension finished. Result=Failure;Reason=%v", err.Error()))
 	}
@@ -78,7 +79,7 @@ func doVmAppEnableCallback(ext *vmextensionhelper.VMExtension, hostGaCommunicato
 		return "could not get extension settings", err
 	}
 
-	protSettings, err := getVMAppProtectedSettings(settings)
+	protSettings, err := extdeserialization.GetVMAppProtectedSettings(settings)
 	if err != nil {
 		return "Could not deserialize protected settings", err
 	}
@@ -102,7 +103,7 @@ func doVmAppEnableCallback(ext *vmextensionhelper.VMExtension, hostGaCommunicato
 
 	// actionPlan.Execute can fail partially, but we mark the overall process as success
 	// errors are sent in the status message
-	_, result := actionPlan.Execute(packageRegistry, ext.ExtensionEvents, &commandHandler)
+	executeError, result := actionPlan.Execute(packageRegistry, ext.ExtensionEvents, &commandHandler)
 
 	//check result
 	vmAppResults, ok := result.(*actionplan.PackageOperationResults)
@@ -119,8 +120,7 @@ func doVmAppEnableCallback(ext *vmextensionhelper.VMExtension, hostGaCommunicato
 		return "could not create custom action action plan", err
 	}
 	_, customActionResults := customActionPlan.Execute(ext.ExtensionEvents, &commandHandler, vmAppResults)
-
-	return getStatusMessage(currentPackageRegistry.GetPackageCollection(), customActionResults), nil
+	return getStatusMessage(currentPackageRegistry.GetPackageCollection(), customActionResults), executeError.GetErrorIfDeploymentFailed()
 }
 
 // Callback indicating the extension is being removed
