@@ -64,7 +64,7 @@ func Test_noInfiniteLoops(t *testing.T) {
 	assert.ErrorIs(t, err, errorExtensionVersionDirNotFound)
 }
 
-func Test_cannotFindpackageConfigFile(t *testing.T) {
+func Test_cannotFindPackageConfigFile(t *testing.T) {
 	order := 1
 	vmApplications := []extdeserialization.VmAppSetting{
 		{
