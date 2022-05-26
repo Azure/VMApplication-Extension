@@ -75,6 +75,7 @@ func getMostRecentlyUpdatedPackageRegistryFile(dirContainingAllVersions string, 
 }
 
 func vmAppUpdateCallback(ext *vmextensionhelper.VMExtension) error {
+	// for extension update on windows, we retrieve the applicationRegistry.active file from a previous version of the extension
 	folderPath := ext.HandlerEnv.ConfigFolder
 	currentFolderName := ""
 	pathToFile := ""
@@ -95,12 +96,12 @@ func vmAppUpdateCallback(ext *vmextensionhelper.VMExtension) error {
 
 	folderPath = filepath.Dir(folderPath) //folder that contains all the versions
 
-	previousPackageFilePath, err := getMostRecentlyUpdatedPackageRegistryFile(folderPath, pathToFile)
+	previousPackageRegistryFilePath, err := getMostRecentlyUpdatedPackageRegistryFile(folderPath, pathToFile)
 	if err != nil {
 		return err
 	}
 
-	prevFile, err := os.Open(previousPackageFilePath) //opening the applicationRegistry file
+	prevFile, err := os.Open(previousPackageRegistryFilePath) //opening the applicationRegistry file
 	if err != nil {
 		return err
 	}
