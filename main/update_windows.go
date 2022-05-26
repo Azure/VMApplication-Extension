@@ -59,7 +59,7 @@ func getMostRecentlyUpdatedPackageRegistryFile(dirContainingAllVersions string, 
 		FileInfoArray: []FileInfoWithFilePath{},
 	}
 	for _, fileInfo := range fileInfo {
-		if fileInfo.IsDir() && versionNumberRegx.MatchString(fileInfo.Name()) {
+		if fileInfo.IsDir() && fileInfo.Name() != extensionVersion && versionNumberRegx.MatchString(fileInfo.Name()) {
 			registryFilePath := path.Join(dirContainingAllVersions, fileInfo.Name(), intermediatePath, packageregistry.LocalApplicationRegistryFileName)
 			registryFileInfo, err := os.Stat(registryFilePath)
 			if err == nil {
