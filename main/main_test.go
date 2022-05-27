@@ -379,17 +379,17 @@ var one uint = 1
 func createTestVMExtension(t *testing.T, settings interface{}) *vmextension.VMExtension {
 	hs := createSettings(settings)
 
-	configFolder := path.Join(maintestdir, "config/")
+	configFolder := path.Join(maintestdir, "config")
 	err := os.MkdirAll(configFolder, constants.FilePermissions_UserOnly_ReadWriteExecute)
 	require.NoError(t, err)
 
 	el := logging.New(nil)
 	he := &handlerenv.HandlerEnvironment{
 		HeartbeatFile: path.Join(maintestdir, "heartbeat.txt"),
-		StatusFolder:  path.Join(maintestdir, "status/"),
+		StatusFolder:  path.Join(maintestdir, "status"),
 		ConfigFolder:  configFolder,
-		LogFolder:     path.Join(maintestdir, "log/"),
-		DataFolder:    path.Join(maintestdir, "data/"),
+		LogFolder:     path.Join(maintestdir, "log"),
+		DataFolder:    path.Join(maintestdir, "data"),
 	}
 	eem := extensionevents.New(el, he)
 

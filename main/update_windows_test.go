@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"io/ioutil"
 	"os"
+	"path"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/Azure/VMApplication-Extension/internal/extdeserialization"
 	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
@@ -28,28 +30,84 @@ func Test_didFileMove(t *testing.T) {
 	testFolderPath := ext.HandlerEnv.ConfigFolder                                                                 //path to create test version folders
 	ext.HandlerEnv.ConfigFolder = filepath.Join(ext.HandlerEnv.ConfigFolder, extensionVersion, runtimeFolderName) //overwrite to match path pattern of config folder in VM
 	err := os.MkdirAll(ext.HandlerEnv.ConfigFolder, os.ModeDir)                                                   //creates new folders
-	if err != nil {
-		return
-	}
+	assert.NoError(t, err)
 	fileName := packageregistry.LocalApplicationRegistryFileName //gets name of application registry file
 	err = createTestFiles(testFolderPath, runtimeFolderName, fileName)
-	if err != nil {
-		return
-	}
+	assert.NoError(t, err)
+	// cleanup
+	defer os.RemoveAll(testFolderPath)
 
 	//call update
 	err = vmAppUpdateCallback(ext)
-	if err != nil {
-		return
-	}
 
 	//checks
 	assert.NoError(t, err) //check for errors
-	isSame := compareFiles(filepath.Join(testFolderPath, "1.0.3", runtimeFolderName, fileName), filepath.Join(ext.HandlerEnv.ConfigFolder, fileName))
+	isSame := compareFiles(filepath.Join(testFolderPath, "0.0.1", runtimeFolderName, fileName), filepath.Join(ext.HandlerEnv.ConfigFolder, fileName))
 	assert.True(t, isSame) //check if correct file was moved
+}
 
-	//cleanup
-	os.RemoveAll(maintestdir)
+func Test_noInfiniteLoops(t *testing.T) {
+	order := 1
+	vmApplications := []extdeserialization.VmAppSetting{
+		{
+			ApplicationName: "iggy",
+			Order:           &order,
+		},
+	}
+	ext := createTestVMExtension(t, vmApplications)
+
+	//set up test files
+	runtimeFolderName := "RuntimeSettings"                                                               //path to create test version folders
+	ext.HandlerEnv.ConfigFolder = filepath.Join(ext.HandlerEnv.ConfigFolder, "6.6.6", runtimeFolderName) //overwrite to match path pattern of config folder in VM
+
+	//call update
+	err := vmAppUpdateCallback(ext)
+	assert.ErrorIs(t, err, errorExtensionVersionDirNotFound)
+}
+
+func Test_cannotFindPackageConfigFile(t *testing.T) {
+	order := 1
+	vmApplications := []extdeserialization.VmAppSetting{
+		{
+			ApplicationName: "iggy",
+			Order:           &order,
+		},
+	}
+	ext := createTestVMExtension(t, vmApplications)
+
+	//set up test files
+	runtimeFolderName := "RuntimeSettings"                                                                        //path to create test version folders
+	ext.HandlerEnv.ConfigFolder = filepath.Join(ext.HandlerEnv.ConfigFolder, extensionVersion, runtimeFolderName) //overwrite to match path pattern of config folder in VM
+
+	//call update
+	err := vmAppUpdateCallback(ext)
+	assert.ErrorIs(t, err, errorNoOlderPakcageRegistryFileFound)
+}
+
+func Test_existingPackageRegistryFileIsNotOverwritten(t *testing.T) {
+	ext := createTestVMExtension(t, []extdeserialization.VmAppSetting{})
+
+	runtimeFolderName := "RuntimeSettings"
+	testFolderPath := ext.HandlerEnv.ConfigFolder                                                                 //path to create test version folders
+	ext.HandlerEnv.ConfigFolder = filepath.Join(ext.HandlerEnv.ConfigFolder, extensionVersion, runtimeFolderName) //overwrite to match path pattern of config folder in VM
+	err := os.MkdirAll(ext.HandlerEnv.ConfigFolder, os.ModeDir)                                                   //creates new folders
+	assert.NoError(t, err)
+	fileName := packageregistry.LocalApplicationRegistryFileName //gets name of application registry file
+	err = createTestFiles(testFolderPath, runtimeFolderName, fileName)
+	assert.NoError(t, err)
+	// cleanup
+	defer os.RemoveAll(testFolderPath)
+
+	fileBytes := []byte("special message")
+	packageRegistryFilePath := path.Join(ext.HandlerEnv.ConfigFolder, packageregistry.LocalApplicationRegistryFileName)
+	err = ioutil.WriteFile(packageRegistryFilePath, fileBytes, 0777)
+	assert.NoError(t, err)
+	err = vmAppUpdateCallback(ext)
+	assert.NoError(t, err)
+	// verify file was not overwritten
+	readBytes, err := ioutil.ReadFile(packageRegistryFilePath)
+	assert.NoError(t, err)
+	assert.True(t, bytes.Equal(fileBytes, readBytes))
 }
 
 func compareFiles(path1, path2 string) bool {
@@ -63,7 +121,7 @@ func compareFiles(path1, path2 string) bool {
 		return false
 	}
 
-	if bytes.Compare(content1, content2) == 0 {
+	if bytes.Equal(content1, content2) {
 		return true
 	}
 
@@ -72,12 +130,12 @@ func compareFiles(path1, path2 string) bool {
 
 func createTestFiles(folderPath, runtimeFolderName, fileName string) error {
 	//create test directories
-	err := os.MkdirAll(filepath.Join(folderPath, "1.0.1"), os.ModeDir)
+	err := os.MkdirAll(filepath.Join(folderPath, "1.0.1", runtimeFolderName), os.ModeDir)
 	if err != nil {
 		return err
 	}
 
-	err = os.MkdirAll(filepath.Join(folderPath, "0.0.1"), os.ModeDir)
+	err = os.MkdirAll(filepath.Join(folderPath, "0.0.1", runtimeFolderName), os.ModeDir)
 	if err != nil {
 		return err
 	}
@@ -88,8 +146,18 @@ func createTestFiles(folderPath, runtimeFolderName, fileName string) error {
 	}
 
 	//creating test file
-	testContent := []byte("Test File Contents")
+	testContent := []byte("badcontent")
+	err = ioutil.WriteFile(filepath.Join(folderPath, "1.0.1", runtimeFolderName, fileName), testContent, 0777)
+	if err != nil {
+		return err
+	}
 	err = ioutil.WriteFile(filepath.Join(folderPath, "1.0.3", runtimeFolderName, fileName), testContent, 0777)
+	if err != nil {
+		return err
+	}
+	testContent = []byte("Test File Contents")
+	time.Sleep(time.Second)
+	err = ioutil.WriteFile(filepath.Join(folderPath, "0.0.1", runtimeFolderName, fileName), testContent, 0777)
 	if err != nil {
 		return err
 	}
