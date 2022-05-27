@@ -80,6 +80,13 @@ func vmAppUpdateCallback(ext *vmextensionhelper.VMExtension) error {
 	currentFolderName := ""
 	pathToFile := ""
 
+	pacageRegistryFilePathForCurrentVersion := filepath.Join(ext.HandlerEnv.ConfigFolder, packageregistry.LocalApplicationRegistryFileName)
+	_, err := os.Stat(pacageRegistryFilePathForCurrentVersion)
+	if !os.IsNotExist(err) {
+		// a package registry file already exists for current version, nothing to do
+		return nil
+	}
+
 	//loop to find directory that contains current version
 	breakLoopAfter := 5
 	for i := 0; ; i++ {

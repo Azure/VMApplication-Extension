@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io/ioutil"
 	"os"
+	"path"
 	"path/filepath"
 	"testing"
 	"time"
@@ -32,9 +33,9 @@ func Test_didFileMove(t *testing.T) {
 	assert.NoError(t, err)
 	fileName := packageregistry.LocalApplicationRegistryFileName //gets name of application registry file
 	err = createTestFiles(testFolderPath, runtimeFolderName, fileName)
+	assert.NoError(t, err)
 	// cleanup
 	defer os.RemoveAll(testFolderPath)
-	assert.NoError(t, err)
 
 	//call update
 	err = vmAppUpdateCallback(ext)
@@ -81,6 +82,32 @@ func Test_cannotFindPackageConfigFile(t *testing.T) {
 	//call update
 	err := vmAppUpdateCallback(ext)
 	assert.ErrorIs(t, err, errorNoOlderPakcageRegistryFileFound)
+}
+
+func Test_existingPackageRegistryFileIsNotOverwritten(t *testing.T) {
+	ext := createTestVMExtension(t, []extdeserialization.VmAppSetting{})
+
+	runtimeFolderName := "RuntimeSettings"
+	testFolderPath := ext.HandlerEnv.ConfigFolder                                                                 //path to create test version folders
+	ext.HandlerEnv.ConfigFolder = filepath.Join(ext.HandlerEnv.ConfigFolder, extensionVersion, runtimeFolderName) //overwrite to match path pattern of config folder in VM
+	err := os.MkdirAll(ext.HandlerEnv.ConfigFolder, os.ModeDir)                                                   //creates new folders
+	assert.NoError(t, err)
+	fileName := packageregistry.LocalApplicationRegistryFileName //gets name of application registry file
+	err = createTestFiles(testFolderPath, runtimeFolderName, fileName)
+	assert.NoError(t, err)
+	// cleanup
+	defer os.RemoveAll(testFolderPath)
+
+	fileBytes := []byte("special message")
+	packageRegistryFilePath := path.Join(ext.HandlerEnv.ConfigFolder, packageregistry.LocalApplicationRegistryFileName)
+	err = ioutil.WriteFile(packageRegistryFilePath, fileBytes, 0777)
+	assert.NoError(t, err)
+	err = vmAppUpdateCallback(ext)
+	assert.NoError(t, err)
+	// verify file was not overwritten
+	readBytes, err := ioutil.ReadFile(packageRegistryFilePath)
+	assert.NoError(t, err)
+	assert.True(t, bytes.Equal(fileBytes, readBytes))
 }
 
 func compareFiles(path1, path2 string) bool {
