@@ -5,15 +5,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/Azure/azure-extension-platform/pkg/logging"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path"
 	"testing"
+
+	"github.com/Azure/azure-extension-platform/pkg/logging"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -351,6 +352,42 @@ func TestGetOperationUri(t *testing.T) {
 	uri, err = getOperationURI(el, appName, operation)
 	assert.NoError(t, err)
 	assert.Equal(t, fmt.Sprintf("%s/applications/%s/%s", wireServerFallbackAddress, appName, operation), uri)
+}
+
+func TestGetGetVmAppInfo(t *testing.T) {
+	metadataToReturn := `
+	{
+		"name": "advancedsettingsapp",
+		"packageBlobLinks": [ "http://localhost/getfile/smallfile" ],
+		"version": "3.1415926535897933",
+		"operation": "install",
+		"install": "doinstall",
+		"remove": "doremove",
+		"update": "doupdate",
+		"configBlobLinks": [ "http://localhost/getfile/smallfile" ],
+		"packageFileName": "flarg.exe",
+		"configFileName": "flarg.cfg",
+		"advancedSettings": {
+		  "yurba": "flurba",
+		  "snarglesnark": "true"
+		}
+	}
+	`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b := []byte(metadataToReturn)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write(b)
+		return
+	}))
+	defer srv.Close()
+
+	os.Setenv(WireProtocolAddress, srv.URL)
+	hgc := &HostGaCommunicator{}
+	vmAppMetadata, err := hgc.GetVMAppInfo(nopLog(), "advancedsettingsapp")
+	assert.NoError(t, err)
+	assert.Equal(t, "flarg.exe", vmAppMetadata.PackageFileName)
+	assert.Equal(t, "flarg.cfg", vmAppMetadata.ConfigFileName)
 }
 
 func verifyFileContents(t *testing.T, file string, expected string) {

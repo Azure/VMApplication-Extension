@@ -1,10 +1,11 @@
 package hostgacommunicator
 
 import (
-	"github.com/Azure/azure-extension-platform/pkg/logging"
 	"net/http"
 	"strconv"
 	"time"
+
+	"github.com/Azure/azure-extension-platform/pkg/logging"
 
 	"github.com/Azure/VMApplication-Extension/internal/requesthelper"
 	"github.com/pkg/errors"
@@ -59,6 +60,8 @@ func (receiver *VMAppMetadataReceiver) MapToVMAppMetadata() *VMAppMetadata {
 		RemoveCommand:      receiver.RemoveCommand,
 		DirectDownloadOnly: directDownloadOnly,
 		ConfigExists:       configExists,
+		PackageFileName:    receiver.PackageFileName,
+		ConfigFileName:     receiver.ConfigFileName,
 	}
 	return &vmAppMetadata
 }
