@@ -11,7 +11,10 @@ import (
 	"github.com/Azure/VMApplication-Extension/internal/actionplan"
 	"github.com/Azure/VMApplication-Extension/internal/hostgacommunicator"
 	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
+	"github.com/Azure/VMApplication-Extension/pkg/utils"
 	"github.com/Azure/azure-extension-platform/pkg/commandhandler"
+	"github.com/Azure/azure-extension-platform/pkg/lockedfile"
+	"github.com/Azure/azure-extension-platform/pkg/status"
 	vmextensionhelper "github.com/Azure/azure-extension-platform/vmextension"
 	"github.com/pkg/errors"
 )
@@ -38,7 +41,7 @@ func main() {
 
 func getExtensionAndRun() error {
 	// require SeqNoChange is set to false because we want the extension to ensure that the packages are in sync with the desired packages
-	ii, err := vmextensionhelper.GetInitializationInfo(extensionName, extensionVersion, false, vmAppEnableCallback)
+	ii, err := vmextensionhelper.GetInitializationInfo(extensionName, extensionVersion, false, dummyVMAppEnableCallback)
 	if err != nil {
 		return err
 	}
@@ -52,18 +55,98 @@ func getExtensionAndRun() error {
 		return err
 	}
 
-	ext.Do()
+	if len(os.Args) != 2 {
+		ext.ExtensionEvents.LogCriticalEvent("ExtensionError", "vm-application-manager requires an argument")
+		return errors.Errorf("vm-application-manager requires an argument")
+	}
+	command := os.Args[1]
+	if command == vmextensionhelper.EnableOperation.ToString() {
+		// do not call ext.Do() handle the enable command in the extension
+
+	} else {
+		ext.Do()
+	}
 
 	return nil
 }
 
+func dummyVMAppEnableCallback(ext *vmextensionhelper.VMExtension) (string, error) {
+	return "", nil
+}
+
 // Callback indicating the operation is enable
-func vmAppEnableCallback(ext *vmextensionhelper.VMExtension) (string, error) {
-	ext.ExtensionEvents.LogInformationalEvent("Starting", "VmApplications extension starting")
+func customEnable(ext *vmextensionhelper.VMExtension) error {
+
+	ext.ExtensionEvents.LogInformationalEvent("Starting", fmt.Sprintf("VmApplications extension starting, PID %d", os.Getpid()))
+
+	// try to get file lock by accessing package registry
+	// this section is to ensure that only once instance of the VMAppExtension runs at any given time
+	packageRegistry, err := packageregistry.New(ext.ExtensionLogger, ext.HandlerEnv, filelockTimeoutDuration)
+	if err != nil {
+		// log error and exit
+		switch err.(type) {
+		case *lockedfile.FileLockTimeoutError:
+			ext.ExtensionEvents.LogErrorEvent(
+				"Acquire lock",
+				fmt.Sprintf("Failed to acquire package registry lock. Request timed out. It is likely that another instance is already running %v", err.Error()))
+		default:
+			ext.ExtensionEvents.LogErrorEvent(
+				"Acquire lock",
+				fmt.Sprintf("Failed to acquire package registry lock. %v", err.Error()))
+		}
+		ext.ExtensionEvents.LogInformationalEvent("Exiting", fmt.Sprintf("VmApplications extension exiting, PID %d", os.Getpid()))
+		return err
+	}
+	defer packageRegistry.Close()
+
+	// only write a transitioning status if the sequence number has increased
+	requestedSequenceNumber, err := ext.GetRequestedSequenceNumber()
+	if err != nil {
+		msg := "could not determine requested sequence number"
+		ext.ExtensionLogger.Error("%s: %v", msg, err)
+		return err
+	}
+
+	if ext.CurrentSequenceNumber != nil && requestedSequenceNumber > *ext.CurrentSequenceNumber {
+		err = utils.ReportStatus(ext, status.StatusTransitioning, vmextensionhelper.EnableOperation.ToStatusName(), "transitioning")
+		if err != nil {
+			return err
+		}
+	}
+
 	hostGaCommunicator := hostgacommunicator.HostGaCommunicator{}
-	result, err := doVmAppEnableCallback(ext, &hostGaCommunicator)
+	settings, err := ext.GetSettings()
+	if err != nil {
+		return errors.Wrap(err, "could not get extension settings")
+	}
+
+	protSettings, err := extdeserialization.GetVMAppProtectedSettings(settings)
+	if err != nil {
+		return errors.Wrap(err, "Could not deserialize protected settings")
+	}
+	vmAppIncomingCollection, err := getVMAppIncomingCollection(protSettings, &hostGaCommunicator, ext.ExtensionLogger)
+	if err != nil {
+		return errors.Wrap(err, "resolving packages failed")
+	}
+
+	currentPackageRegistry, err := packageRegistry.GetExistingPackages()
+
+	if err != nil {
+		return errors.Wrap(err, "could not read current package registry")
+	}
+
+	actionplanResult, customActionResult, err := doVmAppEnableCallback(ext, &hostGaCommunicator)
 	if err == nil {
 		ext.ExtensionEvents.LogInformationalEvent("Completed", "VmApplications extension finished. Result=Success")
+
+		actionPlanPackageOperationResult, ok := actionplanResult.(*actionplan.PackageOperationResults)
+		currentPackageRegistry, err = packageRegistry.GetExistingPackages()
+		if !ok {
+			return getStatusMessage(currentPackageRegistry.GetPackageCollection(), actionplanResult), nil
+		}
+		if err != nil {
+			return "could not get package registry", err
+		}
 	} else {
 		ext.ExtensionEvents.LogErrorEvent(
 			"Completed",
@@ -73,30 +156,7 @@ func vmAppEnableCallback(ext *vmextensionhelper.VMExtension) (string, error) {
 	return result, err
 }
 
-func doVmAppEnableCallback(ext *vmextensionhelper.VMExtension, hostGaCommunicator hostgacommunicator.IHostGaCommunicator) (string, error) {
-	settings, err := ext.GetSettings()
-	if err != nil {
-		return "could not get extension settings", err
-	}
-
-	protSettings, err := extdeserialization.GetVMAppProtectedSettings(settings)
-	if err != nil {
-		return "Could not deserialize protected settings", err
-	}
-	vmAppIncomingCollection, err := getVMAppIncomingCollection(protSettings, hostGaCommunicator, ext.ExtensionLogger)
-	if err != nil {
-		return "resolving packages failed", err
-	}
-	packageRegistry, err := packageregistry.New(ext.ExtensionLogger, ext.HandlerEnv, filelockTimeoutDuration)
-	if err != nil {
-		return "could not create package registry", err
-	}
-	defer packageRegistry.Close()
-	currentPackageRegistry, err := packageRegistry.GetExistingPackages()
-
-	if err != nil {
-		return "could not read current package registry", err
-	}
+func doVmAppEnableCallback(ext *vmextensionhelper.VMExtension, hostGaCommunicator hostgacommunicator.IHostGaCommunicator) (actionplan.IResult, actionplan.IResult, error) {
 
 	actionPlan := actionplan.New(currentPackageRegistry, vmAppIncomingCollection, ext.HandlerEnv, hostGaCommunicator, ext.ExtensionLogger)
 	commandHandler := commandhandler.CommandHandler{}
@@ -106,14 +166,6 @@ func doVmAppEnableCallback(ext *vmextensionhelper.VMExtension, hostGaCommunicato
 	executeError, result := actionPlan.Execute(packageRegistry, ext.ExtensionEvents, &commandHandler)
 
 	//check result
-	vmAppResults, ok := result.(*actionplan.PackageOperationResults)
-	currentPackageRegistry, err = packageRegistry.GetExistingPackages()
-	if !ok {
-		return getStatusMessage(currentPackageRegistry.GetPackageCollection(), result), nil
-	}
-	if err != nil {
-		return "could not get package registry", err
-	}
 
 	customActionPlan, err := customactionplan.New(protSettings, currentPackageRegistry, ext.HandlerEnv, ext.ExtensionLogger)
 	if err != nil {
