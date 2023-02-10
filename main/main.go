@@ -5,7 +5,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/Azure/VMApplication-Extension/internal/customactionplan"
+	"github.com/Azure/VMApplication-Extension/internal/constants"
 	"github.com/Azure/VMApplication-Extension/internal/extdeserialization"
 
 	"github.com/Azure/VMApplication-Extension/internal/actionplan"
@@ -19,9 +19,10 @@ import (
 	"github.com/pkg/errors"
 )
 
-// Note: not const so test can change them
 var (
-	extensionVersion = "1.0.10"
+	ExtensionVersion   = "1.0.10" // should be changed at compile time, do not hand edit
+	reportStatusFunc   = utils.ReportStatus
+	getVMExtensionFunc = getVMExtension
 )
 
 const (
@@ -33,35 +34,51 @@ const (
 )
 
 func main() {
-	err := getExtensionAndRun()
+	err := getExtensionAndRun(os.Args)
 	if err != nil {
 		os.Exit(2)
 	}
 }
 
-func getExtensionAndRun() error {
+func getExtensionAndRun(arguments []string) error {
 	// require SeqNoChange is set to false because we want the extension to ensure that the packages are in sync with the desired packages
-	ii, err := vmextensionhelper.GetInitializationInfo(extensionName, extensionVersion, false, dummyVMAppEnableCallback)
+	ext, err := getVMExtensionFunc()
 	if err != nil {
 		return err
 	}
 
-	ii.UninstallCallback = vmAppUninstallCallback
-	ii.UpdateCallback = vmAppUpdateCallback
-	ii.LogFileNamePattern = "VmAppExt_%v.log"
-
-	ext, err := vmextensionhelper.GetVMExtension(ii)
-	if err != nil {
-		return err
-	}
-
-	if len(os.Args) != 2 {
+	if len(arguments) != 2 {
+		ext.ExtensionLogger.Error("ExtensionError", "vm-application-manager requires an argument")
 		ext.ExtensionEvents.LogCriticalEvent("ExtensionError", "vm-application-manager requires an argument")
 		return errors.Errorf("vm-application-manager requires an argument")
 	}
-	command := os.Args[1]
+	command := arguments[1]
 	if command == vmextensionhelper.EnableOperation.ToString() {
 		// do not call ext.Do() handle the enable command in the extension
+		requestedSequenceNumber, err := ext.GetRequestedSequenceNumber()
+		if err != nil {
+			msg := "could not determine requested sequence number"
+			ext.ExtensionLogger.Error("%s: %v", msg, err)
+			ext.ExtensionEvents.LogCriticalEvent("ExtensionError", fmt.Sprintf("%s: %v", msg, err))
+			return err
+		}
+		hostgaCommunicator := hostgacommunicator.HostGaCommunicator{}
+		enableError := customEnable(ext, &hostgaCommunicator, requestedSequenceNumber)
+
+		if enableError != nil {
+			// write failure status
+			ext.ExtensionLogger.Error(enableError.Error())
+			ext.ExtensionEvents.LogErrorEvent("Save Status", enableError.Error())
+			_, ok := enableError.(*utils.StatusSaveError)
+			if !ok {
+				// this means we had an error other than trying to save status file
+				statusMessage := enableError.Error()
+				err := reportStatusFunc(ext.HandlerEnv, requestedSequenceNumber, status.StatusError, vmextensionhelper.EnableOperation.ToStatusName(), statusMessage)
+				if err != nil {
+					return err
+				}
+			}
+		}
 
 	} else {
 		ext.Do()
@@ -74,8 +91,26 @@ func dummyVMAppEnableCallback(ext *vmextensionhelper.VMExtension) (string, error
 	return "", nil
 }
 
+func getVMExtension() (*vmextensionhelper.VMExtension, error) {
+	ii, err := vmextensionhelper.GetInitializationInfo(constants.ExtensionName, ExtensionVersion, false, dummyVMAppEnableCallback)
+	if err != nil {
+		return nil, err
+	}
+
+	ii.UninstallCallback = vmAppUninstallCallback
+	ii.UpdateCallback = vmAppUpdateCallback
+	ii.LogFileNamePattern = "VmAppExt_%v.log"
+
+	ext, err := vmextensionhelper.GetVMExtension(ii)
+	if err != nil {
+		return nil, err
+	}
+	return ext, nil
+}
+
 // Callback indicating the operation is enable
-func customEnable(ext *vmextensionhelper.VMExtension) error {
+// writes status
+func customEnable(ext *vmextensionhelper.VMExtension, hostgaCommunicator hostgacommunicator.IHostGaCommunicator, requestedSequenceNumber uint) error {
 
 	ext.ExtensionEvents.LogInformationalEvent("Starting", fmt.Sprintf("VmApplications extension starting, PID %d", os.Getpid()))
 
@@ -99,22 +134,6 @@ func customEnable(ext *vmextensionhelper.VMExtension) error {
 	}
 	defer packageRegistry.Close()
 
-	// only write a transitioning status if the sequence number has increased
-	requestedSequenceNumber, err := ext.GetRequestedSequenceNumber()
-	if err != nil {
-		msg := "could not determine requested sequence number"
-		ext.ExtensionLogger.Error("%s: %v", msg, err)
-		return err
-	}
-
-	if ext.CurrentSequenceNumber != nil && requestedSequenceNumber > *ext.CurrentSequenceNumber {
-		err = utils.ReportStatus(ext, status.StatusTransitioning, vmextensionhelper.EnableOperation.ToStatusName(), "transitioning")
-		if err != nil {
-			return err
-		}
-	}
-
-	hostGaCommunicator := hostgacommunicator.HostGaCommunicator{}
 	settings, err := ext.GetSettings()
 	if err != nil {
 		return errors.Wrap(err, "could not get extension settings")
@@ -124,55 +143,49 @@ func customEnable(ext *vmextensionhelper.VMExtension) error {
 	if err != nil {
 		return errors.Wrap(err, "Could not deserialize protected settings")
 	}
-	vmAppIncomingCollection, err := getVMAppIncomingCollection(protSettings, &hostGaCommunicator, ext.ExtensionLogger)
+	vmAppIncomingCollection, err := getVMAppIncomingCollection(protSettings, hostgaCommunicator, ext.ExtensionLogger)
 	if err != nil {
 		return errors.Wrap(err, "resolving packages failed")
 	}
 
 	currentPackageRegistry, err := packageRegistry.GetExistingPackages()
-
 	if err != nil {
 		return errors.Wrap(err, "could not read current package registry")
 	}
 
-	actionplanResult, customActionResult, err := doVmAppEnableCallback(ext, &hostGaCommunicator)
-	if err == nil {
-		ext.ExtensionEvents.LogInformationalEvent("Completed", "VmApplications extension finished. Result=Success")
+	commandHandler := commandhandler.CommandHandler{}
 
-		actionPlanPackageOperationResult, ok := actionplanResult.(*actionplan.PackageOperationResults)
-		currentPackageRegistry, err = packageRegistry.GetExistingPackages()
-		if !ok {
-			return getStatusMessage(currentPackageRegistry.GetPackageCollection(), actionplanResult), nil
-		}
-		if err != nil {
-			return "could not get package registry", err
-		}
-	} else {
+	actionPlan := actionplan.New(currentPackageRegistry, vmAppIncomingCollection, ext.HandlerEnv, hostgaCommunicator, ext.ExtensionLogger)
+	executeError, actionplanResult := actionPlan.Execute(packageRegistry, ext.ExtensionEvents, &commandHandler)
+
+	if executeError.GetErrorIfDeploymentFailed() != nil {
 		ext.ExtensionEvents.LogErrorEvent(
 			"Completed",
 			fmt.Sprintf("VmApplications extension finished. Result=Failure;Reason=%v", err.Error()))
+	} else {
+		ext.ExtensionEvents.LogInformationalEvent("Completed", "VmApplications extension finished. Result=Success")
 	}
 
-	return result, err
-}
-
-func doVmAppEnableCallback(ext *vmextensionhelper.VMExtension, hostGaCommunicator hostgacommunicator.IHostGaCommunicator) (actionplan.IResult, actionplan.IResult, error) {
-
-	actionPlan := actionplan.New(currentPackageRegistry, vmAppIncomingCollection, ext.HandlerEnv, hostGaCommunicator, ext.ExtensionLogger)
-	commandHandler := commandhandler.CommandHandler{}
-
-	// actionPlan.Execute can fail partially, but we mark the overall process as success
-	// errors are sent in the status message
-	executeError, result := actionPlan.Execute(packageRegistry, ext.ExtensionEvents, &commandHandler)
-
-	//check result
-
-	customActionPlan, err := customactionplan.New(protSettings, currentPackageRegistry, ext.HandlerEnv, ext.ExtensionLogger)
+	currentPackageRegistry, err = packageRegistry.GetExistingPackages()
 	if err != nil {
-		return "could not create custom action action plan", err
+		return errors.Wrapf(err, "could not get package registry")
 	}
-	_, customActionResults := customActionPlan.Execute(ext.ExtensionEvents, &commandHandler, vmAppResults)
-	return getStatusMessage(currentPackageRegistry.GetPackageCollection(), customActionResults), executeError.GetErrorIfDeploymentFailed()
+
+	// write success status if requested sequence number is newer
+	if ext.CurrentSequenceNumber != nil && requestedSequenceNumber > *ext.CurrentSequenceNumber {
+		var statusResult status.StatusType
+		statusMessage := getStatusMessage(currentPackageRegistry.GetPackageCollection(), actionplanResult)
+		if executeError.GetErrorIfDeploymentFailed() == nil {
+			statusResult = status.StatusSuccess
+		} else {
+			statusResult = status.StatusError
+		}
+		err := utils.ReportStatus(ext.HandlerEnv, requestedSequenceNumber, statusResult, vmextensionhelper.EnableOperation.ToStatusName(), statusMessage)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Callback indicating the extension is being removed
@@ -187,7 +200,6 @@ func vmAppUninstallCallback(ext *vmextensionhelper.VMExtension) error {
 			"Completed",
 			fmt.Sprintf("VmApplications extension uninstall finished. Result=Failure;Reason=%v", err.Error()))
 	}
-
 	return err
 }
 

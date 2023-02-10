@@ -4,16 +4,19 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/Azure/VMApplication-Extension/internal/constants"
 	"github.com/Azure/VMApplication-Extension/pkg/utils"
 	"github.com/Azure/azure-extension-platform/pkg/exithelper"
+	"github.com/Azure/azure-extension-platform/pkg/extensionevents"
 	"github.com/Azure/azure-extension-platform/pkg/handlerenv"
 	"github.com/Azure/azure-extension-platform/pkg/logging"
 	"github.com/Azure/azure-extension-platform/pkg/seqno"
+	"github.com/Azure/azure-extension-platform/pkg/status"
 )
 
 var ( // set at compile time
-	ExtensionName    string
 	ExtensionVersion string
+	ExtensionName    = constants.ExtensionName
 )
 
 var (
@@ -66,8 +69,15 @@ func main() {
 		el.Error("could not determine current sequence number: %v", err)
 		eh.Exit(exithelper.EnvironmentError)
 	}
+	extensionEvents := extensionevents.New(el, handlerEnv)
+
 	if requestedSequenceNumber > currentSequenceNumber {
 		// only write transitioning status file for new sequence numbers
-		utils.ReportStatus()
+		err = utils.ReportStatus(handlerEnv, requestedSequenceNumber, status.StatusTransitioning, arg, "transitioning")
+		if err != nil {
+			el.Error(err.Error())
+			extensionEvents.LogErrorEvent("Save Status", err.Error())
+		}
+		eh.Exit(exithelper.FileSystemError)
 	}
 }

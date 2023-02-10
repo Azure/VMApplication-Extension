@@ -28,7 +28,7 @@ func Test_didFileMove(t *testing.T) {
 	//set up test files
 	runtimeFolderName := "RuntimeSettings"
 	testFolderPath := ext.HandlerEnv.ConfigFolder                                                                 //path to create test version folders
-	ext.HandlerEnv.ConfigFolder = filepath.Join(ext.HandlerEnv.ConfigFolder, extensionVersion, runtimeFolderName) //overwrite to match path pattern of config folder in VM
+	ext.HandlerEnv.ConfigFolder = filepath.Join(ext.HandlerEnv.ConfigFolder, ExtensionVersion, runtimeFolderName) //overwrite to match path pattern of config folder in VM
 	err := os.MkdirAll(ext.HandlerEnv.ConfigFolder, os.ModeDir)                                                   //creates new folders
 	assert.NoError(t, err)
 	fileName := packageregistry.LocalApplicationRegistryFileName //gets name of application registry file
@@ -77,7 +77,7 @@ func Test_cannotFindPackageConfigFile(t *testing.T) {
 
 	//set up test files
 	runtimeFolderName := "RuntimeSettings"                                                                        //path to create test version folders
-	ext.HandlerEnv.ConfigFolder = filepath.Join(ext.HandlerEnv.ConfigFolder, extensionVersion, runtimeFolderName) //overwrite to match path pattern of config folder in VM
+	ext.HandlerEnv.ConfigFolder = filepath.Join(ext.HandlerEnv.ConfigFolder, ExtensionVersion, runtimeFolderName) //overwrite to match path pattern of config folder in VM
 
 	//call update
 	err := vmAppUpdateCallback(ext)
@@ -89,7 +89,7 @@ func Test_existingPackageRegistryFileIsNotOverwritten(t *testing.T) {
 
 	runtimeFolderName := "RuntimeSettings"
 	testFolderPath := ext.HandlerEnv.ConfigFolder                                                                 //path to create test version folders
-	ext.HandlerEnv.ConfigFolder = filepath.Join(ext.HandlerEnv.ConfigFolder, extensionVersion, runtimeFolderName) //overwrite to match path pattern of config folder in VM
+	ext.HandlerEnv.ConfigFolder = filepath.Join(ext.HandlerEnv.ConfigFolder, ExtensionVersion, runtimeFolderName) //overwrite to match path pattern of config folder in VM
 	err := os.MkdirAll(ext.HandlerEnv.ConfigFolder, os.ModeDir)                                                   //creates new folders
 	assert.NoError(t, err)
 	fileName := packageregistry.LocalApplicationRegistryFileName //gets name of application registry file

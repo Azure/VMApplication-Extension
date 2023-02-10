@@ -69,23 +69,24 @@ func (packageOperationResults *PackageOperationResults) ToJsonString() (message 
 }
 
 type PackageOperationResult struct {
-	PackageName string `json:"package"`
-	AppVersion  string `json:"version"`
-	Operation   string `json:"operation"`
-	Result      string `json:"result"`
-	Timestamp   string `json:"timestamp"`
+	PackageName                     string `json:"package"`
+	AppVersion                      string `json:"version"`
+	Operation                       string `json:"operation"`
+	Result                          string `json:"result"`
+	TreatFailureAsDeploymentFailure bool   `json:"treatFailureAsDeploymentFailure"`
+	Timestamp                       string `json:"timestamp"`
 }
 
 func appendExecutionResult(executionResult *PackageOperationResults, act *action, err error) {
 	if err == nil {
-		*executionResult = append(*executionResult, PackageOperationResult{PackageName: act.vmAppPackage.ApplicationName, AppVersion: act.vmAppPackage.Version, Operation: act.actionToPerform.ToString(), Result: Success})
+		*executionResult = append(*executionResult, PackageOperationResult{PackageName: act.vmAppPackage.ApplicationName, AppVersion: act.vmAppPackage.Version, Operation: act.actionToPerform.ToString(), Result: Success, TreatFailureAsDeploymentFailure: act.treatFailureAsDeploymentFailure})
 	} else {
-		*executionResult = append(*executionResult, PackageOperationResult{PackageName: act.vmAppPackage.ApplicationName, AppVersion: act.vmAppPackage.Version, Operation: act.actionToPerform.ToString(), Result: err.Error()})
+		*executionResult = append(*executionResult, PackageOperationResult{PackageName: act.vmAppPackage.ApplicationName, AppVersion: act.vmAppPackage.Version, Operation: act.actionToPerform.ToString(), Result: err.Error(), TreatFailureAsDeploymentFailure: act.treatFailureAsDeploymentFailure})
 	}
 }
 
 func appendExecutionResultExplicit(executionResult *PackageOperationResults, act *action, result string) {
-	*executionResult = append(*executionResult, PackageOperationResult{PackageName: act.vmAppPackage.ApplicationName, AppVersion: act.vmAppPackage.Version, Operation: act.actionToPerform.ToString(), Result: result})
+	*executionResult = append(*executionResult, PackageOperationResult{PackageName: act.vmAppPackage.ApplicationName, AppVersion: act.vmAppPackage.Version, Operation: act.actionToPerform.ToString(), Result: result, TreatFailureAsDeploymentFailure: act.treatFailureAsDeploymentFailure})
 }
 
 type failedDeploymentError struct {
