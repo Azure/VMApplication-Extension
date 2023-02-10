@@ -12,6 +12,7 @@ import (
 	"github.com/Azure/azure-extension-platform/pkg/logging"
 	"github.com/Azure/azure-extension-platform/pkg/seqno"
 	"github.com/Azure/azure-extension-platform/pkg/status"
+	platformUtils "github.com/Azure/azure-extension-platform/pkg/utils"
 )
 
 var ( // set at compile time
@@ -75,9 +76,16 @@ func main() {
 		// only write transitioning status file for new sequence numbers
 		err = utils.ReportStatus(handlerEnv, requestedSequenceNumber, status.StatusTransitioning, arg, "transitioning")
 		if err != nil {
-			el.Error(err.Error())
-			extensionEvents.LogErrorEvent("Save Status", err.Error())
+			el.Error(fmt.Sprintf("could not write transitioning status: %s", err.Error()))
+			extensionEvents.LogCriticalEvent("Save Status", err.Error())
 		}
 		eh.Exit(exithelper.FileSystemError)
 	}
+
+	currentDir, err := platformUtils.GetCurrentProcessWorkingDir()
+	if err != nil {
+		el.Error(fmt.Sprintf("Could not determine current process working directory %s", err.Error()))
+		extensionEvents.LogCriticalEvent("Get Current Process Working Directory", err.Error())
+	}
+	runExecutableAsIndependentProcess(ExtensionName, arg, currentDir, handlerEnv.LogFolder, el)
 }
