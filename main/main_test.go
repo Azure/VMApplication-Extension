@@ -71,6 +71,11 @@ func TestMain(m *testing.M) {
 		return
 	}
 
+	// we don't want to modify the registry on the dev machine while running tests
+	setSequenceNumberFunc = func(extName, extVersion string, seqNo uint) error {
+		return nil
+	}
+
 	maintestdir = testdir
 	exitVal := m.Run()
 	os.RemoveAll(maintestdir)

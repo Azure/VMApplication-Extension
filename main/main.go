@@ -14,15 +14,17 @@ import (
 	"github.com/Azure/VMApplication-Extension/pkg/utils"
 	"github.com/Azure/azure-extension-platform/pkg/commandhandler"
 	"github.com/Azure/azure-extension-platform/pkg/lockedfile"
+	"github.com/Azure/azure-extension-platform/pkg/seqno"
 	"github.com/Azure/azure-extension-platform/pkg/status"
 	vmextensionhelper "github.com/Azure/azure-extension-platform/vmextension"
 	"github.com/pkg/errors"
 )
 
 var (
-	ExtensionVersion   = "1.0.10" // should be changed at compile time, do not hand edit
-	reportStatusFunc   = utils.ReportStatus
-	getVMExtensionFunc = getVMExtension
+	ExtensionVersion      = "1.0.10" // should be changed at compile time, do not hand edit
+	reportStatusFunc      = utils.ReportStatus
+	getVMExtensionFunc    = getVMExtension
+	setSequenceNumberFunc = seqno.SetSequenceNumber
 )
 
 const (
@@ -68,14 +70,25 @@ func getExtensionAndRun(arguments []string) error {
 		if enableError != nil {
 			// write failure status
 			ext.ExtensionLogger.Error(enableError.Error())
-			ext.ExtensionEvents.LogErrorEvent("Save Status", enableError.Error())
+			ext.ExtensionEvents.LogErrorEvent("Enable Failed", enableError.Error())
 			_, ok := enableError.(*utils.StatusSaveError)
 			if !ok {
 				// this means we had an error other than trying to save status file
 				statusMessage := enableError.Error()
 				err := reportStatusFunc(ext.HandlerEnv, requestedSequenceNumber, status.StatusError, vmextensionhelper.EnableOperation.ToStatusName(), statusMessage)
 				if err != nil {
+					errorMessage := fmt.Sprintf("failed to save status file: %s", err.Error())
+					ext.ExtensionLogger.Error(errorMessage)
+					ext.ExtensionEvents.LogErrorEvent("Save Status", errorMessage)
 					return err
+				}
+
+				// if we reach this point then we are quite certian that status has been reported
+				// update the sequnce number that has been executed
+				if err := setSequenceNumberFunc(constants.ExtensionName, ExtensionVersion, requestedSequenceNumber); err != nil {
+					errorMessage := fmt.Sprintf("Failed to update sequence number to %d: %s", requestedSequenceNumber, err.Error())
+					ext.ExtensionLogger.Error(errorMessage)
+					ext.ExtensionEvents.LogErrorEvent("Update Sequence Number", errorMessage)
 				}
 			}
 		}
@@ -108,8 +121,8 @@ func getVMExtension() (*vmextensionhelper.VMExtension, error) {
 	return ext, nil
 }
 
-// Callback indicating the operation is enable
-// writes status
+// Perform VMApp operations and write status
+// If returned error is not nil, status file hasn't been written
 func customEnable(ext *vmextensionhelper.VMExtension, hostgaCommunicator hostgacommunicator.IHostGaCommunicator, requestedSequenceNumber uint) error {
 
 	ext.ExtensionEvents.LogInformationalEvent("Starting", fmt.Sprintf("VmApplications extension starting, PID %d", os.Getpid()))
@@ -172,17 +185,26 @@ func customEnable(ext *vmextensionhelper.VMExtension, hostgaCommunicator hostgac
 	}
 
 	// write success status if requested sequence number is newer
-	if ext.CurrentSequenceNumber != nil && requestedSequenceNumber > *ext.CurrentSequenceNumber {
-		var statusResult status.StatusType
-		statusMessage := getStatusMessage(currentPackageRegistry.GetPackageCollection(), executeError, actionplanResult)
-		if executeError.GetErrorIfDeploymentFailed() == nil {
-			statusResult = status.StatusSuccess
+	if ext.CurrentSequenceNumber != nil {
+		if requestedSequenceNumber > *ext.CurrentSequenceNumber {
+			var statusResult status.StatusType
+			statusMessage := getStatusMessage(currentPackageRegistry.GetPackageCollection(), executeError, actionplanResult)
+			if executeError.GetErrorIfDeploymentFailed() == nil {
+				statusResult = status.StatusSuccess
+			} else {
+				statusResult = status.StatusError
+			}
+			err := utils.ReportStatus(ext.HandlerEnv, requestedSequenceNumber, statusResult, vmextensionhelper.EnableOperation.ToStatusName(), statusMessage)
+			if err != nil {
+				errorMessage := fmt.Sprintf("failed to save status file: %s", err.Error())
+				ext.ExtensionLogger.Error(errorMessage)
+				ext.ExtensionEvents.LogErrorEvent("Save Status", errorMessage)
+				return err
+			}
 		} else {
-			statusResult = status.StatusError
-		}
-		err := utils.ReportStatus(ext.HandlerEnv, requestedSequenceNumber, statusResult, vmextensionhelper.EnableOperation.ToStatusName(), statusMessage)
-		if err != nil {
-			return err
+			message := fmt.Sprintf("Skipped updating status file. Requested sequence number %d, current sequence number %d.", requestedSequenceNumber, *ext.CurrentSequenceNumber)
+			ext.ExtensionLogger.Info(message)
+			ext.ExtensionEvents.LogInformationalEvent("Save Status", message)
 		}
 	}
 	return nil
