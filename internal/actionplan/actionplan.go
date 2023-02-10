@@ -96,10 +96,11 @@ type failedDeploymentError struct {
 
 func (err *failedDeploymentError) Error() string {
 	stringBuilder := strings.Builder{}
-	stringBuilder.WriteString("Extension returned error because install/update failed for the following apps with 'TreatFailureAsDeploymentFailure' set to true:" + constants.NewLineCharacter)
+	stringBuilder.WriteString("Install/Update failed for VMApps with 'TreatFailureAsDeploymentFailure' set to true:" + constants.NewLineCharacter)
 	stringBuilder.WriteString(strings.Join(err.appsWithTreatFailureAsDeploymentFailure, constants.NewLineCharacter))
 	stringBuilder.WriteString(constants.NewLineCharacter)
 	if err.additionalErrorForContext != nil {
+		// TODO: limit the length of all the errors
 		stringBuilder.WriteString(fmt.Sprintf("Additional errors: %s%s", err.additionalErrorForContext.Error(), constants.NewLineCharacter))
 	}
 	return stringBuilder.String()

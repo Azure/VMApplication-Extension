@@ -205,6 +205,8 @@ func TestTreatFailureAsDeploymentFailureSingle(t *testing.T) {
 	assert.Contains(t, (*packageOperationResults)[0].Result, "Error")
 	assert.Error(t, executeError.GetErrorIfDeploymentFailed())
 	assert.Equal(t, newApp.ApplicationName, executeError.failedDeploymentErr.appsWithTreatFailureAsDeploymentFailure[0])
+	errorMessage := executeError.GetErrorIfDeploymentFailed().Error()
+	assert.Contains(t, errorMessage, newApp.ApplicationName)
 
 	//test explicit update
 	oldApp := getVmAppPackageCurrent("app1", "0.9")

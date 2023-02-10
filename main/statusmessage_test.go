@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+
 	"github.com/Azure/VMApplication-Extension/internal/actionplan"
 	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
 	"github.com/stretchr/testify/assert"
@@ -32,6 +33,8 @@ func (c criticalError) ToJsonString() string {
 	return string(c)
 }
 
+var executeError = actionplan.ExecuteError{}
+
 func TestGetStatusMessage01(t *testing.T) {
 	actionsPerformed := actionplan.PackageOperationResults{
 		actionplan.PackageOperationResult{
@@ -48,7 +51,7 @@ func TestGetStatusMessage01(t *testing.T) {
 		},
 	}
 
-	statusMessage := getStatusMessage(vmAppCurrentCollection, &actionsPerformed)
+	statusMessage := getStatusMessage(vmAppCurrentCollection, &executeError, &actionsPerformed)
 	statusMessage1 := new(StatusMessage1)
 	err := json.Unmarshal([]byte(statusMessage), statusMessage1)
 	assert.NoError(t, err)
@@ -58,7 +61,7 @@ func TestGetStatusMessage01(t *testing.T) {
 
 func TestGetStatusMessage02(t *testing.T) {
 	var ce criticalError = "critical error"
-	statusMessage := getStatusMessage(vmAppCurrentCollection, &ce)
+	statusMessage := getStatusMessage(vmAppCurrentCollection, &executeError, &ce)
 	statusMessage2 := new(StatusMessage2)
 	err := json.Unmarshal([]byte(statusMessage), statusMessage2)
 	assert.NoError(t, err)
@@ -69,7 +72,7 @@ func TestGetStatusMessage02(t *testing.T) {
 func TestGetStatusMessageTruncatesStringsOver5KB(t *testing.T) {
 	messageLength := fiveKilo + 100
 	ce := criticalError(generateRandomStringOfLength(messageLength))
-	statusMessage := getStatusMessage(vmAppCurrentCollection, &ce)
+	statusMessage := getStatusMessage(vmAppCurrentCollection, &executeError, &ce)
 	assert.Greater(t, len(ce), fiveKilo, "critical error string length should be greater than 5 kb")
 	assert.Equal(t, fiveKilo, len(statusMessage), "statusMessage string should be less than 5 kb")
 }

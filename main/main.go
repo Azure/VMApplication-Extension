@@ -161,7 +161,7 @@ func customEnable(ext *vmextensionhelper.VMExtension, hostgaCommunicator hostgac
 	if executeError.GetErrorIfDeploymentFailed() != nil {
 		ext.ExtensionEvents.LogErrorEvent(
 			"Completed",
-			fmt.Sprintf("VmApplications extension finished. Result=Failure;Reason=%v", err.Error()))
+			fmt.Sprintf("VmApplications extension finished. Result=Failure;Reason=%v", executeError.GetErrorIfDeploymentFailed().Error()))
 	} else {
 		ext.ExtensionEvents.LogInformationalEvent("Completed", "VmApplications extension finished. Result=Success")
 	}
@@ -174,7 +174,7 @@ func customEnable(ext *vmextensionhelper.VMExtension, hostgaCommunicator hostgac
 	// write success status if requested sequence number is newer
 	if ext.CurrentSequenceNumber != nil && requestedSequenceNumber > *ext.CurrentSequenceNumber {
 		var statusResult status.StatusType
-		statusMessage := getStatusMessage(currentPackageRegistry.GetPackageCollection(), actionplanResult)
+		statusMessage := getStatusMessage(currentPackageRegistry.GetPackageCollection(), executeError, actionplanResult)
 		if executeError.GetErrorIfDeploymentFailed() == nil {
 			statusResult = status.StatusSuccess
 		} else {
