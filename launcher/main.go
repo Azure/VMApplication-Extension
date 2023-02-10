@@ -17,7 +17,7 @@ import (
 
 var ( // set at compile time
 	ExtensionVersion string
-	ExtensionName    = constants.ExtensionName
+	ExecutableName   string
 )
 
 var (
@@ -38,29 +38,21 @@ func main() {
 		eh.Exit(exithelper.ArgumentError)
 	}
 
-	if ExtensionName == "" || ExtensionVersion == "" {
+	// check compile time values
+	if ExecutableName == "" || ExtensionVersion == "" {
 		el.Error("variables not set at compile time, program needs recompilation")
 		eh.Exit(exithelper.MiscError)
 	}
 
 	arg := args[1]
 
-	switch arg {
-	case "name":
-		fmt.Println(ExtensionName)
-		return
-	case "version":
-		fmt.Println(ExtensionVersion)
-		return
-	}
-
-	handlerEnv, err := handlerEnvironmentGetter(ExtensionName, ExtensionVersion)
+	handlerEnv, err := handlerEnvironmentGetter(constants.ExtensionName, ExtensionVersion)
 	if err != nil {
 		el.Error("could not retrieve handler environment %s", err.Error())
 		eh.Exit(exithelper.EnvironmentError)
 	}
 	el = logging.New(handlerEnv)
-	currentSequenceNumber, err := seqno.GetCurrentSequenceNumber(el, currentSeqnoRetriever, ExtensionName, ExtensionVersion)
+	currentSequenceNumber, err := seqno.GetCurrentSequenceNumber(el, currentSeqnoRetriever, constants.ExtensionName, ExtensionVersion)
 	if err != nil {
 		el.Error("could not determine current sequence number: %v", err)
 		eh.Exit(exithelper.EnvironmentError)
@@ -87,5 +79,5 @@ func main() {
 		el.Error(fmt.Sprintf("Could not determine current process working directory %s", err.Error()))
 		extensionEvents.LogCriticalEvent("Get Current Process Working Directory", err.Error())
 	}
-	runExecutableAsIndependentProcess(ExtensionName, arg, currentDir, handlerEnv.LogFolder, el)
+	runExecutableAsIndependentProcess(ExecutableName, arg, currentDir, handlerEnv.LogFolder, el)
 }
