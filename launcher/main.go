@@ -6,13 +6,14 @@ import (
 
 	"github.com/Azure/VMApplication-Extension/internal/constants"
 	"github.com/Azure/VMApplication-Extension/pkg/utils"
+	platformconstants "github.com/Azure/azure-extension-platform/pkg/constants"
 	"github.com/Azure/azure-extension-platform/pkg/exithelper"
 	"github.com/Azure/azure-extension-platform/pkg/extensionevents"
 	"github.com/Azure/azure-extension-platform/pkg/handlerenv"
 	"github.com/Azure/azure-extension-platform/pkg/logging"
 	"github.com/Azure/azure-extension-platform/pkg/seqno"
 	"github.com/Azure/azure-extension-platform/pkg/status"
-	platformUtils "github.com/Azure/azure-extension-platform/pkg/utils"
+	platformutils "github.com/Azure/azure-extension-platform/pkg/utils"
 )
 
 var ( // set at compile time
@@ -46,6 +47,15 @@ func main() {
 
 	arg := args[1]
 
+	switch arg {
+	case "version":
+		fmt.Printf("Extension version is %s%s", ExtensionVersion, platformconstants.NewLineCharacter)
+		return
+	case "exename":
+		fmt.Printf("Executable name is %s%s", ExecutableName, platformconstants.NewLineCharacter)
+		return
+	}
+
 	handlerEnv, err := handlerEnvironmentGetter(constants.ExtensionName, ExtensionVersion)
 	if err != nil {
 		el.Error("could not retrieve handler environment %s", err.Error())
@@ -74,7 +84,7 @@ func main() {
 		eh.Exit(exithelper.FileSystemError)
 	}
 
-	currentDir, err := platformUtils.GetCurrentProcessWorkingDir()
+	currentDir, err := platformutils.GetCurrentProcessWorkingDir()
 	if err != nil {
 		el.Error(fmt.Sprintf("Could not determine current process working directory %s", err.Error()))
 		extensionEvents.LogCriticalEvent("Get Current Process Working Directory", err.Error())

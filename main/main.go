@@ -21,7 +21,7 @@ import (
 )
 
 var (
-	ExtensionVersion      = "1.0.10" // should be changed at compile time, do not hand edit
+	ExtensionVersion      = "1.0.10" // should be assigned at compile time, do not edit in code
 	reportStatusFunc      = utils.ReportStatus
 	getVMExtensionFunc    = getVMExtension
 	setSequenceNumberFunc = seqno.SetSequenceNumber
