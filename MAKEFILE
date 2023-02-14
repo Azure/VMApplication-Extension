@@ -1,0 +1,48 @@
+BUNDLEDIR=bundle/linux
+BINDIR=$(BUNDLEDIR)/bin
+EXTENSIONVERSION=1.0.11
+
+all: clean bundle
+
+clean:
+	rm extension-launcher
+	rm extension-launcher-arm64
+	rm  vm-application-manager
+	rm  vm-application-manager-arm64
+	-rm -R $(BUNDLEDIR)
+
+extension-launcher:
+	set GOOS=linux
+	set GOARCH=amd64
+	go env GOOS GOARCH
+	go build -o extension-launcher -ldflags="-X 'main.ExtensionVersion=$(EXTENSIONVERSION)' -X 'main.ExecutableName=vm-application-manager'" ./launcher
+
+extension-launcher-arm64:
+	set GOOS=linux
+	set GOARCH=arm64
+	go env GOOS GOARCH
+	go build -o extension-launcher-arm64 -ldflags="-X 'main.ExtensionVersion=$(EXTENSIONVERSION)' -X 'main.ExecutableName=vm-application-manager-arm64'" ./launcher
+
+vm-application-manager:
+	set GOOS=linux
+	set GOARCH=amd64
+	go env GOOS GOARCH
+	go build -o  vm-application-manager -ldflags="-X 'main.ExtensionVersion=$(EXTENSIONVERSION)'" ./main
+
+vm-application-manager-arm64:
+	set GOOS=linux
+	set GOARCH=arm64
+	go env GOOS GOARCH
+	go build -o vm-application-manager-arm64 -ldflags="-X 'main.ExtensionVersion=$(EXTENSIONVERSION)'"  ./main
+
+bundle: extension-launcher extension-launcher-arm64 vm-application-manager vm-application-manager-arm64
+	mkdir -p $(BINDIR)
+	cp extension-launcher "$(BINDIR)/"
+	cp extension-launcher-arm64 "$(BINDIR)/"
+	cp vm-application-manager "$(BINDIR)/"
+	cp vm-application-manager-arm64 "$(BINDIR)/"
+	cp misc/linux/vm-application-shim "$(BINDIR)/"
+	cp misc/linux/HandlerManifest.json "$(BUNDLEDIR)/"
+	cd $(BUNDLEDIR) && zip -r vm-application-manager.zip ./*
+
+.PHONY: clean bundle

@@ -1,11 +1,11 @@
 [{
   "version": 1.0,
   "handlerManifest": {
-    "installCommand": "bin/vm-application-manager install",
-    "uninstallCommand": "bin/vm-application-manager uninstall",
-    "updateCommand": "bin/vm-application-manager update",
-    "enableCommand": "bin/extension-launcher -extensionname 'Microsoft.CPlat.Core.VMApplicationManagerLinux' -extensionversion '1.0.10' -exename ./vm-application-manager -operation enable",
-    "disableCommand": "bin/vm-application-manager disable",
+    "installCommand": "bin/vm-application-shim install",
+    "uninstallCommand": "bin/vm-application-shim uninstall",
+    "updateCommand": "bin/vm-application-shim update",
+    "enableCommand": "bin/vm-application-shim enable",
+    "disableCommand": "bin/vm-application-shim disable",
     "rebootAfterInstall": false,
     "reportHeartbeat": false,
     "updateMode": "UpdateWithInstall"

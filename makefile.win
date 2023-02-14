@@ -3,7 +3,7 @@
 # nmake -f makefile.win
 # from visual studio command prompt 
 
-BUNDLEDIR=bundle
+BUNDLEDIR=bundle\windows
 BINDIR=$(BUNDLEDIR)\bin
 EXTENSIONVERSION=1.0.11
 
@@ -14,7 +14,7 @@ clean:
     del extension-launcher-arm64
     del vm-application-manager
     del vm-application-manager-arm64
-    rmdir /S /Q $(BUNDLEDIR) || exit 0
+    -rmdir /S /Q $(BUNDLEDIR)
 
 extension-launcher:
     set GOOS=windows

@@ -14,6 +14,7 @@ import (
 	"github.com/Azure/azure-extension-platform/pkg/seqno"
 	"github.com/Azure/azure-extension-platform/pkg/status"
 	platformutils "github.com/Azure/azure-extension-platform/pkg/utils"
+	"github.com/Azure/azure-extension-platform/vmextension"
 )
 
 var ( // set at compile time
@@ -54,6 +55,11 @@ func main() {
 	case "exename":
 		fmt.Printf("Executable name is %s%s", ExecutableName, platformconstants.NewLineCharacter)
 		return
+	case vmextension.EnableOperation.ToString():
+		break
+	default:
+		fmt.Println("Only valid arguments are 'version', 'exename', 'enable'. Exiting")
+		eh.Exit(exithelper.ArgumentError)
 	}
 
 	handlerEnv, err := handlerEnvironmentGetter(constants.ExtensionName, ExtensionVersion)

@@ -1,0 +1,16 @@
+set -euo pipefail
+readonly ARCHITECTURE=$( [[ "$(uname -p)" == "unknown" ]] && echo "$(uname -m)" || echo "$(uname -p)" ) #ternary operator
+LAUNCHER_BIN="extension-launcher"
+MANAGER_BIN="vm-application-manager"
+if [ $ARCHITECTURE == "arm64" ] || [ $ARCHITECTURE == "aarch64" ]; then
+     LAUNCHER_BIN="extension-launcher-arm64"
+     MANAGER_BIN="vm-application-manager-arm64"
+fi
+
+set -x
+cmd="$1"
+
+if [[ "$cmd" == "enable" ]]; then
+     "$LAUNCHER_BIN" $@
+else
+     "$MANAGER_BIN" $@
