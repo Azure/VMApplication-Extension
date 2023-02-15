@@ -29,21 +29,25 @@ import (
 
 // implements IHostGaCommunicator
 type NoopHostGaCommunicator struct {
-	myApp *hostgacommunicator.VMAppMetadata
+	MetadataToReturn    *hostgacommunicator.VMAppMetadata
+	PackageFileNameUsed string
+	ConfigFileNameUsed  string
 }
 
 func (communicator *NoopHostGaCommunicator) DownloadPackage(el *logging.ExtensionLogger, appName string, dst string) error {
+	communicator.PackageFileNameUsed = dst
 	return nil
 }
 func (communicator *NoopHostGaCommunicator) DownloadConfig(el *logging.ExtensionLogger, appName string, dst string) error {
+	communicator.ConfigFileNameUsed = dst
 	return nil
 }
 func (communicator *NoopHostGaCommunicator) GetVMAppInfo(el *logging.ExtensionLogger, appName string) (*hostgacommunicator.VMAppMetadata, error) {
-	return communicator.myApp, nil
+	return communicator.MetadataToReturn, nil
 }
 
 func (communicator *NoopHostGaCommunicator) SetupVMAppInfo(appName string, version string, operation string) {
-	communicator.myApp = &hostgacommunicator.VMAppMetadata{
+	communicator.MetadataToReturn = &hostgacommunicator.VMAppMetadata{
 		ApplicationName:    appName,
 		DirectDownloadOnly: false,
 		InstallCommand:     "",
@@ -217,7 +221,7 @@ func Test_getVMPackageDataCustomAction_valid(t *testing.T) {
 	}
 	vmApplications := []extdeserialization.VmAppSetting{
 		{
-			ApplicationName: "iggy",
+			ApplicationName: "appNew",
 			Order:           &order,
 			Actions:         []*extdeserialization.ActionSetting{&actions},
 		},
@@ -227,7 +231,11 @@ func Test_getVMPackageDataCustomAction_valid(t *testing.T) {
 
 	ext := createTestVMExtension(t, vmApplications)
 	hostGaCommunicator := NoopHostGaCommunicator{}
-	hostGaCommunicator.SetupVMAppInfo("iggy", "1.0.1", "install")
+	hostGaCommunicator.SetupVMAppInfo("appNew", "1.0.1", "install")
+	hostGaCommunicator.MetadataToReturn.ConfigExists = true
+	hostGaCommunicator.MetadataToReturn.PackageFileName = "package.exe"
+	hostGaCommunicator.MetadataToReturn.ConfigFileName = "config.ini"
+
 	err := customEnable(ext, &hostGaCommunicator, requestedSequenceNumber)
 	require.NoError(t, err)
 	// test that registry file is written
@@ -247,6 +255,9 @@ func Test_getVMPackageDataCustomAction_valid(t *testing.T) {
 	require.Contains(t, fileString, vmextension.EnableOperation.ToStatusName())
 	require.Contains(t, fileString, vmApplications[0].ApplicationName)
 	require.Equal(t, requestedSequenceNumber, currentSequenceNumber)
+	// test that the package file and config file name are being used
+	require.Contains(t, hostGaCommunicator.PackageFileNameUsed, "package.exe")
+	require.Contains(t, hostGaCommunicator.ConfigFileNameUsed, "config.ini")
 }
 
 func Test_getVMPackageDataCustomAction_CriticalError(t *testing.T) {

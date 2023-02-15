@@ -60,15 +60,15 @@ var mockCommandFailOnDemand CommandExecutor = func(command string, workingDir st
 }
 
 // implements IHostGaCommunicator
-type NoopHostGaComminucator struct{}
+type NoopHostGaCommunicator struct{}
 
-func (downloader *NoopHostGaComminucator) DownloadPackage(logger *logging.ExtensionLogger, appName string, dst string) error {
+func (downloader *NoopHostGaCommunicator) DownloadPackage(logger *logging.ExtensionLogger, appName string, dst string) error {
 	return nil
 }
-func (downloader *NoopHostGaComminucator) DownloadConfig(logger *logging.ExtensionLogger, appName string, dst string) error {
+func (downloader *NoopHostGaCommunicator) DownloadConfig(logger *logging.ExtensionLogger, appName string, dst string) error {
 	return nil
 }
-func (downloader *NoopHostGaComminucator) GetVMAppInfo(logger *logging.ExtensionLogger, appName string) (*hostgacommunicator.VMAppMetadata, error) {
+func (downloader *NoopHostGaCommunicator) GetVMAppInfo(logger *logging.ExtensionLogger, appName string) (*hostgacommunicator.VMAppMetadata, error) {
 	return nil, nil
 }
 
@@ -662,7 +662,7 @@ func executeActionPlan(t *testing.T,
 	}
 	err = packageReg.WriteToDisk(currentReg)
 	assert.NoError(t, err)
-	actionPlan := New(currentReg, incomingPackages, environment, new(NoopHostGaComminucator), el)
+	actionPlan := New(currentReg, incomingPackages, environment, new(NoopHostGaCommunicator), el)
 
 	el := logging.New(nil)
 	he := getHandlerEnvironment()

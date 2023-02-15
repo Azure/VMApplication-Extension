@@ -1,0 +1,16 @@
+[
+	{
+		"version": 1,
+		"timestampUTC": "2023-02-15T03:21:44.092Z",
+		"status": {
+			"name": "Microsoft.CPlat.Core.VMApplicationManagerWindows",
+			"operation": "Enabling Handler",
+			"status": "Transitioning",
+			"formattedMessage": {
+				"lang": "en-US",
+				"message": "Enabling Handler"
+			},
+			"statusCreatedByAgent": true
+		}
+	}
+]

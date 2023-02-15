@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/Azure/VMApplication-Extension/internal/constants"
@@ -181,34 +182,46 @@ func customEnable(ext *vmextensionhelper.VMExtension, hostgaCommunicator hostgac
 	}
 
 	// write success status if requested sequence number is newer
-	if ext.CurrentSequenceNumber != nil {
-		if requestedSequenceNumber > *ext.CurrentSequenceNumber {
-			var statusResult status.StatusType
-			statusMessage := getStatusMessage(currentPackageRegistry.GetPackageCollection(), executeError, actionplanResult)
-			if executeError.GetErrorIfDeploymentFailed() == nil { // treatFailureAsDeploymentFailure
-				statusResult = status.StatusSuccess
-			} else {
-				statusResult = status.StatusError
-			}
-			err := utils.ReportStatus(ext.HandlerEnv, requestedSequenceNumber, statusResult, vmextensionhelper.EnableOperation.ToStatusName(), statusMessage)
-			if err != nil {
-				errorMessage := fmt.Sprintf("failed to save status file: %s", err.Error())
-				ext.ExtensionLogger.Error(errorMessage)
-				ext.ExtensionEvents.LogErrorEvent("Save Status", errorMessage)
-				return err
-			}
-			// update the sequence number that has been executed
-			if err := setSequenceNumberFunc(constants.ExtensionName, ExtensionVersion, requestedSequenceNumber); err != nil {
-				errorMessage := fmt.Sprintf("Failed to update sequence number to %d: %s", requestedSequenceNumber, err.Error())
-				ext.ExtensionLogger.Error(errorMessage)
-				ext.ExtensionEvents.LogErrorEvent("Update Sequence Number", errorMessage)
-			}
-		} else {
-			message := fmt.Sprintf("Skipped updating status file. Requested sequence number %d, current sequence number %d.", requestedSequenceNumber, *ext.CurrentSequenceNumber)
-			ext.ExtensionLogger.Info(message)
-			ext.ExtensionEvents.LogInformationalEvent("Save Status", message)
+	shouldReportStatus := false
+
+	if ext.CurrentSequenceNumber == nil || requestedSequenceNumber > *ext.CurrentSequenceNumber {
+		shouldReportStatus = true
+	} else if requestedSequenceNumber == *ext.CurrentSequenceNumber {
+		statusType, err := utils.GetStatusType(ext.HandlerEnv, requestedSequenceNumber)
+		if err != nil {
+			ext.ExtensionLogger.Warn("could not determine status type of existing status file %s", err.Error())
+		}
+		if strings.EqualFold(string(statusType), string(status.StatusTransitioning)) {
+			shouldReportStatus = true
 		}
 	}
+	if shouldReportStatus {
+		var statusResult status.StatusType
+		statusMessage := getStatusMessage(currentPackageRegistry.GetPackageCollection(), executeError, actionplanResult)
+		if executeError.GetErrorIfDeploymentFailed() == nil { // treatFailureAsDeploymentFailure
+			statusResult = status.StatusSuccess
+		} else {
+			statusResult = status.StatusError
+		}
+		err := utils.ReportStatus(ext.HandlerEnv, requestedSequenceNumber, statusResult, vmextensionhelper.EnableOperation.ToStatusName(), statusMessage)
+		if err != nil {
+			errorMessage := fmt.Sprintf("failed to save status file: %s", err.Error())
+			ext.ExtensionLogger.Error(errorMessage)
+			ext.ExtensionEvents.LogErrorEvent("Save Status", errorMessage)
+			return err
+		}
+		// update the sequence number that has been executed
+		if err := setSequenceNumberFunc(constants.ExtensionName, ExtensionVersion, requestedSequenceNumber); err != nil {
+			errorMessage := fmt.Sprintf("Failed to update sequence number to %d: %s", requestedSequenceNumber, err.Error())
+			ext.ExtensionLogger.Error(errorMessage)
+			ext.ExtensionEvents.LogErrorEvent("Update Sequence Number", errorMessage)
+		}
+	} else {
+		message := fmt.Sprintf("Skipped updating status file. Requested sequence number %d, current sequence number %d.", requestedSequenceNumber, *ext.CurrentSequenceNumber)
+		ext.ExtensionLogger.Info(message)
+		ext.ExtensionEvents.LogInformationalEvent("Save Status", message)
+	}
+
 	return nil
 }
 
