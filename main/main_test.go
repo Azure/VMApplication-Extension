@@ -55,7 +55,7 @@ func (communicator *NoopHostGaCommunicator) SetupVMAppInfo(appName string, versi
 
 var noopHostGaCommunicator = new(NoopHostGaCommunicator)
 
-var sequenceNumberSetByTheExtension uint
+var currentSequenceNumber uint
 
 func nopLog() *logging.ExtensionLogger {
 	return logging.New(nil)
@@ -74,9 +74,8 @@ func TestMain(m *testing.M) {
 		return
 	}
 
-	sequenceNumberSetByTheExtension = 0
 	setSequenceNumberFunc = func(extName, extVersion string, seqNo uint) error {
-		sequenceNumberSetByTheExtension = seqNo
+		currentSequenceNumber = seqNo
 		return nil
 	}
 
@@ -234,6 +233,7 @@ func Test_getVMPackageDataCustomAction_valid(t *testing.T) {
 	// test that registry file is written
 	pkr, err := packageregistry.New(ext.ExtensionLogger, ext.HandlerEnv, 1*time.Second)
 	require.NoError(t, err)
+	defer pkr.Close()
 	currentpackages, err := pkr.GetExistingPackages()
 	require.NoError(t, err)
 	require.Len(t, currentpackages, 1)
@@ -246,7 +246,7 @@ func Test_getVMPackageDataCustomAction_valid(t *testing.T) {
 	fileString := string(fileBytes)
 	require.Contains(t, fileString, vmextension.EnableOperation.ToStatusName())
 	require.Contains(t, fileString, vmApplications[0].ApplicationName)
-	require.Equal(t, requestedSequenceNumber, sequenceNumberSetByTheExtension)
+	require.Equal(t, requestedSequenceNumber, currentSequenceNumber)
 }
 
 func Test_getVMPackageDataCustomAction_CriticalError(t *testing.T) {
@@ -320,7 +320,7 @@ func Test_main_statusIsWrittenForCriticalErrors(t *testing.T) {
 	require.Contains(t, fileString, status.StatusError)
 	// test that the sequence number isn't updated
 	// extension will retry the sequence number is the action plan could not be executed
-	require.NotEqual(t, requestedSequenceNumber, sequenceNumberSetByTheExtension)
+	require.NotEqual(t, requestedSequenceNumber, currentSequenceNumber)
 
 }
 
@@ -335,7 +335,7 @@ func Test_main_nothingToProcess_withoutStatus(t *testing.T) {
 	// ensure stautus file is not written
 	statusFilePath := filepath.Join(ext.HandlerEnv.StatusFolder, fmt.Sprintf("%d.status", requestedSequenceNumber))
 	require.False(t, fileExists(statusFilePath))
-	require.Equal(t, requestedSequenceNumber, sequenceNumberSetByTheExtension)
+	require.Equal(t, requestedSequenceNumber, currentSequenceNumber)
 }
 
 func Test_main_nothingToProcess_withStatus(t *testing.T) {
@@ -351,7 +351,7 @@ func Test_main_nothingToProcess_withStatus(t *testing.T) {
 	fileString := string(fileBytes)
 	require.Contains(t, fileString, vmextension.EnableOperation.ToStatusName())
 	require.Contains(t, fileString, status.StatusSuccess)
-	require.Equal(t, requestedSequenceNumber, sequenceNumberSetByTheExtension)
+	require.Equal(t, requestedSequenceNumber, currentSequenceNumber)
 }
 
 func Test_uninstall_cannotCreatePackageRegistry(t *testing.T) {
@@ -481,12 +481,12 @@ func createTestVMExtension(t *testing.T, settings interface{}) *vmextension.VMEx
 	require.NoError(t, err)
 
 	eem := extensionevents.New(el, he)
-
+	currentSequenceNumber = 0
 	return &vmextension.VMExtension{
 		Name:                       ExtensionVersion,
 		Version:                    ExtensionVersion,
 		GetRequestedSequenceNumber: func() (uint, error) { return 2, nil },
-		CurrentSequenceNumber:      &one,
+		CurrentSequenceNumber:      &currentSequenceNumber,
 		HandlerEnv:                 he,
 		GetSettings: func() (*handlersettings.HandlerSettings, error) {
 			return hs, nil
