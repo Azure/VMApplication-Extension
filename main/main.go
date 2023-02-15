@@ -56,7 +56,12 @@ func getExtensionAndRun(arguments []string) error {
 	}
 	command := arguments[1]
 	if command == vmextensionhelper.EnableOperation.ToString() {
-		// do not call ext.Do() handle the enable command in the extension
+		// do not call ext.Do() for enable
+		// we want finer control over writing the status file than what is provided by the enable callback method in
+		// github.com/Azure/azure-extension-platform/vmextension
+		// we don't want to update the status file when
+		// 1. extension can't acquire file lock
+		// 2. the requested sequence number isn't greater than the current sequence number
 		requestedSequenceNumber, err := ext.GetRequestedSequenceNumber()
 		if err != nil {
 			msg := "could not determine requested sequence number"
