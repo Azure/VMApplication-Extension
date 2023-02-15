@@ -75,7 +75,7 @@ func main() {
 	}
 	requestedSequenceNumber, err := requestedSeqnoRetriever(el, handlerEnv.ConfigFolder)
 	if err != nil {
-		el.Error("could not determine current sequence number: %v", err)
+		el.Error("could not determine requested sequence number: %v", err)
 		eh.Exit(exithelper.EnvironmentError)
 	}
 	extensionEvents := extensionevents.New(el, handlerEnv)

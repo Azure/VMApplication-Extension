@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Azure/VMApplication-Extension/internal/actionplan"
 	"github.com/Azure/VMApplication-Extension/internal/extdeserialization"
 
 	"github.com/Azure/VMApplication-Extension/internal/hostgacommunicator"
@@ -54,6 +55,8 @@ func (communicator *NoopHostGaCommunicator) SetupVMAppInfo(appName string, versi
 
 var noopHostGaCommunicator = new(NoopHostGaCommunicator)
 
+var sequenceNumberSetByTheExtension uint
+
 func nopLog() *logging.ExtensionLogger {
 	return logging.New(nil)
 }
@@ -71,8 +74,9 @@ func TestMain(m *testing.M) {
 		return
 	}
 
-	// we don't want to modify the registry on the dev machine while running tests
+	sequenceNumberSetByTheExtension = 0
 	setSequenceNumberFunc = func(extName, extVersion string, seqNo uint) error {
+		sequenceNumberSetByTheExtension = seqNo
 		return nil
 	}
 
@@ -225,6 +229,14 @@ func Test_getVMPackageDataCustomAction_valid(t *testing.T) {
 	hostGaCommunicator.SetupVMAppInfo("iggy", "1.0.1", "install")
 	err := customEnable(ext, &hostGaCommunicator, 0)
 	require.NoError(t, err)
+	// test that registry file is written
+	pkr, err := packageregistry.New(ext.ExtensionLogger, ext.HandlerEnv, 1*time.Second)
+	require.NoError(t, err)
+	currentpackages, err := pkr.GetExistingPackages()
+	require.NoError(t, err)
+	require.Len(t, currentpackages, 1)
+	require.Equal(t, currentpackages[vmApplications[0].ApplicationName].OngoingOperation, packageregistry.NoAction)
+	require.Contains(t, currentpackages[vmApplications[0].ApplicationName].Result, actionplan.Success)
 }
 
 func Test_getVMPackageDataCustomAction_CriticalError(t *testing.T) {
@@ -296,6 +308,10 @@ func Test_main_statusIsWrittenForCriticalErrors(t *testing.T) {
 	fileString := string(fileBytes)
 	require.Contains(t, fileString, vmextension.EnableOperation.ToStatusName())
 	require.Contains(t, fileString, status.StatusError)
+	// test that the sequence number isn't updated
+	// extension will retry the sequence number is the action plan could not be executed
+	require.NotEqual(t, requestedSequenceNumber, sequenceNumberSetByTheExtension)
+
 }
 
 func Test_main_nothingToProcess_withoutStatus(t *testing.T) {
@@ -309,6 +325,7 @@ func Test_main_nothingToProcess_withoutStatus(t *testing.T) {
 	// ensure stautus file is not written
 	statusFilePath := filepath.Join(ext.HandlerEnv.StatusFolder, fmt.Sprintf("%d.status", requestedSequenceNumber))
 	require.False(t, fileExists(statusFilePath))
+	require.Equal(t, requestedSequenceNumber, sequenceNumberSetByTheExtension)
 }
 
 func Test_main_nothingToProcess_withStatus(t *testing.T) {
@@ -324,6 +341,7 @@ func Test_main_nothingToProcess_withStatus(t *testing.T) {
 	fileString := string(fileBytes)
 	require.Contains(t, fileString, vmextension.EnableOperation.ToStatusName())
 	require.Contains(t, fileString, status.StatusSuccess)
+	require.Equal(t, requestedSequenceNumber, sequenceNumberSetByTheExtension)
 }
 
 func Test_uninstall_cannotCreatePackageRegistry(t *testing.T) {

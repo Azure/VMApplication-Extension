@@ -82,17 +82,8 @@ func getExtensionAndRun(arguments []string) error {
 					ext.ExtensionEvents.LogErrorEvent("Save Status", errorMessage)
 					return err
 				}
-
-				// if we reach this point then we are quite certian that status has been reported
-				// update the sequnce number that has been executed
-				if err := setSequenceNumberFunc(constants.ExtensionName, ExtensionVersion, requestedSequenceNumber); err != nil {
-					errorMessage := fmt.Sprintf("Failed to update sequence number to %d: %s", requestedSequenceNumber, err.Error())
-					ext.ExtensionLogger.Error(errorMessage)
-					ext.ExtensionEvents.LogErrorEvent("Update Sequence Number", errorMessage)
-				}
 			}
 		}
-
 	} else {
 		ext.Do()
 	}
@@ -189,7 +180,7 @@ func customEnable(ext *vmextensionhelper.VMExtension, hostgaCommunicator hostgac
 		if requestedSequenceNumber > *ext.CurrentSequenceNumber {
 			var statusResult status.StatusType
 			statusMessage := getStatusMessage(currentPackageRegistry.GetPackageCollection(), executeError, actionplanResult)
-			if executeError.GetErrorIfDeploymentFailed() == nil {
+			if executeError.GetErrorIfDeploymentFailed() == nil { // treatFailureAsDeploymentFailure
 				statusResult = status.StatusSuccess
 			} else {
 				statusResult = status.StatusError
@@ -200,6 +191,12 @@ func customEnable(ext *vmextensionhelper.VMExtension, hostgaCommunicator hostgac
 				ext.ExtensionLogger.Error(errorMessage)
 				ext.ExtensionEvents.LogErrorEvent("Save Status", errorMessage)
 				return err
+			}
+			// update the sequence number that has been executed
+			if err := setSequenceNumberFunc(constants.ExtensionName, ExtensionVersion, requestedSequenceNumber); err != nil {
+				errorMessage := fmt.Sprintf("Failed to update sequence number to %d: %s", requestedSequenceNumber, err.Error())
+				ext.ExtensionLogger.Error(errorMessage)
+				ext.ExtensionEvents.LogErrorEvent("Update Sequence Number", errorMessage)
 			}
 		} else {
 			message := fmt.Sprintf("Skipped updating status file. Requested sequence number %d, current sequence number %d.", requestedSequenceNumber, *ext.CurrentSequenceNumber)
