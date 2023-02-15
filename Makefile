@@ -5,10 +5,10 @@ EXTENSIONVERSION=1.0.11
 all: clean bundle
 
 clean:
-	rm extension-launcher
-	rm extension-launcher-arm64
-	rm  vm-application-manager
-	rm  vm-application-manager-arm64
+	-rm extension-launcher
+	-rm extension-launcher-arm64
+	-rm  vm-application-manager
+	-rm  vm-application-manager-arm64
 	-rm -R $(BUNDLEDIR)
 
 extension-launcher:
@@ -25,10 +25,10 @@ vm-application-manager-arm64:
 
 bundle: extension-launcher extension-launcher-arm64 vm-application-manager vm-application-manager-arm64
 	mkdir -p $(BINDIR)
-	cp extension-launcher "$(BINDIR)/"
-	cp extension-launcher-arm64 "$(BINDIR)/"
-	cp vm-application-manager "$(BINDIR)/"
-	cp vm-application-manager-arm64 "$(BINDIR)/"
+	mv extension-launcher "$(BINDIR)/"
+	mv extension-launcher-arm64 "$(BINDIR)/"
+	mv vm-application-manager "$(BINDIR)/"
+	mv vm-application-manager-arm64 "$(BINDIR)/"
 	cp misc/linux/vm-application-shim "$(BINDIR)/"
 	cp misc/linux/HandlerManifest.json "$(BUNDLEDIR)/"
 	cd $(BUNDLEDIR) && zip -r vm-application-manager.zip ./*

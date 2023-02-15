@@ -10,10 +10,10 @@ EXTENSIONVERSION=1.0.11
 all: clean bundle
 
 clean:
-    del extension-launcher
-    del extension-launcher-arm64
-    del vm-application-manager
-    del vm-application-manager-arm64
+    -del extension-launcher
+    -del extension-launcher-arm64
+    -del vm-application-manager
+    -del vm-application-manager-arm64
     -rmdir /S /Q $(BUNDLEDIR)
 
 extension-launcher:
@@ -42,10 +42,10 @@ vm-application-manager-arm64:
 
 bundle: extension-launcher extension-launcher-arm64 vm-application-manager vm-application-manager-arm64
     mkdir $(BINDIR)
-    copy extension-launcher "$(BINDIR)\"
-    copy extension-launcher-arm64 "$(BINDIR)\"
-    copy vm-application-manager "$(BINDIR)\"
-    copy vm-application-manager-arm64 "$(BINDIR)\"
+    move extension-launcher "$(BINDIR)\"
+    move extension-launcher-arm64 "$(BINDIR)\"
+    move vm-application-manager "$(BINDIR)\"
+    move vm-application-manager-arm64 "$(BINDIR)\"
     copy misc\windows\* "$(BUNDLEDIR)\"
     powershell -c "Compress-Archive -Path $(BUNDLEDIR)\* -DestinationPath $(BUNDLEDIR)\vm-application-manager.zip"
 
