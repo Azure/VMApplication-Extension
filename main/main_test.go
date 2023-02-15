@@ -224,10 +224,12 @@ func Test_getVMPackageDataCustomAction_valid(t *testing.T) {
 		},
 	}
 
+	requestedSequenceNumber := uint(5)
+
 	ext := createTestVMExtension(t, vmApplications)
 	hostGaCommunicator := NoopHostGaCommunicator{}
 	hostGaCommunicator.SetupVMAppInfo("iggy", "1.0.1", "install")
-	err := customEnable(ext, &hostGaCommunicator, 0)
+	err := customEnable(ext, &hostGaCommunicator, requestedSequenceNumber)
 	require.NoError(t, err)
 	// test that registry file is written
 	pkr, err := packageregistry.New(ext.ExtensionLogger, ext.HandlerEnv, 1*time.Second)
@@ -237,6 +239,14 @@ func Test_getVMPackageDataCustomAction_valid(t *testing.T) {
 	require.Len(t, currentpackages, 1)
 	require.Equal(t, currentpackages[vmApplications[0].ApplicationName].OngoingOperation, packageregistry.NoAction)
 	require.Contains(t, currentpackages[vmApplications[0].ApplicationName].Result, actionplan.Success)
+	// test contents of the status file
+	statusFilePath := filepath.Join(ext.HandlerEnv.StatusFolder, fmt.Sprintf("%d.status", requestedSequenceNumber))
+	fileBytes, err := ioutil.ReadFile(statusFilePath)
+	require.NoError(t, err)
+	fileString := string(fileBytes)
+	require.Contains(t, fileString, vmextension.EnableOperation.ToStatusName())
+	require.Contains(t, fileString, vmApplications[0].ApplicationName)
+	require.Equal(t, requestedSequenceNumber, sequenceNumberSetByTheExtension)
 }
 
 func Test_getVMPackageDataCustomAction_CriticalError(t *testing.T) {
