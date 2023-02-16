@@ -92,7 +92,7 @@ func main() {
 				extensionEvents.LogCriticalEvent("Save Status", err.Error())
 				eh.Exit(exithelper.FileSystemError)
 			}
-			el.Info("Wrote transitioning status file for sequence number %d, %s", requestedSequenceNumber, getStatusError.Error())
+			el.Info("Wrote transitioning status file for sequence number %d", requestedSequenceNumber)
 		}
 	}
 
