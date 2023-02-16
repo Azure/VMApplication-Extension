@@ -64,30 +64,36 @@ func main() {
 
 	handlerEnv, err := handlerEnvironmentGetter(constants.ExtensionName, ExtensionVersion)
 	if err != nil {
-		el.Error("could not retrieve handler environment %s", err.Error())
+		el.Error("Could not retrieve handler environment %s", err.Error())
 		eh.Exit(exithelper.EnvironmentError)
 	}
 	el = logging.New(handlerEnv)
 	currentSequenceNumber, err := seqno.GetCurrentSequenceNumber(el, currentSeqnoRetriever, constants.ExtensionName, ExtensionVersion)
 	if err != nil {
-		el.Error("could not determine current sequence number: %v", err)
+		el.Error("Could not determine current sequence number: %v", err)
 		eh.Exit(exithelper.EnvironmentError)
 	}
 	requestedSequenceNumber, err := requestedSeqnoRetriever(el, handlerEnv.ConfigFolder)
 	if err != nil {
-		el.Error("could not determine requested sequence number: %v", err)
+		el.Error("Could not determine requested sequence number: %v", err)
 		eh.Exit(exithelper.EnvironmentError)
 	}
 	extensionEvents := extensionevents.New(el, handlerEnv)
 
 	if requestedSequenceNumber > currentSequenceNumber {
-		// only write transitioning status file for new sequence numbers
-		err = utils.ReportStatus(handlerEnv, requestedSequenceNumber, status.StatusTransitioning, arg, "transitioning")
+		// attempt to write a transitioning status file if it doesn't exist
+		_, err := utils.GetStatusType(handlerEnv, requestedSequenceNumber)
 		if err != nil {
-			el.Error(fmt.Sprintf("could not write transitioning status: %s", err.Error()))
-			extensionEvents.LogCriticalEvent("Save Status", err.Error())
+			// either no transitioning status file was found, or the status file was malformed
+			// either way create a new transitioning status file
+			err = utils.ReportStatus(handlerEnv, requestedSequenceNumber, status.StatusTransitioning, arg, "transitioning")
+			if err != nil {
+				el.Error(fmt.Sprintf("Could not write transitioning status: %s", err.Error()))
+				extensionEvents.LogCriticalEvent("Save Status", err.Error())
+				eh.Exit(exithelper.FileSystemError)
+			}
+			el.Info("Wrote transitioning status file for sequence number %d", requestedSequenceNumber)
 		}
-		eh.Exit(exithelper.FileSystemError)
 	}
 
 	currentDir, err := platformutils.GetCurrentProcessWorkingDir()

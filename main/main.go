@@ -83,7 +83,7 @@ func getExtensionAndRun(arguments []string) error {
 				statusMessage := enableError.Error()
 				err := reportStatusFunc(ext.HandlerEnv, requestedSequenceNumber, status.StatusError, vmextensionhelper.EnableOperation.ToStatusName(), statusMessage)
 				if err != nil {
-					errorMessage := fmt.Sprintf("failed to save status file: %s", err.Error())
+					errorMessage := fmt.Sprintf("Failed to save status file: %s", err.Error())
 					ext.ExtensionLogger.Error(errorMessage)
 					ext.ExtensionEvents.LogErrorEvent("Save Status", errorMessage)
 					return err
@@ -146,7 +146,7 @@ func customEnable(ext *vmextensionhelper.VMExtension, hostgaCommunicator hostgac
 
 	settings, err := ext.GetSettings()
 	if err != nil {
-		return errors.Wrap(err, "could not get extension settings")
+		return errors.Wrap(err, "Could not get extension settings")
 	}
 
 	protSettings, err := extdeserialization.GetVMAppProtectedSettings(settings)
@@ -155,12 +155,12 @@ func customEnable(ext *vmextensionhelper.VMExtension, hostgaCommunicator hostgac
 	}
 	vmAppIncomingCollection, err := getVMAppIncomingCollection(protSettings, hostgaCommunicator, ext.ExtensionLogger)
 	if err != nil {
-		return errors.Wrap(err, "resolving packages failed")
+		return errors.Wrap(err, "Resolving packages failed")
 	}
 
 	currentPackageRegistry, err := packageRegistry.GetExistingPackages()
 	if err != nil {
-		return errors.Wrap(err, "could not read current package registry")
+		return errors.Wrap(err, "Could not read current package registry")
 	}
 
 	commandHandler := commandhandler.CommandHandler{}
@@ -178,7 +178,7 @@ func customEnable(ext *vmextensionhelper.VMExtension, hostgaCommunicator hostgac
 
 	currentPackageRegistry, err = packageRegistry.GetExistingPackages()
 	if err != nil {
-		return errors.Wrapf(err, "could not get package registry")
+		return errors.Wrapf(err, "Could not get package registry")
 	}
 
 	// write success status if requested sequence number is newer
@@ -189,7 +189,7 @@ func customEnable(ext *vmextensionhelper.VMExtension, hostgaCommunicator hostgac
 	} else if requestedSequenceNumber == *ext.CurrentSequenceNumber {
 		statusType, err := utils.GetStatusType(ext.HandlerEnv, requestedSequenceNumber)
 		if err != nil {
-			ext.ExtensionLogger.Warn("could not determine status type of existing status file %s", err.Error())
+			ext.ExtensionLogger.Warn("Could not determine status type of existing status file %s", err.Error())
 		}
 		if strings.EqualFold(string(statusType), string(status.StatusTransitioning)) {
 			shouldReportStatus = true
@@ -205,7 +205,7 @@ func customEnable(ext *vmextensionhelper.VMExtension, hostgaCommunicator hostgac
 		}
 		err := utils.ReportStatus(ext.HandlerEnv, requestedSequenceNumber, statusResult, vmextensionhelper.EnableOperation.ToStatusName(), statusMessage)
 		if err != nil {
-			errorMessage := fmt.Sprintf("failed to save status file: %s", err.Error())
+			errorMessage := fmt.Sprintf("Failed to save status file: %s", err.Error())
 			ext.ExtensionLogger.Error(errorMessage)
 			ext.ExtensionEvents.LogErrorEvent("Save Status", errorMessage)
 			return err
@@ -243,13 +243,13 @@ func vmAppUninstallCallback(ext *vmextensionhelper.VMExtension) error {
 func doVmAppUninstallCallback(ext *vmextensionhelper.VMExtension, hostGaCommunicator hostgacommunicator.IHostGaCommunicator) error {
 	packageRegistry, err := packageregistry.New(ext.ExtensionLogger, ext.HandlerEnv, filelockTimeoutDuration)
 	if err != nil {
-		return errors.Wrapf(err, "could not create package registry")
+		return errors.Wrapf(err, "Could not create package registry")
 	}
 	defer packageRegistry.Close()
 
 	currentPackageRegistry, err := packageRegistry.GetExistingPackages()
 	if err != nil {
-		return errors.Wrapf(err, "could not read current package registry")
+		return errors.Wrapf(err, "Could not read current package registry")
 	}
 
 	// Create an empty incoming collection so we'll create an action plan to remove all applications
