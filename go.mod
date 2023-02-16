@@ -3,7 +3,7 @@ module github.com/Azure/VMApplication-Extension
 go 1.15
 
 require (
-	github.com/Azure/azure-extension-platform v0.0.0-20230216014319-20d220232beb
+	github.com/Azure/azure-extension-platform v0.0.0-20230216020108-d5717b31bf59
 	github.com/ahmetalpbalkan/go-httpbin v0.0.0-20200921172446-862fbad56b77
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.7.0

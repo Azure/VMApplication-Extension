@@ -35,6 +35,8 @@ github.com/Azure/azure-extension-platform v0.0.0-20220301222126-2656bbc0a09f h1:
 github.com/Azure/azure-extension-platform v0.0.0-20220301222126-2656bbc0a09f/go.mod h1:1hEkO8M1zN/SQpdFOTDDMTNfeE1Q2tCHmEXXiHrWTgo=
 github.com/Azure/azure-extension-platform v0.0.0-20230216014319-20d220232beb h1:3t74zwL+mhdSkag9YYPg718xuuA8Eo1nYbWPWnPGLHU=
 github.com/Azure/azure-extension-platform v0.0.0-20230216014319-20d220232beb/go.mod h1:1hEkO8M1zN/SQpdFOTDDMTNfeE1Q2tCHmEXXiHrWTgo=
+github.com/Azure/azure-extension-platform v0.0.0-20230216020108-d5717b31bf59 h1:pu7oXHSM7cIoZiV9fFYRs9B5J55xetupEHLn2Rcp598=
+github.com/Azure/azure-extension-platform v0.0.0-20230216020108-d5717b31bf59/go.mod h1:1hEkO8M1zN/SQpdFOTDDMTNfeE1Q2tCHmEXXiHrWTgo=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/BurntSushi/xgb v0.0.0-20160522181843-27f122750802/go.mod h1:IVnqGOEym/WlBOVXweHU+Q+/VP0lqqI8lqeDx9IjBqo=
 github.com/DataDog/datadog-go v3.2.0+incompatible/go.mod h1:LButxg5PwREeZtORoXG3tL4fMGNddJ+vMq1mwgfaqoQ=
