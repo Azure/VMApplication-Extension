@@ -29,7 +29,8 @@ bundle: extension-launcher extension-launcher-arm64 vm-application-manager vm-ap
 	mv extension-launcher-arm64 "$(BINDIR)/"
 	mv vm-application-manager "$(BINDIR)/"
 	mv vm-application-manager-arm64 "$(BINDIR)/"
-	cp misc/linux/vm-application-shim "$(BINDIR)/"
+	cp misc/linux/install.sh "$(BINDIR)/"
+	cp misc/linux/update.sh "$(BINDIR)/"
 	cp misc/linux/HandlerManifest.json "$(BUNDLEDIR)/"
 	cd $(BUNDLEDIR) && zip -r vm-application-manager.zip ./*
 

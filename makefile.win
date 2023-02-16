@@ -1,7 +1,7 @@
 # makefile for windows
 # to call this makefile invoke
 # nmake -f makefile.win
-# from visual studio command prompt 
+# from developer (visual studio) command prompt 
 
 BUNDLEDIR=bundle\windows
 BINDIR=$(BUNDLEDIR)\bin
