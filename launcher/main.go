@@ -82,8 +82,8 @@ func main() {
 
 	if requestedSequenceNumber > currentSequenceNumber {
 		// attempt to write a transitioning status file if it doesn't exist
-		_, err := utils.GetStatusType(handlerEnv, requestedSequenceNumber)
-		if err != nil {
+		_, getStatusError := utils.GetStatusType(handlerEnv, requestedSequenceNumber)
+		if getStatusError != nil {
 			// either no transitioning status file was found, or the status file was malformed
 			// either way create a new transitioning status file
 			err = utils.ReportStatus(handlerEnv, requestedSequenceNumber, status.StatusTransitioning, arg, "transitioning")
@@ -92,7 +92,7 @@ func main() {
 				extensionEvents.LogCriticalEvent("Save Status", err.Error())
 				eh.Exit(exithelper.FileSystemError)
 			}
-			el.Info("Wrote transitioning status file for sequence number %d", requestedSequenceNumber)
+			el.Info("Wrote transitioning status file for sequence number %d, %s", requestedSequenceNumber, getStatusError.Error())
 		}
 	}
 
