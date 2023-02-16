@@ -13,6 +13,7 @@ import (
 
 	"github.com/Azure/VMApplication-Extension/internal/actionplan"
 	"github.com/Azure/VMApplication-Extension/internal/extdeserialization"
+	"github.com/Azure/VMApplication-Extension/pkg/utils"
 
 	"github.com/Azure/VMApplication-Extension/internal/hostgacommunicator"
 	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
@@ -335,17 +336,37 @@ func Test_main_statusIsWrittenForCriticalErrors(t *testing.T) {
 
 }
 
-func Test_main_nothingToProcess_withoutStatus(t *testing.T) {
+func Test_main_nothingToProcess_noStatusUpdate(t *testing.T) {
 	vmApplications := []extdeserialization.VmAppSetting{}
 	ext := createTestVMExtension(t, vmApplications)
 
 	hostGaCommunicator := NoopHostGaCommunicator{}
 	requestedSequenceNumber := uint(0)
-	err := customEnable(ext, &hostGaCommunicator, requestedSequenceNumber)
+	err := utils.ReportStatus(ext.HandlerEnv, requestedSequenceNumber, status.StatusError, vmextension.EnableOperation.ToStatusName(), "test")
 	require.NoError(t, err)
-	// ensure stautus file is not written
-	statusFilePath := filepath.Join(ext.HandlerEnv.StatusFolder, fmt.Sprintf("%d.status", requestedSequenceNumber))
-	require.False(t, fileExists(statusFilePath))
+	err = customEnable(ext, &hostGaCommunicator, requestedSequenceNumber)
+	require.NoError(t, err)
+	// ensure stautus file is not overwritten
+	statusType, err := utils.GetStatusType(ext.HandlerEnv, requestedSequenceNumber)
+	require.NoError(t, err)
+	require.Equal(t, status.StatusError, statusType)
+	require.Equal(t, requestedSequenceNumber, currentSequenceNumber)
+}
+
+func Test_main_transitioningStatusIsUpdated(t *testing.T) {
+	vmApplications := []extdeserialization.VmAppSetting{}
+	ext := createTestVMExtension(t, vmApplications)
+
+	hostGaCommunicator := NoopHostGaCommunicator{}
+	requestedSequenceNumber := uint(0)
+	err := utils.ReportStatus(ext.HandlerEnv, requestedSequenceNumber, status.StatusTransitioning, vmextension.EnableOperation.ToStatusName(), "test")
+	require.NoError(t, err)
+	err = customEnable(ext, &hostGaCommunicator, requestedSequenceNumber)
+	require.NoError(t, err)
+	// ensure error stautus file is not overwritten
+	statusType, err := utils.GetStatusType(ext.HandlerEnv, requestedSequenceNumber)
+	require.NoError(t, err)
+	require.Equal(t, status.StatusSuccess, statusType)
 	require.Equal(t, requestedSequenceNumber, currentSequenceNumber)
 }
 
@@ -390,7 +411,7 @@ func Test_uninstall_cannotReadPackageRegistry(t *testing.T) {
 
 	err := doVmAppUninstallCallback(ext, &hostGaCommunicator)
 	require.Error(t, err)
-	require.EqualError(t, err, "could not read current package registry: invalid character '}' looking for beginning of value")
+	require.EqualError(t, err, "Could not read current package registry: invalid character '}' looking for beginning of value")
 }
 
 func Test_uninstall_noAppsToUninstall(t *testing.T) {
