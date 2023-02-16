@@ -188,10 +188,10 @@ func customEnable(ext *vmextensionhelper.VMExtension, hostgaCommunicator hostgac
 		shouldReportStatus = true
 	} else if requestedSequenceNumber == *ext.CurrentSequenceNumber {
 		statusType, err := utils.GetStatusType(ext.HandlerEnv, requestedSequenceNumber)
-		if err != nil {
-			ext.ExtensionLogger.Warn("Could not determine status type of existing status file %s", err.Error())
-		}
-		if strings.EqualFold(string(statusType), string(status.StatusTransitioning)) {
+		if err != nil || strings.EqualFold(string(statusType), string(status.StatusTransitioning)) {
+			// either something is wrong with the status file
+			// or its a transitioning status file
+			// overwrite it in either case
 			shouldReportStatus = true
 		}
 	}

@@ -80,7 +80,7 @@ func main() {
 	}
 	extensionEvents := extensionevents.New(el, handlerEnv)
 
-	if requestedSequenceNumber > currentSequenceNumber {
+	if requestedSequenceNumber >= currentSequenceNumber {
 		// attempt to write a transitioning status file if it doesn't exist
 		_, getStatusError := utils.GetStatusType(handlerEnv, requestedSequenceNumber)
 		if getStatusError != nil {
