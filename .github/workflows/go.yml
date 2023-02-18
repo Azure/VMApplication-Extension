@@ -37,6 +37,7 @@ jobs:
       uses: actions/upload-artifact@v3
       with:
         path: bundle/linux/*.zip
+        name: linux/vm-application-manager.zip
       
   
   build_windows:
@@ -60,3 +61,12 @@ jobs:
 
     - name: Test
       run: go test -v ./...
+      
+    - name: Make All
+      run: nmake -F makefile.win
+      
+    - name: upload vm-application-manager.zip
+      uses: actions/upload-artifact@v3
+      with:
+        path: bundle/windows/*.zip
+        name: windows/vm-application-manager.zip
