@@ -29,6 +29,15 @@ jobs:
 
     - name: Test
       run: go test -v ./...
+      
+    - name: Make All
+      run: make all
+    
+    - name: upload vm-application-manager.zip
+      uses: actions/upload-artifact@v3
+      with:
+        path: bundle/linux/*.zip
+      
   
   build_windows:
     runs-on: windows-latest
