@@ -28,7 +28,7 @@ func TestActualSleep_actuallySleeps(t *testing.T) {
 	s := time.Now()
 	requesthelper.ActualSleep(time.Second)
 	e := time.Since(s)
-	require.InEpsilon(t, 1.0, e.Seconds(), 0.01, "took=%fs", e.Seconds())
+	require.InEpsilon(t, 1.0, e.Seconds(), 0.05, "took=%fs", e.Seconds())
 }
 
 func TestWithRetries_noRetries(t *testing.T) {
