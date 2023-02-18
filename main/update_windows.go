@@ -59,7 +59,7 @@ func getMostRecentlyUpdatedPackageRegistryFile(dirContainingAllVersions string, 
 		FileInfoArray: []FileInfoWithFilePath{},
 	}
 	for _, fileInfo := range fileInfo {
-		if fileInfo.IsDir() && fileInfo.Name() != extensionVersion && versionNumberRegx.MatchString(fileInfo.Name()) {
+		if fileInfo.IsDir() && fileInfo.Name() != ExtensionVersion && versionNumberRegx.MatchString(fileInfo.Name()) {
 			registryFilePath := path.Join(dirContainingAllVersions, fileInfo.Name(), intermediatePath, packageregistry.LocalApplicationRegistryFileName)
 			registryFileInfo, err := os.Stat(registryFilePath)
 			if err == nil {
@@ -91,7 +91,7 @@ func vmAppUpdateCallback(ext *vmextensionhelper.VMExtension) error {
 	breakLoopAfter := 5
 	for i := 0; ; i++ {
 		currentFolderName = filepath.Base(folderPath)
-		if strings.Contains(currentFolderName, extensionVersion) {
+		if strings.Contains(currentFolderName, ExtensionVersion) {
 			break
 		}
 		pathToFile = filepath.Join(currentFolderName, pathToFile) //keeping track of full path to file

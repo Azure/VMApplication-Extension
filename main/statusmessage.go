@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+
 	"github.com/Azure/VMApplication-Extension/internal/actionplan"
 	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
 )
@@ -20,6 +21,7 @@ type VmAppPackageCurrentForStatus struct {
 type StatusMessage1 struct {
 	CurrentState     VmAppPackageCurrentForStatusCollection `json:"CurrentState"`
 	ActionsPerformed actionplan.PackageOperationResults     `json:"ActionsPerformed"`
+	Errors           string                                 `json:"Errors"`
 }
 
 type StatusMessage2 struct {
@@ -39,15 +41,20 @@ func getVmAppCurrentForStatus(vmAppCurrentCollection packageregistry.VMAppPackag
 	return vmAppCurrentForStatusCollection
 }
 
-func getStatusMessage(vmAppCurrentCollection packageregistry.VMAppPackageCurrentCollection, result actionplan.IResult) string {
+func getStatusMessage(vmAppCurrentCollection packageregistry.VMAppPackageCurrentCollection, actionPlanExecuteError *actionplan.ExecuteError, result actionplan.IResult) string {
 	vmAppCurrentForStatusCollection := getVmAppCurrentForStatus(vmAppCurrentCollection)
 	packageOperationResults, ok := result.(*actionplan.PackageOperationResults)
 	var statusMessageString string
 
 	if ok {
+		var executeErrors = ""
+		if err := actionPlanExecuteError.GetErrorIfDeploymentFailed(); err != nil {
+			executeErrors = err.Error()
+		}
 		statusMessageA := StatusMessage1{
 			CurrentState:     vmAppCurrentForStatusCollection,
 			ActionsPerformed: *packageOperationResults,
+			Errors:           executeErrors,
 		}
 
 		statusM, err := json.MarshalIndent(statusMessageA, "", " ")

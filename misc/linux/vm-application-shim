@@ -1,0 +1,21 @@
+set -euo pipefail
+readonly SCRIPT_DIR=$(dirname "$0")
+readonly ARCHITECTURE=$( [[ "$(uname -p)" == "unknown" ]] && echo "$(uname -m)" || echo "$(uname -p)" ) #ternary operator
+LAUNCHER_BIN="extension-launcher"
+MANAGER_BIN="vm-application-manager"
+if [ $ARCHITECTURE == "arm64" ] || [ $ARCHITECTURE == "aarch64" ]; then
+     LAUNCHER_BIN="extension-launcher-arm64"
+     MANAGER_BIN="vm-application-manager-arm64"
+fi
+
+bin="$(readlink -f "$SCRIPT_DIR/$MANAGER_BIN")"
+launcher="$(readlink -f "$SCRIPT_DIR/$LAUNCHER_BIN")"
+
+set -x
+cmd="$1"
+
+if [[ "$cmd" == "enable" ]]; then
+     "$launcher" $@
+else
+     "$bin" $@
+fi

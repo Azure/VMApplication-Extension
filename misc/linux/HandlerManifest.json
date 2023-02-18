@@ -1,10 +1,10 @@
 [{
   "version": 1.0,
   "handlerManifest": {
-    "installCommand": "bin/vm-application-manager install",
+    "installCommand": "bin/install.sh",
     "uninstallCommand": "bin/vm-application-manager uninstall",
-    "updateCommand": "bin/vm-application-manager update",
-    "enableCommand": "bin/extension-launcher -extensionname 'Microsoft.CPlat.Core.VMApplicationManagerLinux' -extensionversion '1.0.10' -exename ./vm-application-manager -operation enable",
+    "updateCommand": "bin/update.sh",
+    "enableCommand": "bin/extension-launcher enable",
     "disableCommand": "bin/vm-application-manager disable",
     "rebootAfterInstall": false,
     "reportHeartbeat": false,

@@ -7,10 +7,13 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/Azure/VMApplication-Extension/internal/actionplan"
 	"github.com/Azure/VMApplication-Extension/internal/extdeserialization"
+	"github.com/Azure/VMApplication-Extension/pkg/utils"
 
 	"github.com/Azure/VMApplication-Extension/internal/hostgacommunicator"
 	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
@@ -19,6 +22,7 @@ import (
 	"github.com/Azure/azure-extension-platform/pkg/handlerenv"
 	"github.com/Azure/azure-extension-platform/pkg/logging"
 	handlersettings "github.com/Azure/azure-extension-platform/pkg/settings"
+	"github.com/Azure/azure-extension-platform/pkg/status"
 	"github.com/Azure/azure-extension-platform/vmextension"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -26,21 +30,25 @@ import (
 
 // implements IHostGaCommunicator
 type NoopHostGaCommunicator struct {
-	myApp *hostgacommunicator.VMAppMetadata
+	MetadataToReturn    *hostgacommunicator.VMAppMetadata
+	PackageFileNameUsed string
+	ConfigFileNameUsed  string
 }
 
 func (communicator *NoopHostGaCommunicator) DownloadPackage(el *logging.ExtensionLogger, appName string, dst string) error {
+	communicator.PackageFileNameUsed = dst
 	return nil
 }
 func (communicator *NoopHostGaCommunicator) DownloadConfig(el *logging.ExtensionLogger, appName string, dst string) error {
+	communicator.ConfigFileNameUsed = dst
 	return nil
 }
 func (communicator *NoopHostGaCommunicator) GetVMAppInfo(el *logging.ExtensionLogger, appName string) (*hostgacommunicator.VMAppMetadata, error) {
-	return communicator.myApp, nil
+	return communicator.MetadataToReturn, nil
 }
 
 func (communicator *NoopHostGaCommunicator) SetupVMAppInfo(appName string, version string, operation string) {
-	communicator.myApp = &hostgacommunicator.VMAppMetadata{
+	communicator.MetadataToReturn = &hostgacommunicator.VMAppMetadata{
 		ApplicationName:    appName,
 		DirectDownloadOnly: false,
 		InstallCommand:     "",
@@ -49,6 +57,10 @@ func (communicator *NoopHostGaCommunicator) SetupVMAppInfo(appName string, versi
 		Version:            version,
 	}
 }
+
+var noopHostGaCommunicator = new(NoopHostGaCommunicator)
+
+var currentSequenceNumber uint
 
 func nopLog() *logging.ExtensionLogger {
 	return logging.New(nil)
@@ -67,6 +79,11 @@ func TestMain(m *testing.M) {
 		return
 	}
 
+	setSequenceNumberFunc = func(extName, extVersion string, seqNo uint) error {
+		currentSequenceNumber = seqNo
+		return nil
+	}
+
 	maintestdir = testdir
 	exitVal := m.Run()
 	os.RemoveAll(maintestdir)
@@ -75,21 +92,21 @@ func TestMain(m *testing.M) {
 }
 
 func Test_settingsFailToInit(t *testing.T) {
-	extensionVersion = ""
+	ExtensionVersion = ""
 	defer resetExtensionVersion()
-	err := getExtensionAndRun()
+	err := getExtensionAndRun([]string{"vm-application-manager", "enable"})
 	require.Error(t, err)
 }
 
 func Test_failToCreateExtension(t *testing.T) {
 	// This will fail automatically because Guest Agent hasn't set the required sequence numbers
-	err := getExtensionAndRun()
+	err := getExtensionAndRun([]string{"vm-application-manager", "enable"})
 	require.Error(t, err)
 }
 
 func Test_getVMPackageData_noSettings(t *testing.T) {
 	ext := createTestVMExtension(t, nil)
-	_, err := vmAppEnableCallback(ext)
+	err := customEnable(ext, noopHostGaCommunicator, 0)
 	require.Error(t, err)
 }
 
@@ -97,7 +114,7 @@ func Test_getVMPackageData_cannotDeserialize(t *testing.T) {
 	vmPackages := "yabasnarfle {}"
 
 	ext := createTestVMExtension(t, vmPackages)
-	_, err := vmAppEnableCallback(ext)
+	err := customEnable(ext, noopHostGaCommunicator, 0)
 	require.Error(t, err)
 }
 
@@ -105,7 +122,7 @@ func Test_getVMPackageData_noApplications(t *testing.T) {
 	vmApplications := []extdeserialization.VmAppSetting{}
 
 	ext := createTestVMExtension(t, vmApplications)
-	_, err := vmAppEnableCallback(ext)
+	err := customEnable(ext, noopHostGaCommunicator, 0)
 	require.NoError(t, err)
 }
 
@@ -121,7 +138,7 @@ func Test_getVMPackageData_valid(t *testing.T) {
 	ext := createTestVMExtension(t, vmApplications)
 	hostGaCommunicator := NoopHostGaCommunicator{}
 	hostGaCommunicator.SetupVMAppInfo("iggy", "1.0.1", "install")
-	_, err := doVmAppEnableCallback(ext, &hostGaCommunicator)
+	err := customEnable(ext, &hostGaCommunicator, 0)
 	require.NoError(t, err)
 }
 
@@ -190,7 +207,7 @@ func Test_getVMPackageData_noVersion(t *testing.T) {
 	hostGaCommunicator := NoopHostGaCommunicator{}
 	hostGaCommunicator.SetupVMAppInfo("iggy", "", "install")
 	ext := createTestVMExtension(t, vmApplications)
-	_, err := doVmAppEnableCallback(ext, &hostGaCommunicator)
+	err := customEnable(ext, &hostGaCommunicator, 0)
 	require.Error(t, err)
 }
 
@@ -205,17 +222,43 @@ func Test_getVMPackageDataCustomAction_valid(t *testing.T) {
 	}
 	vmApplications := []extdeserialization.VmAppSetting{
 		{
-			ApplicationName: "iggy",
+			ApplicationName: "appNew",
 			Order:           &order,
 			Actions:         []*extdeserialization.ActionSetting{&actions},
 		},
 	}
 
+	requestedSequenceNumber := uint(5)
+
 	ext := createTestVMExtension(t, vmApplications)
 	hostGaCommunicator := NoopHostGaCommunicator{}
-	hostGaCommunicator.SetupVMAppInfo("iggy", "1.0.1", "install")
-	_, err := doVmAppEnableCallback(ext, &hostGaCommunicator)
+	hostGaCommunicator.SetupVMAppInfo("appNew", "1.0.1", "install")
+	hostGaCommunicator.MetadataToReturn.ConfigExists = true
+	hostGaCommunicator.MetadataToReturn.PackageFileName = "package.exe"
+	hostGaCommunicator.MetadataToReturn.ConfigFileName = "config.ini"
+
+	err := customEnable(ext, &hostGaCommunicator, requestedSequenceNumber)
 	require.NoError(t, err)
+	// test that registry file is written
+	pkr, err := packageregistry.New(ext.ExtensionLogger, ext.HandlerEnv, 1*time.Second)
+	require.NoError(t, err)
+	defer pkr.Close()
+	currentpackages, err := pkr.GetExistingPackages()
+	require.NoError(t, err)
+	require.Len(t, currentpackages, 1)
+	require.Equal(t, currentpackages[vmApplications[0].ApplicationName].OngoingOperation, packageregistry.NoAction)
+	require.Contains(t, currentpackages[vmApplications[0].ApplicationName].Result, actionplan.Success)
+	// test contents of the status file
+	statusFilePath := filepath.Join(ext.HandlerEnv.StatusFolder, fmt.Sprintf("%d.status", requestedSequenceNumber))
+	fileBytes, err := ioutil.ReadFile(statusFilePath)
+	require.NoError(t, err)
+	fileString := string(fileBytes)
+	require.Contains(t, fileString, vmextension.EnableOperation.ToStatusName())
+	require.Contains(t, fileString, vmApplications[0].ApplicationName)
+	require.Equal(t, requestedSequenceNumber, currentSequenceNumber)
+	// test that the package file and config file name are being used
+	require.Contains(t, hostGaCommunicator.PackageFileNameUsed, "package.exe")
+	require.Contains(t, hostGaCommunicator.ConfigFileNameUsed, "config.ini")
 }
 
 func Test_getVMPackageDataCustomAction_CriticalError(t *testing.T) {
@@ -238,7 +281,7 @@ func Test_getVMPackageDataCustomAction_CriticalError(t *testing.T) {
 	ext := createTestVMExtension(t, vmApplications)
 	hostGaCommunicator := NoopHostGaCommunicator{}
 	hostGaCommunicator.SetupVMAppInfo("iggy", "1.0.1", "install")
-	_, err := doVmAppEnableCallback(ext, &hostGaCommunicator)
+	err := customEnable(ext, &hostGaCommunicator, 0)
 	require.Error(t, err)
 }
 
@@ -254,18 +297,93 @@ func Test_getVMPackageData_noApplicationName(t *testing.T) {
 	hostGaCommunicator := NoopHostGaCommunicator{}
 	hostGaCommunicator.SetupVMAppInfo("iggy", "1.0.1", "install")
 	ext := createTestVMExtension(t, vmApplications)
-	_, err := doVmAppEnableCallback(ext, &hostGaCommunicator)
-
+	err := customEnable(ext, &hostGaCommunicator, 0)
 	require.Error(t, err)
 }
 
-func Test_main_nothingToProcess(t *testing.T) {
+func Test_main_statusIsWrittenForCriticalErrors(t *testing.T) {
+	order := 1
+	vmApplications := []extdeserialization.VmAppSetting{
+		{
+			ApplicationName: "",
+			Order:           &order,
+		},
+	}
+
+	requestedSequenceNumber := uint(5)
+	oldGetVMExtFunc := getVMExtensionFunc
+	var ext *vmextension.VMExtension
+	getVMExtensionFunc = func() (*vmextension.VMExtension, error) {
+		ext = createTestVMExtension(t, vmApplications)
+		ext.GetRequestedSequenceNumber = func() (uint, error) { return requestedSequenceNumber, nil }
+		return ext, nil
+	}
+	defer func() {
+		getVMExtensionFunc = oldGetVMExtFunc
+	}()
+
+	err := getExtensionAndRun([]string{"vm-application-manager", vmextension.EnableOperation.ToString()})
+	require.NoError(t, err)
+	statusFilePath := filepath.Join(ext.HandlerEnv.StatusFolder, fmt.Sprintf("%d.status", requestedSequenceNumber))
+	fileBytes, err := ioutil.ReadFile(statusFilePath)
+	require.NoError(t, err)
+	fileString := string(fileBytes)
+	require.Contains(t, fileString, vmextension.EnableOperation.ToStatusName())
+	require.Contains(t, fileString, status.StatusError)
+	// test that the sequence number isn't updated
+	// extension will retry the sequence number is the action plan could not be executed
+	require.NotEqual(t, requestedSequenceNumber, currentSequenceNumber)
+
+}
+
+func Test_main_nothingToProcess_noStatusUpdate(t *testing.T) {
 	vmApplications := []extdeserialization.VmAppSetting{}
 	ext := createTestVMExtension(t, vmApplications)
 
 	hostGaCommunicator := NoopHostGaCommunicator{}
-	_, err := doVmAppEnableCallback(ext, &hostGaCommunicator)
+	requestedSequenceNumber := uint(0)
+	err := utils.ReportStatus(ext.HandlerEnv, requestedSequenceNumber, status.StatusError, vmextension.EnableOperation.ToStatusName(), "test")
 	require.NoError(t, err)
+	err = customEnable(ext, &hostGaCommunicator, requestedSequenceNumber)
+	require.NoError(t, err)
+	// ensure stautus file is not overwritten
+	statusType, err := utils.GetStatusType(ext.HandlerEnv, requestedSequenceNumber)
+	require.NoError(t, err)
+	require.Equal(t, status.StatusError, statusType)
+	require.Equal(t, requestedSequenceNumber, currentSequenceNumber)
+}
+
+func Test_main_transitioningStatusIsUpdated(t *testing.T) {
+	vmApplications := []extdeserialization.VmAppSetting{}
+	ext := createTestVMExtension(t, vmApplications)
+
+	hostGaCommunicator := NoopHostGaCommunicator{}
+	requestedSequenceNumber := uint(0)
+	err := utils.ReportStatus(ext.HandlerEnv, requestedSequenceNumber, status.StatusTransitioning, vmextension.EnableOperation.ToStatusName(), "test")
+	require.NoError(t, err)
+	err = customEnable(ext, &hostGaCommunicator, requestedSequenceNumber)
+	require.NoError(t, err)
+	// ensure error stautus file is not overwritten
+	statusType, err := utils.GetStatusType(ext.HandlerEnv, requestedSequenceNumber)
+	require.NoError(t, err)
+	require.Equal(t, status.StatusSuccess, statusType)
+	require.Equal(t, requestedSequenceNumber, currentSequenceNumber)
+}
+
+func Test_main_nothingToProcess_withStatus(t *testing.T) {
+	vmApplications := []extdeserialization.VmAppSetting{}
+	ext := createTestVMExtension(t, vmApplications)
+	hostGaCommunicator := NoopHostGaCommunicator{}
+	requestedSequenceNumber := *ext.CurrentSequenceNumber + 1
+	err := customEnable(ext, &hostGaCommunicator, requestedSequenceNumber)
+	require.NoError(t, err)
+	statusFilePath := filepath.Join(ext.HandlerEnv.StatusFolder, fmt.Sprintf("%d.status", requestedSequenceNumber))
+	fileBytes, err := ioutil.ReadFile(statusFilePath)
+	require.NoError(t, err)
+	fileString := string(fileBytes)
+	require.Contains(t, fileString, vmextension.EnableOperation.ToStatusName())
+	require.Contains(t, fileString, status.StatusSuccess)
+	require.Equal(t, requestedSequenceNumber, currentSequenceNumber)
 }
 
 func Test_uninstall_cannotCreatePackageRegistry(t *testing.T) {
@@ -293,7 +411,7 @@ func Test_uninstall_cannotReadPackageRegistry(t *testing.T) {
 
 	err := doVmAppUninstallCallback(ext, &hostGaCommunicator)
 	require.Error(t, err)
-	require.EqualError(t, err, "could not read current package registry: invalid character '}' looking for beginning of value")
+	require.EqualError(t, err, "Could not read current package registry: invalid character '}' looking for beginning of value")
 }
 
 func Test_uninstall_noAppsToUninstall(t *testing.T) {
@@ -355,7 +473,7 @@ func fileExists(filePath string) bool {
 }
 
 func resetExtensionVersion() {
-	extensionVersion = "1.0.0"
+	ExtensionVersion = "1.0.0"
 }
 
 func createSettings(settings interface{}) *handlersettings.HandlerSettings {
@@ -391,13 +509,16 @@ func createTestVMExtension(t *testing.T, settings interface{}) *vmextension.VMEx
 		LogFolder:     path.Join(maintestdir, "log"),
 		DataFolder:    path.Join(maintestdir, "data"),
 	}
-	eem := extensionevents.New(el, he)
+	err = os.MkdirAll(he.StatusFolder, constants.FilePermissions_UserOnly_ReadWriteExecute)
+	require.NoError(t, err)
 
+	eem := extensionevents.New(el, he)
+	currentSequenceNumber = 0
 	return &vmextension.VMExtension{
-		Name:                       extensionVersion,
-		Version:                    extensionVersion,
+		Name:                       ExtensionVersion,
+		Version:                    ExtensionVersion,
 		GetRequestedSequenceNumber: func() (uint, error) { return 2, nil },
-		CurrentSequenceNumber:      &one,
+		CurrentSequenceNumber:      &currentSequenceNumber,
 		HandlerEnv:                 he,
 		GetSettings: func() (*handlersettings.HandlerSettings, error) {
 			return hs, nil
