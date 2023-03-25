@@ -25,6 +25,7 @@ var (
 	ExtensionVersion      = "1.0.10" // should be assigned at compile time, do not edit in code
 	reportStatusFunc      = utils.ReportStatus
 	getVMExtensionFunc    = getVMExtension
+	customEnableFunc      = customEnable
 	setSequenceNumberFunc = seqno.SetSequenceNumber
 )
 
@@ -75,13 +76,13 @@ func getExtensionAndRun(arguments []string) error {
 			return err
 		}
 		hostgaCommunicator := hostgacommunicator.HostGaCommunicator{}
-		enableError := customEnable(ext, &hostgaCommunicator, requestedSequenceNumber)
+		enableError := customEnableFunc(ext, &hostgaCommunicator, requestedSequenceNumber)
 
 		if enableError != nil {
 			// write failure status
 			switch enableError.(type) {
 			case *lockedfile.FileLockTimeoutError:
-				warningMessage := fmt.Sprintf("Mutliple vm-application-manager processes detected, terminating PID: %d", os.Getgid())
+				warningMessage := fmt.Sprintf("Mutliple vm-application-manager processes detected, terminating PID: %d. Status file will not be written.", pid)
 				ext.ExtensionLogger.Warn(warningMessage)
 				ext.ExtensionEvents.LogWarningEvent("Concurrency", warningMessage)
 				// don't save status
