@@ -34,7 +34,7 @@ const (
 	operationInstall        = "install"
 	operationUpdate         = "update"
 	operationRemove         = "remove"
-	filelockTimeoutDuration = 15 * time.Minute
+	filelockTimeoutDuration = 45 * time.Minute
 )
 
 func main() {
@@ -79,14 +79,14 @@ func getExtensionAndRun(arguments []string) error {
 		enableError := customEnableFunc(ext, &hostgaCommunicator, requestedSequenceNumber)
 
 		if enableError != nil {
-			// write failure status
 			switch enableError.(type) {
 			case *lockedfile.FileLockTimeoutError:
+				// don't save status
 				warningMessage := fmt.Sprintf("Mutliple vm-application-manager processes detected, terminating PID: %d. Status file will not be written.", pid)
 				ext.ExtensionLogger.Warn(warningMessage)
 				ext.ExtensionEvents.LogWarningEvent("Concurrency", warningMessage)
-				// don't save status
 			case *utils.StatusSaveError:
+				// couldn't write status file don't try again
 				errorMessage := fmt.Sprintf("Could not save status file. %s", enableError.Error())
 				ext.ExtensionLogger.Error(errorMessage)
 				ext.ExtensionEvents.LogErrorEvent("Enable Failed", errorMessage)
