@@ -20,6 +20,7 @@ import (
 	"github.com/Azure/azure-extension-platform/pkg/constants"
 	"github.com/Azure/azure-extension-platform/pkg/extensionevents"
 	"github.com/Azure/azure-extension-platform/pkg/handlerenv"
+	"github.com/Azure/azure-extension-platform/pkg/lockedfile"
 	"github.com/Azure/azure-extension-platform/pkg/logging"
 	handlersettings "github.com/Azure/azure-extension-platform/pkg/settings"
 	"github.com/Azure/azure-extension-platform/pkg/status"
@@ -334,6 +335,39 @@ func Test_main_statusIsWrittenForCriticalErrors(t *testing.T) {
 	// extension will retry the sequence number is the action plan could not be executed
 	require.NotEqual(t, requestedSequenceNumber, currentSequenceNumber)
 
+}
+
+func Test_main_statusIsNotWrittenForFileLockErrors(t *testing.T) {
+	order := 1
+	vmApplications := []extdeserialization.VmAppSetting{
+		{
+			ApplicationName: "",
+			Order:           &order,
+		},
+	}
+
+	requestedSequenceNumber := uint(6)
+	oldGetVMExtFunc := getVMExtensionFunc
+	var ext *vmextension.VMExtension
+	getVMExtensionFunc = func() (*vmextension.VMExtension, error) {
+		ext = createTestVMExtension(t, vmApplications)
+		ext.GetRequestedSequenceNumber = func() (uint, error) { return requestedSequenceNumber, nil }
+		return ext, nil
+	}
+	defer func() {
+		getVMExtensionFunc = oldGetVMExtFunc
+	}()
+
+	oldCustomEnable := customEnableFunc
+	customEnableFunc = func(ext *vmextension.VMExtension, hostgaCommunicator hostgacommunicator.IHostGaCommunicator, requestedSequenceNumber uint) error {
+		return &lockedfile.FileLockTimeoutError{}
+	}
+	defer func() { customEnableFunc = oldCustomEnable }()
+
+	err := getExtensionAndRun([]string{"vm-application-manager", vmextension.EnableOperation.ToString()})
+	require.NoError(t, err)
+	statusFilePath := filepath.Join(ext.HandlerEnv.StatusFolder, fmt.Sprintf("%d.status", requestedSequenceNumber))
+	require.NoFileExists(t, statusFilePath)
 }
 
 func Test_main_nothingToProcess_noStatusUpdate(t *testing.T) {

@@ -25,6 +25,7 @@ var (
 	ExtensionVersion      = "1.0.10" // should be assigned at compile time, do not edit in code
 	reportStatusFunc      = utils.ReportStatus
 	getVMExtensionFunc    = getVMExtension
+	customEnableFunc      = customEnable
 	setSequenceNumberFunc = seqno.SetSequenceNumber
 )
 
@@ -33,7 +34,7 @@ const (
 	operationInstall        = "install"
 	operationUpdate         = "update"
 	operationRemove         = "remove"
-	filelockTimeoutDuration = 15 * time.Minute
+	filelockTimeoutDuration = 45 * time.Minute
 )
 
 func main() {
@@ -56,6 +57,10 @@ func getExtensionAndRun(arguments []string) error {
 		return errors.Errorf("vm-application-manager requires an argument")
 	}
 	command := arguments[1]
+
+	pid := os.Getpid()
+	ext.ExtensionEvents.LogInformationalEvent("vm-application-manager-process", fmt.Sprintf("VmApplications extension starting, PID: %d, Command: %s", pid, command))
+	defer ext.ExtensionEvents.LogInformationalEvent("vm-application-manager-process", fmt.Sprintf("VmApplications extension exiting, PID: %d, Command: %s", pid, command))
 	if command == vmextensionhelper.EnableOperation.ToString() {
 		// do not call ext.Do() for enable
 		// we want finer control over writing the status file than what is provided by the enable callback method in
@@ -71,15 +76,24 @@ func getExtensionAndRun(arguments []string) error {
 			return err
 		}
 		hostgaCommunicator := hostgacommunicator.HostGaCommunicator{}
-		enableError := customEnable(ext, &hostgaCommunicator, requestedSequenceNumber)
+		enableError := customEnableFunc(ext, &hostgaCommunicator, requestedSequenceNumber)
 
 		if enableError != nil {
-			// write failure status
-			ext.ExtensionLogger.Error(enableError.Error())
-			ext.ExtensionEvents.LogErrorEvent("Enable Failed", enableError.Error())
-			_, ok := enableError.(*utils.StatusSaveError)
-			if !ok {
-				// this means we had an error other than trying to save status file
+			switch enableError.(type) {
+			case *lockedfile.FileLockTimeoutError:
+				// don't save status
+				warningMessage := fmt.Sprintf("Mutliple vm-application-manager processes detected, terminating PID: %d. Status file will not be written.", pid)
+				ext.ExtensionLogger.Warn(warningMessage)
+				ext.ExtensionEvents.LogWarningEvent("Concurrency", warningMessage)
+			case *utils.StatusSaveError:
+				// couldn't write status file don't try again
+				errorMessage := fmt.Sprintf("Could not save status file. %s", enableError.Error())
+				ext.ExtensionLogger.Error(errorMessage)
+				ext.ExtensionEvents.LogErrorEvent("Enable Failed", errorMessage)
+			default:
+				ext.ExtensionLogger.Error(enableError.Error())
+				ext.ExtensionEvents.LogErrorEvent("Enable Failed", enableError.Error())
+				// try to save status file
 				statusMessage := enableError.Error()
 				err := reportStatusFunc(ext.HandlerEnv, requestedSequenceNumber, status.StatusError, vmextensionhelper.EnableOperation.ToStatusName(), statusMessage)
 				if err != nil {
@@ -93,7 +107,6 @@ func getExtensionAndRun(arguments []string) error {
 	} else {
 		ext.Do()
 	}
-
 	return nil
 }
 
@@ -122,8 +135,6 @@ func getVMExtension() (*vmextensionhelper.VMExtension, error) {
 // If returned error is not nil, status file hasn't been written
 func customEnable(ext *vmextensionhelper.VMExtension, hostgaCommunicator hostgacommunicator.IHostGaCommunicator, requestedSequenceNumber uint) error {
 
-	ext.ExtensionEvents.LogInformationalEvent("Starting", fmt.Sprintf("VmApplications extension starting, PID %d", os.Getpid()))
-
 	// try to get file lock by accessing package registry
 	// this section is to ensure that only once instance of the VMAppExtension runs at any given time
 	packageRegistry, err := packageregistry.New(ext.ExtensionLogger, ext.HandlerEnv, filelockTimeoutDuration)
@@ -131,15 +142,14 @@ func customEnable(ext *vmextensionhelper.VMExtension, hostgaCommunicator hostgac
 		// log error and exit
 		switch err.(type) {
 		case *lockedfile.FileLockTimeoutError:
-			ext.ExtensionEvents.LogErrorEvent(
+			ext.ExtensionEvents.LogInformationalEvent(
 				"Acquire lock",
 				fmt.Sprintf("Failed to acquire package registry lock. Request timed out. It is likely that another instance is already running %v", err.Error()))
 		default:
-			ext.ExtensionEvents.LogErrorEvent(
+			ext.ExtensionEvents.LogInformationalEvent(
 				"Acquire lock",
 				fmt.Sprintf("Failed to acquire package registry lock. %v", err.Error()))
 		}
-		ext.ExtensionEvents.LogInformationalEvent("Exiting", fmt.Sprintf("VmApplications extension exiting, PID %d", os.Getpid()))
 		return err
 	}
 	defer packageRegistry.Close()

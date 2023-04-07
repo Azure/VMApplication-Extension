@@ -213,25 +213,25 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 
 	err = registryHandler.WriteToDisk(registry)
 	if err != nil {
-		return markCommandFailed(commandToExecute, appName, version, err, eem)
+		return markCommandFailed(act.actionToPerform, commandToExecute, appName, version, err, eem)
 	}
 
 	if errorMessageToReturn == nil {
 		eem.LogInformationalEvent(
 			"CommandCompleted",
-			fmt.Sprintf("Completed cmd=%v, application=%v, version=%v, result=Success", commandToExecute, appName, version))
+			fmt.Sprintf("Completed operation=%s, cmd=%v, application=%v, version=%v, result=Success", act.actionToPerform.ToString(), commandToExecute, appName, version))
 		return
 	}
 
-	return markCommandFailed(commandToExecute, appName, version, errorMessageToReturn, eem)
+	return markCommandFailed(act.actionToPerform, commandToExecute, appName, version, errorMessageToReturn, eem)
 }
 
-func markCommandFailed(commandToExecute string, appName string, version string, err error, eem *extensionevents.ExtensionEventManager) error {
+func markCommandFailed(actionPerformed packageregistry.ActionEnum, commandToExecute string, appName string, version string, err error, eem *extensionevents.ExtensionEventManager) error {
 	eem.LogInformationalEvent(
 		"CommandCompleted",
 		fmt.Sprintf(
-			"Completed cmd=%v, application=%v, version=%v, result=Failed, reason=%v",
-			commandToExecute, appName, version, err.Error()))
+			"Completed operation=%s, cmd=%v, application=%v, version=%v, result=Failed, reason=%v",
+			actionPerformed.ToString(), commandToExecute, appName, version, err.Error()))
 
 	return err
 }
