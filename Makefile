@@ -1,6 +1,6 @@
 BUNDLEDIR=bundle/linux
 BINDIR=$(BUNDLEDIR)/bin
-EXTENSIONVERSION=1.0.12
+EXTENSIONVERSION=1.0.13
 
 all: clean bundle
 
