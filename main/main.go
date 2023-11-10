@@ -10,6 +10,7 @@ import (
 	"github.com/Azure/VMApplication-Extension/internal/extdeserialization"
 
 	"github.com/Azure/VMApplication-Extension/internal/actionplan"
+	"github.com/Azure/VMApplication-Extension/internal/customactionplan"
 	"github.com/Azure/VMApplication-Extension/internal/hostgacommunicator"
 	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
 	"github.com/Azure/VMApplication-Extension/pkg/utils"
@@ -186,6 +187,19 @@ func customEnable(ext *vmextensionhelper.VMExtension, hostgaCommunicator hostgac
 		ext.ExtensionEvents.LogInformationalEvent("Completed", "VmApplications extension finished. Result=Success")
 	}
 
+	vmAppResults, _ := actionplanResult.(*actionplan.PackageOperationResults)
+
+	customActionPlan, err := customactionplan.New(protSettings, currentPackageRegistry, ext.HandlerEnv, ext.ExtensionLogger)
+	if err != nil {
+		return err
+	}
+	customExecuteError, result := customActionPlan.Execute(ext.ExtensionEvents, &commandHandler, vmAppResults)
+	customActionResult, ok := result.(*actionplan.PackageOperationResults)
+
+	if !ok {
+		ext.ExtensionEvents.LogInformationalEvent("Completed", "VmApplications extension custom actions finished. Result=Success")
+	}
+
 	currentPackageRegistry, err = packageRegistry.GetExistingPackages()
 	if err != nil {
 		return errors.Wrapf(err, "Could not get package registry")
@@ -220,6 +234,12 @@ func customEnable(ext *vmextensionhelper.VMExtension, hostgaCommunicator hostgac
 			ext.ExtensionEvents.LogErrorEvent("Save Status", errorMessage)
 			return err
 		}
+
+		// Report status for any custom actions
+		statusResult = status.StatusSuccess
+		statusMessage = getStatusMessage(currentPackageRegistry.GetPackageCollection(), customExecuteError, customActionResult)
+		//err = utils.ReportStatus(ext.HandlerEnv, requestedSequenceNumber, statusResult, vmextensionhelper.EnableOperation.ToStatusName(), statusMessage)
+
 		// update the sequence number that has been executed
 		if err := setSequenceNumberFunc(constants.ExtensionName, ExtensionVersion, requestedSequenceNumber); err != nil {
 			errorMessage := fmt.Sprintf("Failed to update sequence number to %d: %s", requestedSequenceNumber, err.Error())

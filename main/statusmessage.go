@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/Azure/VMApplication-Extension/internal/actionplan"
+	"github.com/Azure/VMApplication-Extension/internal/customactionplan"
 	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
 )
 
@@ -19,9 +20,10 @@ type VmAppPackageCurrentForStatus struct {
 }
 
 type StatusMessage1 struct {
-	CurrentState     VmAppPackageCurrentForStatusCollection `json:"CurrentState"`
-	ActionsPerformed actionplan.PackageOperationResults     `json:"ActionsPerformed"`
-	Errors           string                                 `json:"Errors"`
+	CurrentState     		VmAppPackageCurrentForStatusCollection `json:"CurrentState"`
+	ActionsPerformed 		actionplan.PackageOperationResults     `json:"ActionsPerformed"`
+	CustomActionsPerformed	customactionplan.CustomActionPackage   `json: "CustomActionsPerformed"`
+	Errors          		string                                 `json:"Errors"`
 }
 
 type StatusMessage2 struct {
@@ -54,6 +56,7 @@ func getStatusMessage(vmAppCurrentCollection packageregistry.VMAppPackageCurrent
 		statusMessageA := StatusMessage1{
 			CurrentState:     vmAppCurrentForStatusCollection,
 			ActionsPerformed: *packageOperationResults,
+			CustomActionsPerformed: ,
 			Errors:           executeErrors,
 		}
 
