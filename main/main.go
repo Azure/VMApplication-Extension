@@ -188,16 +188,20 @@ func customEnable(ext *vmextensionhelper.VMExtension, hostgaCommunicator hostgac
 	}
 
 	vmAppResults, _ := actionplanResult.(*actionplan.PackageOperationResults)
+	currentPackageRegistry, err = packageRegistry.GetExistingPackages()
+	if err != nil {
+		return errors.Wrap(err, "Could not read current package registry")
+	}
 
 	customActionPlan, err := customactionplan.New(protSettings, currentPackageRegistry, ext.HandlerEnv, ext.ExtensionLogger)
 	if err != nil {
 		return err
 	}
-	customExecuteError, result := customActionPlan.Execute(ext.ExtensionEvents, &commandHandler, vmAppResults)
-	customActionResult, ok := result.(*actionplan.PackageOperationResults)
+	_, result := customActionPlan.Execute(ext.ExtensionEvents, &commandHandler, vmAppResults)
+	_, ok := result.(*actionplan.PackageOperationResults)
 
 	if !ok {
-		ext.ExtensionEvents.LogInformationalEvent("Completed", "VmApplications extension custom actions finished. Result=Success")
+		ext.ExtensionEvents.LogInformationalEvent("Completed", "VmApplications extension cus+tom actions finished. Result=Success")
 	}
 
 	currentPackageRegistry, err = packageRegistry.GetExistingPackages()
@@ -234,11 +238,6 @@ func customEnable(ext *vmextensionhelper.VMExtension, hostgaCommunicator hostgac
 			ext.ExtensionEvents.LogErrorEvent("Save Status", errorMessage)
 			return err
 		}
-
-		// Report status for any custom actions
-		statusResult = status.StatusSuccess
-		statusMessage = getStatusMessage(currentPackageRegistry.GetPackageCollection(), customExecuteError, customActionResult)
-		//err = utils.ReportStatus(ext.HandlerEnv, requestedSequenceNumber, statusResult, vmextensionhelper.EnableOperation.ToStatusName(), statusMessage)
 
 		// update the sequence number that has been executed
 		if err := setSequenceNumberFunc(constants.ExtensionName, ExtensionVersion, requestedSequenceNumber); err != nil {

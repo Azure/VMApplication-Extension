@@ -8,6 +8,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -253,10 +254,20 @@ func Test_getVMPackageDataCustomAction_valid(t *testing.T) {
 	statusFilePath := filepath.Join(ext.HandlerEnv.StatusFolder, fmt.Sprintf("%d.status", requestedSequenceNumber))
 	fileBytes, err := ioutil.ReadFile(statusFilePath)
 	require.NoError(t, err)
-	fileString := string(fileBytes)
-	require.Contains(t, fileString, vmextension.EnableOperation.ToStatusName())
-	require.Contains(t, fileString, vmApplications[0].ApplicationName)
+	statusReport := status.StatusReport{}
+	err = json.Unmarshal(fileBytes, &statusReport)
+	require.NoError(t, err)
+	require.Equal(t, statusReport[0].Status.Operation, vmextension.EnableOperation.ToStatusName())
+	statusMessage := StatusMessage1{}
+	smBytes := []byte(strings.SplitAfter(statusReport[0].Status.FormattedMessage.Message, "succeeded: ")[1])
+	err = json.Unmarshal(smBytes, &statusMessage)
+	require.NoError(t, err)
+	require.Equal(t, statusMessage.CurrentState[0].ApplicationName, vmApplications[0].ApplicationName)
+	require.Equal(t, len(statusMessage.ActionsPerformed), 2)
+	require.Equal(t, statusMessage.ActionsPerformed[1].Operation, actions.ActionName)
+	require.Equal(t, statusMessage.ActionsPerformed[1].Result, "SUCCESS")
 	require.Equal(t, requestedSequenceNumber, currentSequenceNumber)
+
 	// test that the package file and config file name are being used
 	require.Contains(t, hostGaCommunicator.PackageFileNameUsed, "package.exe")
 	require.Contains(t, hostGaCommunicator.ConfigFileNameUsed, "config.ini")
