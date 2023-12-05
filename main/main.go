@@ -201,7 +201,7 @@ func customEnable(ext *vmextensionhelper.VMExtension, hostgaCommunicator hostgac
 	_, ok := result.(*actionplan.PackageOperationResults)
 
 	if !ok {
-		ext.ExtensionEvents.LogInformationalEvent("Completed", "VmApplications extension cus+tom actions finished. Result=Success")
+		ext.ExtensionEvents.LogInformationalEvent("Completed", "VmApplications extension custom actions finished. Result=Success")
 	}
 
 	currentPackageRegistry, err = packageRegistry.GetExistingPackages()
@@ -238,7 +238,6 @@ func customEnable(ext *vmextensionhelper.VMExtension, hostgaCommunicator hostgac
 			ext.ExtensionEvents.LogErrorEvent("Save Status", errorMessage)
 			return err
 		}
-
 		// update the sequence number that has been executed
 		if err := setSequenceNumberFunc(constants.ExtensionName, ExtensionVersion, requestedSequenceNumber); err != nil {
 			errorMessage := fmt.Sprintf("Failed to update sequence number to %d: %s", requestedSequenceNumber, err.Error())
