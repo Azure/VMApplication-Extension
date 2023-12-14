@@ -248,7 +248,7 @@ func Test_getVMPackageDataCustomAction_valid(t *testing.T) {
 	currentpackages, err := pkr.GetExistingPackages()
 	require.NoError(t, err)
 	require.Len(t, currentpackages, 1)
-	require.Equal(t, currentpackages[vmApplications[0].ApplicationName].OngoingOperation, packageregistry.NoAction)
+	require.Equal(t, packageregistry.NoAction, currentpackages[vmApplications[0].ApplicationName].OngoingOperation)
 	require.Contains(t, currentpackages[vmApplications[0].ApplicationName].Result, actionplan.Success)
 	// test contents of the status file
 	statusFilePath := filepath.Join(ext.HandlerEnv.StatusFolder, fmt.Sprintf("%d.status", requestedSequenceNumber))
@@ -257,16 +257,18 @@ func Test_getVMPackageDataCustomAction_valid(t *testing.T) {
 	statusReport := status.StatusReport{}
 	err = json.Unmarshal(fileBytes, &statusReport)
 	require.NoError(t, err)
-	require.Equal(t, statusReport[0].Status.Operation, vmextension.EnableOperation.ToStatusName())
+	require.Equal(t, vmextension.EnableOperation.ToStatusName(), statusReport[0].Status.Operation)
 	statusMessage := StatusMessage1{}
 	smBytes := []byte(strings.SplitAfter(statusReport[0].Status.FormattedMessage.Message, "succeeded: ")[1])
 	err = json.Unmarshal(smBytes, &statusMessage)
 	require.NoError(t, err)
-	require.Equal(t, statusMessage.CurrentState[0].ApplicationName, vmApplications[0].ApplicationName)
-	require.Equal(t, len(statusMessage.ActionsPerformed), 2)
-	require.Equal(t, statusMessage.ActionsPerformed[1].Operation, actions.ActionName)
-	require.Equal(t, statusMessage.ActionsPerformed[1].Result, "SUCCESS")
-	require.Equal(t, requestedSequenceNumber, currentSequenceNumber)
+	require.Equal(t, vmApplications[0].ApplicationName, statusMessage.CurrentState[0].ApplicationName)
+	require.Equal(t, currentSequenceNumber, requestedSequenceNumber)
+
+	// Checking whether the custom action is recorded correctly in the status message
+	// The number of actions run depends on whether we run the test individually (2) or with all package tests (3)
+	require.Equal(t, actions.ActionName, statusMessage.ActionsPerformed[len(statusMessage.ActionsPerformed)-1].Operation)
+	require.Equal(t, "SUCCESS", statusMessage.ActionsPerformed[len(statusMessage.ActionsPerformed)-1].Result)
 
 	// test that the package file and config file name are being used
 	require.Contains(t, hostGaCommunicator.PackageFileNameUsed, "package.exe")

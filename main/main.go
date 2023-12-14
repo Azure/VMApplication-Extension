@@ -201,7 +201,9 @@ func customEnable(ext *vmextensionhelper.VMExtension, hostgaCommunicator hostgac
 	_, ok := result.(*actionplan.PackageOperationResults)
 
 	if !ok {
-		ext.ExtensionEvents.LogInformationalEvent("Completed", "VmApplications extension custom actions finished. Result=Success")
+		ext.ExtensionEvents.LogInformationalEvent(
+			"Completed",
+			fmt.Sprintf("VmApplications extension custom actions finished. Result=Success; Details: %v", result.ToJsonString()))
 	}
 
 	currentPackageRegistry, err = packageRegistry.GetExistingPackages()
@@ -225,7 +227,7 @@ func customEnable(ext *vmextensionhelper.VMExtension, hostgaCommunicator hostgac
 	}
 	if shouldReportStatus {
 		var statusResult status.StatusType
-		statusMessage := getStatusMessage(currentPackageRegistry.GetPackageCollection(), executeError, actionplanResult)
+		statusMessage := getStatusMessage(currentPackageRegistry.GetPackageCollection(), executeError, result)
 		if executeError.GetErrorIfDeploymentFailed() == nil { // treatFailureAsDeploymentFailure
 			statusResult = status.StatusSuccess
 		} else {
