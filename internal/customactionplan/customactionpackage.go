@@ -1,6 +1,11 @@
 package customactionplan
 
-import "github.com/Azure/VMApplication-Extension/internal/extdeserialization"
+import (
+	"encoding/json"
+	"fmt"
+
+	"github.com/Azure/VMApplication-Extension/internal/extdeserialization"
+)
 
 type CustomActionPackage struct {
 	ApplicationName string                               `json:"application"`
@@ -14,6 +19,16 @@ type CustomActionPackage struct {
 }
 
 type ActionPackageRegistry map[string][]*CustomActionPackage
+
+func (customActionOperationResults *ActionPackageRegistry) ToJsonString() (message string) {
+	jsonBytes, err := json.Marshal(customActionOperationResults)
+	if err != nil {
+		message = fmt.Sprintf("%v", customActionOperationResults)
+	} else {
+		message = string(jsonBytes)
+	}
+	return
+}
 
 func GetCurrentCustomActions(actions *ActionPlan) *ActionPackageRegistry {
 	act := make(ActionPackageRegistry, 0)
