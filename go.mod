@@ -1,6 +1,6 @@
 module github.com/Azure/VMApplication-Extension
 
-go 1.18
+go 1.21
 
 require (
 	github.com/Azure/azure-extension-platform v0.0.0-20230218002700-ca684482c954
