@@ -10,6 +10,7 @@ import (
 	"github.com/Azure/VMApplication-Extension/internal/extdeserialization"
 
 	"github.com/Azure/VMApplication-Extension/internal/actionplan"
+	"github.com/Azure/VMApplication-Extension/internal/customactionplan"
 	"github.com/Azure/VMApplication-Extension/internal/hostgacommunicator"
 	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
 	"github.com/Azure/VMApplication-Extension/pkg/utils"
@@ -186,6 +187,25 @@ func customEnable(ext *vmextensionhelper.VMExtension, hostgaCommunicator hostgac
 		ext.ExtensionEvents.LogInformationalEvent("Completed", "VmApplications extension finished. Result=Success")
 	}
 
+	vmAppResults, _ := actionplanResult.(*actionplan.PackageOperationResults)
+	currentPackageRegistry, err = packageRegistry.GetExistingPackages()
+	if err != nil {
+		return errors.Wrap(err, "Could not read current package registry")
+	}
+
+	customActionPlan, err := customactionplan.New(protSettings, currentPackageRegistry, ext.HandlerEnv, ext.ExtensionLogger)
+	if err != nil {
+		return err
+	}
+	_, result := customActionPlan.Execute(ext.ExtensionEvents, &commandHandler, vmAppResults)
+	_, ok := result.(*actionplan.PackageOperationResults)
+
+	if !ok {
+		ext.ExtensionEvents.LogInformationalEvent(
+			"Completed",
+			fmt.Sprintf("VmApplications extension custom actions finished. Result=Success; Details: %v", result.ToJsonString()))
+	}
+
 	currentPackageRegistry, err = packageRegistry.GetExistingPackages()
 	if err != nil {
 		return errors.Wrapf(err, "Could not get package registry")
@@ -207,7 +227,7 @@ func customEnable(ext *vmextensionhelper.VMExtension, hostgaCommunicator hostgac
 	}
 	if shouldReportStatus {
 		var statusResult status.StatusType
-		statusMessage := getStatusMessage(currentPackageRegistry.GetPackageCollection(), executeError, actionplanResult)
+		statusMessage := getStatusMessage(currentPackageRegistry.GetPackageCollection(), executeError, result)
 		if executeError.GetErrorIfDeploymentFailed() == nil { // treatFailureAsDeploymentFailure
 			statusResult = status.StatusSuccess
 		} else {

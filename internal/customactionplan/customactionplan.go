@@ -1,12 +1,14 @@
 package customactionplan
 
 import (
-	"github.com/Azure/VMApplication-Extension/internal/extdeserialization"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path"
 	"sort"
 	"strconv"
+
+	"github.com/Azure/VMApplication-Extension/internal/extdeserialization"
 
 	"github.com/Azure/VMApplication-Extension/internal/actionplan"
 	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
@@ -123,15 +125,18 @@ func New(settings []*extdeserialization.VmAppSetting, appPackage packageregistry
 	return &actionPlan, nil
 }
 
-func (actionPlan *ActionPlan) Execute(extEventManager *extensionevents.ExtensionEventManager, commandHandler commandhandler.ICommandHandlerWithEnvVariables, result *actionplan.PackageOperationResults) (error, actionplan.IResult) {
+func (actionPlan *ActionPlan) Execute(extEventManager *extensionevents.ExtensionEventManager, commandHandler commandhandler.ICommandHandlerWithEnvVariables, result *actionplan.PackageOperationResults) (*actionplan.ExecuteError, actionplan.IResult) {
 	var combinedErrors error = nil
+	var executeError *actionplan.ExecuteError = &actionplan.ExecuteError{}
+	executeError.SetFailedDeploymentErr(nil)
+	executeError.SetCombinedExecuteErrors(nil)
 	actionRegistry := GetCurrentCustomActions(actionPlan)
 
 	for _, act := range actionPlan.sortedOrder {
 		newError := actionPlan.executeHelper(commandHandler, *actionRegistry, act, extEventManager)
 		combinedErrors = extensionerrors.CombineErrors(combinedErrors, newError)
 		if newError != nil { //errors w/ tickcountfile or CA exits non-zero
-			extEventManager.LogWarningEvent("CustomActionExecution", "Custom Action failed, remaining actions will not be executed")
+			extEventManager.LogWarningEvent("CustomActionExecution", fmt.Sprintf("Custom Action %s failed, remaining actions will not be executed", act.Action.ActionName))
 			break
 		}
 		appendExecutionResult(result, act, newError)
@@ -140,6 +145,7 @@ func (actionPlan *ActionPlan) Execute(extEventManager *extensionevents.Extension
 	if combinedErrors != nil {
 		extEventManager.LogWarningEvent("CustomActionExecution", combinedErrors.Error())
 	}
+	executeError.SetCombinedExecuteErrors(combinedErrors)
 
-	return combinedErrors, result
+	return executeError, result
 }

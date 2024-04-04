@@ -2,14 +2,15 @@ package customactionplan
 
 import (
 	"encoding/json"
-	"github.com/Azure/VMApplication-Extension/internal/actionplan"
-	"github.com/Azure/VMApplication-Extension/internal/extdeserialization"
 	"io/ioutil"
 	"os"
 	"path"
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/Azure/VMApplication-Extension/internal/actionplan"
+	"github.com/Azure/VMApplication-Extension/internal/extdeserialization"
 
 	"github.com/Azure/VMApplication-Extension/internal/hostgacommunicator"
 	"github.com/Azure/VMApplication-Extension/internal/packageregistry"

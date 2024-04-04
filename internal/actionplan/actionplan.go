@@ -121,6 +121,18 @@ type ExecuteError struct {
 	combinedExecuteErrors error
 }
 
+func (executeError *ExecuteError) GetCombinedExecuteError() error {
+	return executeError.combinedExecuteErrors
+}
+
+func (executeError *ExecuteError) SetFailedDeploymentErr(err *failedDeploymentError) {
+	executeError.failedDeploymentErr = err
+}
+
+func (executeError *ExecuteError) SetCombinedExecuteErrors(errs error) {
+	executeError.combinedExecuteErrors = errs
+}
+
 func (exeucuteError *ExecuteError) update(act *action, singleExecutionError error) {
 	exeucuteError.failedDeploymentErr = updateFailDeploymentError(exeucuteError.failedDeploymentErr, act, singleExecutionError)
 	exeucuteError.combinedExecuteErrors = extensionerrors.CombineErrors(exeucuteError.combinedExecuteErrors, singleExecutionError)
