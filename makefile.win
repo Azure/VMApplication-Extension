@@ -5,47 +5,47 @@
 
 BUNDLEDIR=bundle\windows
 BINDIR=$(BUNDLEDIR)\bin
-EXTENSIONVERSION=1.0.12
+EXTENSIONVERSION=1.0.13
 
 all: clean bundle
 
 clean:
-    -del extension-launcher
-    -del extension-launcher-arm64
-    -del vm-application-manager
-    -del vm-application-manager-arm64
+    -del extension-launcher.exe
+    -del extension-launcher-arm64.exe
+    -del vm-application-manager.exe
+    -del vm-application-manager-arm64.exe
     -rmdir /S /Q $(BUNDLEDIR)
 
 extension-launcher:
     set GOOS=windows
     set GOARCH=amd64
     go env GOOS GOARCH
-    go build -o extension-launcher -ldflags="-X 'main.ExtensionVersion=$(EXTENSIONVERSION)' -X 'main.ExecutableName=vm-application-manager.exe'" .\launcher
+    go build -o extension-launcher.exe -ldflags="-X 'main.ExtensionVersion=$(EXTENSIONVERSION)' -X 'main.ExecutableName=vm-application-manager.exe'" .\launcher
 
 extension-launcher-arm64:
     set GOOS=windows
     set GOARCH=arm64
     go env GOOS GOARCH
-    go build -o extension-launcher-arm64 -ldflags="-X 'main.ExtensionVersion=$(EXTENSIONVERSION)' -X 'main.ExecutableName=vm-application-manager.exe'" .\launcher
+    go build -o extension-launcher-arm64.exe -ldflags="-X 'main.ExtensionVersion=$(EXTENSIONVERSION)' -X 'main.ExecutableName=vm-application-manager.exe'" .\launcher
 
 vm-application-manager:
     set GOOS=windows
     set GOARCH=amd64
     go env GOOS GOARCH
-    go build -o  vm-application-manager -ldflags="-X 'main.ExtensionVersion=$(EXTENSIONVERSION)'" .\main
+    go build -o  vm-application-manager.exe -ldflags="-X 'main.ExtensionVersion=$(EXTENSIONVERSION)'" .\main
 
 vm-application-manager-arm64:
     set GOOS=windows
     set GOARCH=arm64
     go env GOOS GOARCH
-    go build -o vm-application-manager-arm64 -ldflags="-X 'main.ExtensionVersion=$(EXTENSIONVERSION)'"  .\main
+    go build -o vm-application-manager-arm64.exe -ldflags="-X 'main.ExtensionVersion=$(EXTENSIONVERSION)'"  .\main
 
 bundle: extension-launcher extension-launcher-arm64 vm-application-manager vm-application-manager-arm64
     mkdir $(BINDIR)
-    move extension-launcher "$(BINDIR)\"
-    move extension-launcher-arm64 "$(BINDIR)\"
-    move vm-application-manager "$(BINDIR)\"
-    move vm-application-manager-arm64 "$(BINDIR)\"
+    move extension-launcher.exe "$(BINDIR)\"
+    move extension-launcher-arm64.exe "$(BINDIR)\"
+    move vm-application-manager.exe "$(BINDIR)\"
+    move vm-application-manager-arm64.exe "$(BINDIR)\"
     copy misc\windows\* "$(BUNDLEDIR)\"
     powershell -c "Compress-Archive -Path $(BUNDLEDIR)\* -DestinationPath $(BUNDLEDIR)\vm-application-manager.zip"
 
