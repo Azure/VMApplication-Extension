@@ -5,7 +5,7 @@
 
 BUNDLEDIR=bundle\windows
 BINDIR=$(BUNDLEDIR)\bin
-EXTENSIONVERSION=1.0.13
+EXTENSIONVERSION=1.0.14
 
 all: clean bundle
 
