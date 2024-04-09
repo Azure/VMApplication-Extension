@@ -1,0 +1,1 @@
+%~dp0bin\extension-launcher.exe "enable"

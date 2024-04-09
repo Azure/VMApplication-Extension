@@ -1,0 +1,1 @@
+%~dp0bin\vm-application-manager.exe "disable"

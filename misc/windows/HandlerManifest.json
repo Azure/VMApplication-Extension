@@ -2,10 +2,10 @@
   "version": 1.0,
   "handlerManifest": {
     "installCommand": "install.cmd",
-    "uninstallCommand": "bin\\vm-application-manager.exe uninstall",
+    "uninstallCommand": "uninstall.cmd",
     "updateCommand": "update.cmd",
-    "enableCommand": "bin\\extension-launcher.exe enable",
-    "disableCommand": "bin\\vm-application-manager.exe disable",
+    "enableCommand": "enable.cmd",
+    "disableCommand": "disable.cmd",
     "rebootAfterInstall": false,
     "reportHeartbeat": false,
     "updateMode": "UpdateWithInstall"
