@@ -20,7 +20,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-const MaxRebootRetries = 3
+const MaxReboots = 3
 
 func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPackageRegistry,
 	commandHandler commandhandler.ICommandHandler, registry packageregistry.CurrentPackageRegistry,
@@ -59,8 +59,10 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 		errorMessageToReturn = errors.Errorf("Unexpected Action to perform encountered %v", act.actionToPerform)
 	}
 
-	if vmAppPackageCurrent.NumRebootsOccurred == MaxRebootRetries {
-		errorMessageToReturn = errors.Errorf("The %v operation on application %v has resulted in %v reboots. Cannot complete command.", act.actionToPerform.ToString(), appName, MaxRebootRetries)
+	if vmAppPackageCurrent.NumRebootsOccurred == MaxReboots {
+		// Report failed status for application, reset reboot count in registry
+		errorMessageToReturn = errors.Errorf("The %v operation on application %v has resulted in %v reboots. Cannot complete command.", act.actionToPerform.ToString(), appName, MaxReboots)
+		vmAppPackageCurrent.NumRebootsOccurred = 0
 	}
 
 	actionPlan.logger.Info("Calling command '%v' for application %v, version %v", commandToExecute, appName, version)
@@ -176,10 +178,10 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 			} else if compSignal.retCode != 0 {
 				errorMessageToReturn = extensionerrors.CombineErrors(errorMessageToReturn, errors.Errorf("Command '%v' exited with non-zero error code", commandToExecute))
 			}
+			// Reset count if command successfully completed
 			vmAppPackageCurrent.NumRebootsOccurred = 0
 		case <-interruptSignal:
 			// the command that we executed resulted in system reboot handle system reboot
-			actionPlan.logger.Info("received terminate signal, system reboot detected")
 			eem.LogInformationalEvent("System reboot detected",
 				fmt.Sprintf("cmd=%v, application=%v, version=%v, result=Success",
 					commandToExecute, appName, version))
@@ -187,6 +189,8 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 			// vmPackageCurrent.OngoingOperation should remain the same, but increment number of reboots
 			vmAppPackageCurrent.NumRebootsOccurred += 1
 			vmAppPackageCurrent.Result = fmt.Sprintf("Reboot detected during '%s' operation. Retry operation after reboot.", vmAppPackageCurrent.OngoingOperation.ToString())
+			actionPlan.logger.Info("Received terminate signal, system reboot detected. Number of reboots for operation %v: '%v",
+				vmAppPackageCurrent.OngoingOperation.ToString(), vmAppPackageCurrent.NumRebootsOccurred)
 
 			registryHandler.WriteToDisk(registry)
 			exithelper.Exiter.Exit(0)

@@ -129,13 +129,72 @@ func TestCommandExecutorCanHandleProcessBeingKilled(t *testing.T) {
 		assert.NoError(t, err, "should be able to get existing packages")
 		app, ok := existingPackages[newApp.ApplicationName]
 		assert.True(t, ok, "newApp should be present in current package registry")
-		assert.Equal(t, packageregistry.NoAction, app.OngoingOperation)
+		assert.Equal(t, packageregistry.Install, app.OngoingOperation, "OngoingOperation should be preserved if reboot is detected")
+		assert.Equal(t, 1, app.NumRebootsOccurred, "Number of reboots should have been incremented")
+		assert.Contains(t, app.Result, "Reboot detected during 'Install' operation")
 
 		// wait for another 3 seconds to ensure that the transcript file is written
 		time.Sleep(3 * time.Second)
 		transcriptFileBytes, error := ioutil.ReadFile(transcriptFile)
 		assert.NoError(t, error, "should be able to read transcript file")
 		stranscriptFileString := string(transcriptFileBytes)
-		assert.Contains(t, stranscriptFileString, "Info received terminate signal, system reboot detected")
+		assert.Contains(t, stranscriptFileString, "Received terminate signal, system reboot detected")
+	}
+}
+
+func TestCommandExecutorCanHandleProcessBeingKilled_MaxRebootsExceeded(t *testing.T) {
+	envVariables := os.Environ()
+	var wasStartedByAnotherProcess = false
+	for _, variable := range envVariables {
+		if strings.Contains(variable, LaunchedFromAnotherProcessEnvVariable) {
+			wasStartedByAnotherProcess = true
+		}
+	}
+	oldApp := packageregistry.VMAppPackageCurrent{
+		ApplicationName:    "app1",
+		Version:            "1.0",
+		InstallCommand:     "install app1",
+		RemoveCommand:      "remove app1",
+		UpdateCommand:      "update app1",
+		OngoingOperation:   packageregistry.Install,
+		NumRebootsOccurred: 3,
+	}
+	newApp := packageregistry.VMAppPackageIncoming{
+		ApplicationName: "app1",
+		Order:           &one,
+		Version:         "1.0",
+		InstallCommand:  "install app1",
+		RemoveCommand:   "remove app1",
+		UpdateCommand:   "update app1",
+	}
+	if wasStartedByAnotherProcess {
+		initializeTest(t)
+
+		existingApps := packageregistry.VMAppPackageCurrentCollection{&oldApp}
+		incomingApps := packageregistry.VMAppPackageIncomingCollection{&newApp}
+		cmdHandler := NewCommandHandlerMock(mockCommandExecutorSleepForAnHour)
+		newReg, _, _, executeError := executeActionPlan(t, existingApps, incomingApps, cmdHandler)
+		assert.EqualValues(t, 0, len(cmdHandler.Result), "No commands should have been invoked")
+		assertPackageRegistryHasBeenUpdatedProperly(t, newReg, incomingApps)
+		assert.NoError(t, executeError.GetErrorIfDeploymentFailed())
+	} else {
+		defer cleanupTest()
+		currentDirAbsolutePath, err := filepath.Abs("")
+		assert.NoError(t, err, "should be able to get absolute path")
+		transcriptFile := path.Join(currentDirAbsolutePath, testdir, "transcript.txt")
+		// test takes at least 5 seconds to start, need to give it time before killing it
+		executeTestInAnotherThreadAndTerminateBeforeCompletion(t, "TestCommandExecutorCanHandleProcessBeingKilled_MaxRebootsExceeded", currentDirAbsolutePath, transcriptFile, 10*time.Second)
+		pkr, err := packageregistry.New(el, environment, time.Second)
+		assert.NoError(t, err, "should be able to get current package registry")
+		if err == nil {
+			defer pkr.Close()
+		}
+		existingPackages, err := pkr.GetExistingPackages()
+		assert.NoError(t, err, "should be able to get existing packages")
+		app, ok := existingPackages[newApp.ApplicationName]
+		assert.True(t, ok, "newApp should be present in current package registry")
+		assert.Equal(t, packageregistry.Failed, app.OngoingOperation, "OngoingOperation should be set to failed")
+		assert.Equal(t, 0, app.NumRebootsOccurred, "Number of reboots should have been reset")
+		assert.Contains(t, app.Result, "has resulted in 3 reboots. Cannot complete command.")
 	}
 }
