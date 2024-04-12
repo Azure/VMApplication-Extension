@@ -176,20 +176,21 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 			eem.LogInformationalEvent("System reboot detected",
 				fmt.Sprintf("cmd=%v, application=%v, version=%v, result=Success",
 					commandToExecute, appName, version))
-			// depending on the action to perform, we either mark than no additional action needs to be taken, or in case of remove action, mark the app as removed
+
 			switch act.actionToPerform {
 			case packageregistry.Install:
-				vmAppPackageCurrent.OngoingOperation = packageregistry.NoAction
-				vmAppPackageCurrent.Result = "reboot detected during install, marking operation as success"
+				vmAppPackageCurrent.OngoingOperation = packageregistry.RetryInstallAfterReboot
 			case packageregistry.Update:
-				vmAppPackageCurrent.OngoingOperation = packageregistry.NoAction
-				vmAppPackageCurrent.Result = "reboot detected during update, marking operation as success"
+				vmAppPackageCurrent.OngoingOperation = packageregistry.RetryUpdateAfterReboot
 			case packageregistry.RemoveForUpdate:
 				fallthrough
 			case packageregistry.Remove:
-				delete(registry, appName)
-				os.RemoveAll(vmAppPackageCurrent.DownloadDir)
+				// TODO: Determine what needs to be done here
 			}
+
+			// TODO: Determine number of times retry attempted after reboot
+			vmAppPackageCurrent.Result = fmt.Sprintf("Reboot detected during '%s' operation. Retry operation after reboot.", vmAppPackageCurrent.OngoingOperation.ToString())
+
 			registryHandler.WriteToDisk(registry)
 			exithelper.Exiter.Exit(0)
 		}

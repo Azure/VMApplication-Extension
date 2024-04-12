@@ -34,6 +34,8 @@ const (
 	// and the VMApp has been subsequently removed from the VM/VMSS application profile
 	// we need not call the remove command
 	Cleanup
+	RetryInstallAfterReboot
+	RetryUpdateAfterReboot
 )
 
 const defaultConfigFileNameSuffix = "_config"
@@ -56,6 +58,10 @@ func (act ActionEnum) ToString() string {
 		return "Skipped"
 	case Cleanup:
 		return "Cleanup"
+	case RetryInstallAfterReboot:
+		return "RetryInstallAfterReboot"
+	case RetryUpdateAfterReboot:
+		return "RetryUpdateAfterReboot"
 	default:
 		return "UnknownAction"
 	}
