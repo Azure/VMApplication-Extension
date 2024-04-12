@@ -20,6 +20,8 @@ import (
 	"github.com/pkg/errors"
 )
 
+const MaxRebootRetries = 3
+
 func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPackageRegistry,
 	commandHandler commandhandler.ICommandHandler, registry packageregistry.CurrentPackageRegistry,
 	act *action, eem *extensionevents.ExtensionEventManager) (errorMessageToReturn error) {
@@ -55,6 +57,10 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 		commandToExecute = vmAppPackageCurrent.UpdateCommand
 	default:
 		errorMessageToReturn = errors.Errorf("Unexpected Action to perform encountered %v", act.actionToPerform)
+	}
+
+	if vmAppPackageCurrent.NumRebootsOccurred == MaxRebootRetries {
+		errorMessageToReturn = errors.Errorf("The %v operation on application %v has resulted in %v reboots. Cannot complete command.", act.actionToPerform.ToString(), appName, MaxRebootRetries)
 	}
 
 	actionPlan.logger.Info("Calling command '%v' for application %v, version %v", commandToExecute, appName, version)
@@ -170,6 +176,7 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 			} else if compSignal.retCode != 0 {
 				errorMessageToReturn = extensionerrors.CombineErrors(errorMessageToReturn, errors.Errorf("Command '%v' exited with non-zero error code", commandToExecute))
 			}
+			vmAppPackageCurrent.NumRebootsOccurred = 0
 		case <-interruptSignal:
 			// the command that we executed resulted in system reboot handle system reboot
 			actionPlan.logger.Info("received terminate signal, system reboot detected")
@@ -177,18 +184,8 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 				fmt.Sprintf("cmd=%v, application=%v, version=%v, result=Success",
 					commandToExecute, appName, version))
 
-			switch act.actionToPerform {
-			case packageregistry.Install:
-				vmAppPackageCurrent.OngoingOperation = packageregistry.RetryInstallAfterReboot
-			case packageregistry.Update:
-				vmAppPackageCurrent.OngoingOperation = packageregistry.RetryUpdateAfterReboot
-			case packageregistry.RemoveForUpdate:
-				fallthrough
-			case packageregistry.Remove:
-				// TODO: Determine what needs to be done here
-			}
-
-			// TODO: Determine number of times retry attempted after reboot
+			// vmPackageCurrent.OngoingOperation should remain the same, but increment number of reboots
+			vmAppPackageCurrent.NumRebootsOccurred += 1
 			vmAppPackageCurrent.Result = fmt.Sprintf("Reboot detected during '%s' operation. Retry operation after reboot.", vmAppPackageCurrent.OngoingOperation.ToString())
 
 			registryHandler.WriteToDisk(registry)

@@ -198,18 +198,11 @@ func New(currentPackageRegistry packageregistry.CurrentPackageRegistry, desiredV
 					updateAction := &action{*packageregistry.VMAppPackageIncomingToVmAppPackageCurrent(vmAppIncoming), vmAppIncoming.TreatFailureAsDeploymentFailure, packageregistry.Update}
 					actionPlan.insertOperation(vmAppIncoming.Order, updateAction)
 				}
-			} else {
-				if vmAppCurrent.OngoingOperation == packageregistry.RetryInstallAfterReboot {
-					logger.Info("Application %v with version %v already exists on system, but previous install operation resulted in a reboot. Retrying install.",
-						vmAppCurrent.ApplicationName, vmAppCurrent.Version)
-					installAction := &action{*packageregistry.VMAppPackageIncomingToVmAppPackageCurrent(vmAppIncoming), vmAppIncoming.TreatFailureAsDeploymentFailure, packageregistry.Install}
-					actionPlan.insertOperation(vmAppIncoming.Order, installAction)
-				} else if vmAppCurrent.OngoingOperation == packageregistry.RetryUpdateAfterReboot {
-					logger.Info("Application %v with version %v already exists on system, but previous update operation resulted in a reboot. Retrying update.",
-						vmAppCurrent.ApplicationName, vmAppCurrent.Version)
-					updateAction := &action{*packageregistry.VMAppPackageIncomingToVmAppPackageCurrent(vmAppIncoming), vmAppIncoming.TreatFailureAsDeploymentFailure, packageregistry.Update}
-					actionPlan.insertOperation(vmAppIncoming.Order, updateAction)
-				}
+			} else if vmAppCurrent.NumRebootsOccurred > 0 {
+				logger.Info("Application %v with version %v already exists on system, but previous %v operation resulted in a reboot. Retrying operation.",
+					vmAppCurrent.ApplicationName, vmAppCurrent.Version, vmAppCurrent.OngoingOperation.ToString())
+				actionAfterReboot := &action{*packageregistry.VMAppPackageIncomingToVmAppPackageCurrent(vmAppIncoming), vmAppIncoming.TreatFailureAsDeploymentFailure, vmAppCurrent.OngoingOperation}
+				actionPlan.insertOperation(vmAppIncoming.Order, actionAfterReboot)
 			}
 		} else {
 			// installs

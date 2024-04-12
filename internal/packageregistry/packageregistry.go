@@ -34,8 +34,6 @@ const (
 	// and the VMApp has been subsequently removed from the VM/VMSS application profile
 	// we need not call the remove command
 	Cleanup
-	RetryInstallAfterReboot
-	RetryUpdateAfterReboot
 )
 
 const defaultConfigFileNameSuffix = "_config"
@@ -58,10 +56,6 @@ func (act ActionEnum) ToString() string {
 		return "Skipped"
 	case Cleanup:
 		return "Cleanup"
-	case RetryInstallAfterReboot:
-		return "RetryInstallAfterReboot"
-	case RetryUpdateAfterReboot:
-		return "RetryUpdateAfterReboot"
 	default:
 		return "UnknownAction"
 	}
@@ -90,6 +84,7 @@ type VMAppPackageCurrent struct {
 	PackageFileMD5Checksum []byte     `json:"packageFileMD5Checksum"`
 	ConfigFileMD5Checksum  []byte     `json:"configFileMD5Checksum"`
 	Result                 string     `json:"result"`
+	NumRebootsOccurred     int8       `json:"numRebootsOccurred"`
 }
 
 func (vmAppPackageCurrent *VMAppPackageCurrent) GetWorkingDirectory(environment *handlerenv.HandlerEnvironment) string {
