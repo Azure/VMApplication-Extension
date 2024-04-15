@@ -186,7 +186,8 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 				fmt.Sprintf("cmd=%v, application=%v, version=%v, result=Success",
 					commandToExecute, appName, version))
 
-			// vmPackageCurrent.OngoingOperation should remain the same, but increment number of reboots
+			// vmPackageCurrent.OngoingOperation should remain the same (Install, Update, RemoveForUpdate, or Remove)
+			// Increment reboot count
 			vmAppPackageCurrent.NumRebootsOccurred += 1
 			vmAppPackageCurrent.Result = fmt.Sprintf("Reboot detected during '%s' operation. Retry operation after reboot.", vmAppPackageCurrent.OngoingOperation.ToString())
 			actionPlan.logger.Info("Received terminate signal, system reboot detected. Number of reboots for operation %v: '%v",
