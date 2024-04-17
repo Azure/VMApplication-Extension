@@ -84,6 +84,7 @@ type VMAppPackageCurrent struct {
 	PackageFileMD5Checksum []byte     `json:"packageFileMD5Checksum"`
 	ConfigFileMD5Checksum  []byte     `json:"configFileMD5Checksum"`
 	Result                 string     `json:"result"`
+	RerunAfterReboot       bool       `json:"rerunAfterReboot"`
 	NumRebootsOccurred     int        `json:"numRebootsOccurred"`
 }
 
@@ -106,6 +107,7 @@ type VMAppPackageIncoming struct {
 	ConfigFileName                  string `json:"configFileName"`
 	IsDeleted                       bool   `json:"isDeleted"`
 	TreatFailureAsDeploymentFailure bool   `json:"treatFailureAsDeploymentFailure"`
+	RerunAfterReboot                bool   `json:"rerunAfterReboot"`
 }
 
 type IPackageRegistry interface {

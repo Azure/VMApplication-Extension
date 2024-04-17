@@ -199,7 +199,7 @@ func New(currentPackageRegistry packageregistry.CurrentPackageRegistry, desiredV
 					actionPlan.insertOperation(vmAppIncoming.Order, updateAction)
 				}
 			} else if vmAppCurrent.NumRebootsOccurred > 0 {
-				logger.Info("Application %v with version %v already exists on system, but previous %v operation resulted in a reboot. Retrying operation.",
+				logger.Info("Application %v with version %v already exists on system, but previous %v operation resulted in a reboot. Retrying operation because rerunAfterReboot is set.",
 					vmAppCurrent.ApplicationName, vmAppCurrent.Version, vmAppCurrent.OngoingOperation.ToString())
 				// Pass in vmAppCurrent instead of vmAppIncoming since exact version already exists in registry and contains the number of reboots occurred so far
 				actionAfterReboot := &action{*vmAppCurrent, vmAppIncoming.TreatFailureAsDeploymentFailure, vmAppCurrent.OngoingOperation}

@@ -186,12 +186,26 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 				fmt.Sprintf("cmd=%v, application=%v, version=%v, result=Success",
 					commandToExecute, appName, version))
 
-			// vmPackageCurrent.OngoingOperation should remain the same (Install, Update, RemoveForUpdate, or Remove)
-			// Increment reboot count
-			vmAppPackageCurrent.NumRebootsOccurred += 1
-			vmAppPackageCurrent.Result = fmt.Sprintf("Reboot detected during '%s' operation. Retry operation after reboot.", vmAppPackageCurrent.OngoingOperation.ToString())
-			actionPlan.logger.Info("Received terminate signal, system reboot detected. Number of reboots for operation %v: '%v",
-				vmAppPackageCurrent.OngoingOperation.ToString(), vmAppPackageCurrent.NumRebootsOccurred)
+			actionPlan.logger.Info("Received terminate signal, system reboot detected.")
+			if vmAppPackageCurrent.RerunAfterReboot {
+				// vmPackageCurrent.OngoingOperation should remain the same (Install, Update, RemoveForUpdate, or Remove)
+				// Increment reboot count
+				vmAppPackageCurrent.NumRebootsOccurred += 1
+				vmAppPackageCurrent.Result = fmt.Sprintf("Reboot detected during '%s' operation. Retry operation after reboot.", vmAppPackageCurrent.OngoingOperation.ToString())
+				actionPlan.logger.Info("Retrying operation '%v' after reboot. Number of reboots for operation so far: '%v'",
+					vmAppPackageCurrent.OngoingOperation.ToString(), vmAppPackageCurrent.NumRebootsOccurred)
+			} else {
+				vmAppPackageCurrent.Result = fmt.Sprintf("Reboot detected during '%s' operation. No further action taken.", vmAppPackageCurrent.OngoingOperation.ToString())
+				// Mark no additional action needs to be taken
+				vmAppPackageCurrent.OngoingOperation = packageregistry.NoAction
+
+				if vmAppPackageCurrent.OngoingOperation == packageregistry.RemoveForUpdate || vmAppPackageCurrent.OngoingOperation == packageregistry.Remove {
+					delete(registry, appName)
+					os.RemoveAll(vmAppPackageCurrent.DownloadDir)
+				}
+
+				actionPlan.logger.Info("Will not retry operation '%v'. No further action will be taken.", vmAppPackageCurrent.OngoingOperation.ToString())
+			}
 
 			registryHandler.WriteToDisk(registry)
 			exithelper.Exiter.Exit(0)

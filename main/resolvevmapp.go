@@ -36,6 +36,7 @@ func getVMAppIncomingCollection(settings extdeserialization.VmAppProtectedSettin
 			ConfigFileName:                  vmAppInfo.ConfigFileName,
 			PackageFileName:                 vmAppInfo.PackageFileName,
 			TreatFailureAsDeploymentFailure: app.TreatFailureAsDeploymentFailure,
+			RerunAfterReboot:                vmAppInfo.RerunAfterReboot,
 		}
 		incomingCollection = append(incomingCollection, &incomingPackage)
 	}
