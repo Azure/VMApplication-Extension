@@ -187,12 +187,12 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 					commandToExecute, appName, version))
 
 			actionPlan.logger.Info("Received terminate signal, system reboot detected.")
-			if vmAppPackageCurrent.RebootBehavior == packageregistry.Retry {
+			if vmAppPackageCurrent.RebootBehavior == packageregistry.Rerun {
 				// vmPackageCurrent.OngoingOperation should remain the same (Install, Update, RemoveForUpdate, or Remove)
 				// Increment reboot count
 				vmAppPackageCurrent.NumRebootsOccurred += 1
-				vmAppPackageCurrent.Result = fmt.Sprintf("Reboot detected during '%s' operation. Retry operation after reboot.", vmAppPackageCurrent.OngoingOperation.ToString())
-				actionPlan.logger.Info("Retrying operation '%v' after reboot. Number of reboots for operation so far: '%v'",
+				vmAppPackageCurrent.Result = fmt.Sprintf("Reboot detected during '%s' operation. Rerun operation after reboot.", vmAppPackageCurrent.OngoingOperation.ToString())
+				actionPlan.logger.Info("Rerun operation '%v' after reboot. Number of reboots for operation so far: '%v'",
 					vmAppPackageCurrent.OngoingOperation.ToString(), vmAppPackageCurrent.NumRebootsOccurred)
 			} else {
 				vmAppPackageCurrent.Result = fmt.Sprintf("Reboot detected during '%s' operation. No further action taken.", vmAppPackageCurrent.OngoingOperation.ToString())
@@ -204,7 +204,7 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 					os.RemoveAll(vmAppPackageCurrent.DownloadDir)
 				}
 
-				actionPlan.logger.Info("Will not retry operation '%v'. No further action will be taken.", vmAppPackageCurrent.OngoingOperation.ToString())
+				actionPlan.logger.Info("Will not rerun operation '%v'. No further action will be taken.", vmAppPackageCurrent.OngoingOperation.ToString())
 			}
 
 			registryHandler.WriteToDisk(registry)

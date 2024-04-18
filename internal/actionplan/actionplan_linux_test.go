@@ -98,7 +98,7 @@ func TestCommandExecutorCanHandleProcessBeingKilled(t *testing.T) {
 	}
 }
 
-func TestCommandExecutorCanHandleProcessBeingKilled_RetryRebootBehavior(t *testing.T) {
+func TestCommandExecutorCanHandleProcessBeingKilled_RerunRebootBehavior(t *testing.T) {
 	envVariables := os.Environ()
 	var wasStartedByAnotherProcess = false
 	for _, variable := range envVariables {
@@ -113,7 +113,7 @@ func TestCommandExecutorCanHandleProcessBeingKilled_RetryRebootBehavior(t *testi
 		InstallCommand:  "install app1",
 		RemoveCommand:   "remove app1",
 		UpdateCommand:   "update app1",
-		RebootBehavior:  packageregistry.Retry,
+		RebootBehavior:  packageregistry.Rerun,
 	}
 	if wasStartedByAnotherProcess {
 		initializeTest(t)
@@ -135,7 +135,7 @@ func TestCommandExecutorCanHandleProcessBeingKilled_RetryRebootBehavior(t *testi
 		currentDirAbsolutePath, err := filepath.Abs("")
 		assert.NoError(t, err, "should be able to get absolute path")
 		transcriptFile := path.Join(currentDirAbsolutePath, testdir, "transcript.txt")
-		executeTestInAnotherThreadAndTerminateBeforeCompletion(t, "TestCommandExecutorCanHandleProcessBeingKilled_RetryRebootBehavior", currentDirAbsolutePath, transcriptFile)
+		executeTestInAnotherThreadAndTerminateBeforeCompletion(t, "TestCommandExecutorCanHandleProcessBeingKilled_RerunRebootBehavior", currentDirAbsolutePath, transcriptFile)
 		//open the config file
 		applicationRegistryFilePath := path.Join(environment.ConfigFolder, "applicationRegistry.active")
 		applicationRegistryBytes, err := ioutil.ReadFile(applicationRegistryFilePath)

@@ -27,9 +27,9 @@ func getVMAppIncomingCollection(settings extdeserialization.VmAppProtectedSettin
 
 		// Default is 'None' reboot behavior
 		applicationRebootBehavior := packageregistry.None
-		// Support switch statements in future if more reboot behaviors are added
-		if vmAppInfo.RebootBehavior == packageregistry.Retry.ToString() {
-			applicationRebootBehavior = packageregistry.Retry
+		// Use switch statement in future if more reboot behaviors are added
+		if vmAppInfo.RebootBehavior == packageregistry.Rerun.ToString() {
+			applicationRebootBehavior = packageregistry.Rerun
 		}
 
 		incomingPackage := packageregistry.VMAppPackageIncoming{

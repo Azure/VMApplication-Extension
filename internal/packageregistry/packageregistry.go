@@ -39,7 +39,7 @@ const (
 
 const (
 	None RebootBehaviorEnum = iota
-	Retry
+	Rerun
 )
 
 const defaultConfigFileNameSuffix = "_config"
@@ -71,8 +71,8 @@ func (behavior RebootBehaviorEnum) ToString() string {
 	switch behavior {
 	case None:
 		return "None"
-	case Retry:
-		return "Retry"
+	case Rerun:
+		return "Rerun"
 	default:
 		return "UnknownBehavior"
 	}

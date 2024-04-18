@@ -141,7 +141,7 @@ func TestCommandExecutorCanHandleProcessBeingKilled(t *testing.T) {
 	}
 }
 
-func TestCommandExecutorCanHandleProcessBeingKilled_RetryRebootBehavior(t *testing.T) {
+func TestCommandExecutorCanHandleProcessBeingKilled_RerunRebootBehavior(t *testing.T) {
 	envVariables := os.Environ()
 	var wasStartedByAnotherProcess = false
 	for _, variable := range envVariables {
@@ -156,7 +156,7 @@ func TestCommandExecutorCanHandleProcessBeingKilled_RetryRebootBehavior(t *testi
 		InstallCommand:  "install app1",
 		RemoveCommand:   "remove app1",
 		UpdateCommand:   "update app1",
-		RebootBehavior:  packageregistry.Retry,
+		RebootBehavior:  packageregistry.Rerun,
 	}
 	if wasStartedByAnotherProcess {
 		initializeTest(t)
@@ -179,7 +179,7 @@ func TestCommandExecutorCanHandleProcessBeingKilled_RetryRebootBehavior(t *testi
 		assert.NoError(t, err, "should be able to get absolute path")
 		transcriptFile := path.Join(currentDirAbsolutePath, testdir, "transcript.txt")
 		// test takes at least 5 seconds to start, need to give it time before killing it
-		executeTestInAnotherThreadAndTerminateBeforeCompletion(t, "TestCommandExecutorCanHandleProcessBeingKilled_RetryRebootBehavior", currentDirAbsolutePath, transcriptFile, 10*time.Second)
+		executeTestInAnotherThreadAndTerminateBeforeCompletion(t, "TestCommandExecutorCanHandleProcessBeingKilled_RerunRebootBehavior", currentDirAbsolutePath, transcriptFile, 10*time.Second)
 		pkr, err := packageregistry.New(el, environment, time.Second)
 		assert.NoError(t, err, "should be able to get current package registry")
 		if err == nil {
@@ -218,7 +218,7 @@ func TestCommandExecutorCanHandleProcessBeingKilled_MaxRebootsExceeded(t *testin
 		UpdateCommand:      "update app1",
 		OngoingOperation:   packageregistry.Install,
 		NumRebootsOccurred: 3,
-		RebootBehavior:     packageregistry.Retry,
+		RebootBehavior:     packageregistry.Rerun,
 	}
 	newApp := packageregistry.VMAppPackageIncoming{
 		ApplicationName: "app1",
