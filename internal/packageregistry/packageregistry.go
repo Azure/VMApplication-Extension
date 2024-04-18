@@ -21,6 +21,7 @@ const (
 )
 
 type ActionEnum int
+type RebootBehaviorEnum int
 
 const (
 	NoAction ActionEnum = iota
@@ -34,6 +35,11 @@ const (
 	// and the VMApp has been subsequently removed from the VM/VMSS application profile
 	// we need not call the remove command
 	Cleanup
+)
+
+const (
+	None RebootBehaviorEnum = iota
+	Retry
 )
 
 const defaultConfigFileNameSuffix = "_config"
@@ -61,6 +67,17 @@ func (act ActionEnum) ToString() string {
 	}
 }
 
+func (behavior RebootBehaviorEnum) ToString() string {
+	switch behavior {
+	case None:
+		return "None"
+	case Retry:
+		return "Retry"
+	default:
+		return "UnknownBehavior"
+	}
+}
+
 // defines a map between the application name and the other properties of the application
 type CurrentPackageRegistry map[string]*VMAppPackageCurrent
 
@@ -69,23 +86,23 @@ type DesiredPackageRegistry map[string]*VMAppPackageIncoming
 type VMAppPackageCurrentCollection []*VMAppPackageCurrent
 
 type VMAppPackageCurrent struct {
-	ApplicationName        string     `json:"applicationName"`
-	Version                string     `json:"version"`
-	InstallCommand         string     `json:"install"`
-	RemoveCommand          string     `json:"remove"`
-	UpdateCommand          string     `json:"update"`
-	DirectDownloadOnly     bool       `json:"directOnly"`
-	ConfigExists           bool       `json:"configExists"`
-	OngoingOperation       ActionEnum `json:"ongoingOperation"`
-	DownloadDir            string     `json:"downloadDir"`
-	PackageFileName        string     `json:"packageFileName"`
-	ConfigFileName         string     `json:"configFileName"`
-	IsDeleted              bool       `json:"isDeleted"`
-	PackageFileMD5Checksum []byte     `json:"packageFileMD5Checksum"`
-	ConfigFileMD5Checksum  []byte     `json:"configFileMD5Checksum"`
-	Result                 string     `json:"result"`
-	RerunAfterReboot       bool       `json:"rerunAfterReboot"`
-	NumRebootsOccurred     int        `json:"numRebootsOccurred"`
+	ApplicationName        string             `json:"applicationName"`
+	Version                string             `json:"version"`
+	InstallCommand         string             `json:"install"`
+	RemoveCommand          string             `json:"remove"`
+	UpdateCommand          string             `json:"update"`
+	DirectDownloadOnly     bool               `json:"directOnly"`
+	ConfigExists           bool               `json:"configExists"`
+	OngoingOperation       ActionEnum         `json:"ongoingOperation"`
+	DownloadDir            string             `json:"downloadDir"`
+	PackageFileName        string             `json:"packageFileName"`
+	ConfigFileName         string             `json:"configFileName"`
+	IsDeleted              bool               `json:"isDeleted"`
+	PackageFileMD5Checksum []byte             `json:"packageFileMD5Checksum"`
+	ConfigFileMD5Checksum  []byte             `json:"configFileMD5Checksum"`
+	Result                 string             `json:"result"`
+	RebootBehavior         RebootBehaviorEnum `json:"rebootBehavior"`
+	NumRebootsOccurred     int                `json:"numRebootsOccurred"`
 }
 
 func (vmAppPackageCurrent *VMAppPackageCurrent) GetWorkingDirectory(environment *handlerenv.HandlerEnvironment) string {
@@ -95,19 +112,19 @@ func (vmAppPackageCurrent *VMAppPackageCurrent) GetWorkingDirectory(environment 
 type VMAppPackageIncomingCollection []*VMAppPackageIncoming
 
 type VMAppPackageIncoming struct {
-	ApplicationName                 string `json:"applicationName"`
-	Version                         string `json:"version"`
-	InstallCommand                  string `json:"install"`
-	RemoveCommand                   string `json:"remove"`
-	UpdateCommand                   string `json:"update"`
-	DirectDownloadOnly              bool   `json:"directOnly"`
-	Order                           *int   `json:"order"`
-	ConfigExists                    bool   `json:"configExists"`
-	PackageFileName                 string `json:"packageFileName"`
-	ConfigFileName                  string `json:"configFileName"`
-	IsDeleted                       bool   `json:"isDeleted"`
-	TreatFailureAsDeploymentFailure bool   `json:"treatFailureAsDeploymentFailure"`
-	RerunAfterReboot                bool   `json:"rerunAfterReboot"`
+	ApplicationName                 string             `json:"applicationName"`
+	Version                         string             `json:"version"`
+	InstallCommand                  string             `json:"install"`
+	RemoveCommand                   string             `json:"remove"`
+	UpdateCommand                   string             `json:"update"`
+	DirectDownloadOnly              bool               `json:"directOnly"`
+	Order                           *int               `json:"order"`
+	ConfigExists                    bool               `json:"configExists"`
+	PackageFileName                 string             `json:"packageFileName"`
+	ConfigFileName                  string             `json:"configFileName"`
+	IsDeleted                       bool               `json:"isDeleted"`
+	TreatFailureAsDeploymentFailure bool               `json:"treatFailureAsDeploymentFailure"`
+	RebootBehavior                  RebootBehaviorEnum `json:"rebootBehavior"`
 }
 
 type IPackageRegistry interface {

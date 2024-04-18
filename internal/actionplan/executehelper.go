@@ -187,7 +187,7 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 					commandToExecute, appName, version))
 
 			actionPlan.logger.Info("Received terminate signal, system reboot detected.")
-			if vmAppPackageCurrent.RerunAfterReboot {
+			if vmAppPackageCurrent.RebootBehavior == packageregistry.Retry {
 				// vmPackageCurrent.OngoingOperation should remain the same (Install, Update, RemoveForUpdate, or Remove)
 				// Increment reboot count
 				vmAppPackageCurrent.NumRebootsOccurred += 1

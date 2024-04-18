@@ -63,7 +63,7 @@ func VMAppPackageIncomingToVmAppPackageCurrent(incoming *VMAppPackageIncoming) (
 		OngoingOperation:   NoAction,
 		PackageFileName:    packageFileName,
 		ConfigFileName:     configFileName,
-		RerunAfterReboot:   incoming.RerunAfterReboot,
+		RebootBehavior:     incoming.RebootBehavior,
 	}
 	return current
 }
