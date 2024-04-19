@@ -30,7 +30,7 @@ type VMAppMetadata struct {
 	ConfigExists       bool
 	PackageFileName    string `json:"packageFileName"`
 	ConfigFileName     string `json:"configFileName"`
-	RebootBehavior     string `json:"rebootBehavior"`
+	RebootBehavior     string `json:"scriptBehaviorAfterReboot"`
 }
 
 type VMAppMetadataReceiver struct {
@@ -44,7 +44,7 @@ type VMAppMetadataReceiver struct {
 	Config             string `json:"config"`
 	PackageFileName    string `json:"packageFileName"`
 	ConfigFileName     string `json:"configFileName"`
-	RebootBehavior     string `json:"rebootBehavior"`
+	RebootBehavior     string `json:"scriptBehaviorAfterReboot"`
 }
 
 func (receiver *VMAppMetadataReceiver) MapToVMAppMetadata() *VMAppMetadata {
