@@ -60,6 +60,7 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 	}
 
 	if vmAppPackageCurrent.NumRebootsOccurred == MaxReboots {
+		actionPlan.logger.Error("The %v operation on application %v has resulted in %v reboots. Setting it to failed.", act.actionToPerform.ToString(), appName, MaxReboots)
 		// Report failed status for application, reset reboot count in registry
 		errorMessageToReturn = errors.Errorf("The %v operation on application %v has resulted in %v reboots. Cannot complete command.", act.actionToPerform.ToString(), appName, MaxReboots)
 		vmAppPackageCurrent.NumRebootsOccurred = 0
