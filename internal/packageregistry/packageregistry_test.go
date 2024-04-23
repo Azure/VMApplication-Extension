@@ -89,6 +89,35 @@ func TestPackageRegistryReadWrite(t *testing.T) {
 	assert.NoError(t, err, "operation should not throw error")
 }
 
+func TestPackageRegistryDeserialization_NumRebootsOccurred_DefaultToZero(t *testing.T) {
+	initializeTest(t)
+	defer cleanupTest()
+
+	var pkgHndlr IPackageRegistry
+	pkgHndlr, err := New(nopLog(), &hndlEnv, time.Second)
+	assert.NoError(t, err, "operation should not throw error")
+
+	// Overwrite package2
+	pkg := packageRegistry["package2"]
+	pkg.NumRebootsOccurred = 1
+	packageRegistry["package2"] = pkg
+
+	err = pkgHndlr.WriteToDisk(packageRegistry)
+	assert.NoError(t, err, "operation should not throw error")
+
+	result, err := pkgHndlr.GetExistingPackages()
+	assert.NoError(t, err, "operation should not throw error")
+
+	package1 := result["package1"]
+	package2 := result["package2"]
+
+	assert.Equal(t, 0, package1.NumRebootsOccurred, "deserializing package from registry with no reboots property should default to 0")
+	assert.Equal(t, 1, package2.NumRebootsOccurred, "num reboots occurred for package2 should be 1")
+
+	err = pkgHndlr.Close()
+	assert.NoError(t, err, "operation should not throw error")
+}
+
 func TestValuesAreProperlySaved(t *testing.T) {
 	initializeTest(t)
 	defer cleanupTest()
