@@ -647,6 +647,44 @@ func TestSkippedPackagesAreCleanedUpWhenRemovedFromApplicationProfile(t *testing
 
 }
 
+func TestScriptRerunAfterReboot(t *testing.T) {
+	initializeTest(t)
+	defer cleanupTest()
+	newApp := packageregistry.VMAppPackageIncoming{
+		ApplicationName: "app1",
+		Order:           &one,
+		Version:         "1.0",
+		InstallCommand:  "install app1",
+		RemoveCommand:   "remove app1",
+		UpdateCommand:   "update app1",
+		RebootBehavior:  packageregistry.Rerun,
+	}
+	existingApp := packageregistry.VMAppPackageCurrent{
+		ApplicationName:    "app1",
+		Version:            "1.0",
+		InstallCommand:     "install app1",
+		RemoveCommand:      "remove app1",
+		UpdateCommand:      "update app1",
+		OngoingOperation:   packageregistry.Install,
+		NumRebootsOccurred: 2,
+		RebootBehavior:     packageregistry.Rerun,
+	}
+	existingApps := packageregistry.VMAppPackageCurrentCollection{&existingApp}
+	incomingApps := packageregistry.VMAppPackageIncomingCollection{&newApp}
+	cmdHandler := NewCommandHandlerMock(mockCommandExecutorNoError)
+	newReg, _, statusMessage, executeError := executeActionPlan(t, existingApps, incomingApps, cmdHandler)
+
+	assert.EqualValues(t, newApp.InstallCommand, cmdHandler.Result[0].command, "Install command must be invoked")
+	assertPackageRegistryHasBeenUpdatedProperly(t, newReg, incomingApps)
+	assert.EqualValues(t, 0, newReg["app1"].NumRebootsOccurred, "numRebootsOccurred should have been reset to 0")
+	assert.EqualValues(t, packageregistry.NoAction, newReg["app1"].OngoingOperation, "ongoingOperation should be set to NoAction")
+	assertAllActionsSucceeded(t, newReg)
+	packageOperationResults, ok := statusMessage.(*PackageOperationResults)
+	assert.True(t, ok)
+	assert.EqualValues(t, (*packageOperationResults)[0], PackageOperationResult{Result: Success, Operation: packageregistry.Install.ToString(), AppVersion: newApp.Version, PackageName: newApp.ApplicationName})
+	assert.NoError(t, executeError.GetErrorIfDeploymentFailed())
+}
+
 func executeActionPlan(t *testing.T,
 	currentPackages packageregistry.VMAppPackageCurrentCollection,
 	incomingPackages packageregistry.VMAppPackageIncomingCollection,

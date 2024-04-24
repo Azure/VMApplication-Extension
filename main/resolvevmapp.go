@@ -25,11 +25,14 @@ func getVMAppIncomingCollection(settings extdeserialization.VmAppProtectedSettin
 			return nil, errors.New("HostGA did not return a valid vmAppInfo")
 		}
 
-		// Default is 'None' reboot behavior
-		applicationRebootBehavior := packageregistry.None
-		// Use switch statement in future if more reboot behaviors are added
-		if vmAppInfo.RebootBehavior == packageregistry.Rerun.ToString() {
+		var applicationRebootBehavior packageregistry.RebootBehaviorEnum
+		switch vmAppInfo.RebootBehavior {
+		case packageregistry.None.ToString():
+			applicationRebootBehavior = packageregistry.None
+		case packageregistry.Rerun.ToString():
 			applicationRebootBehavior = packageregistry.Rerun
+		default:
+			applicationRebootBehavior = packageregistry.None
 		}
 
 		incomingPackage := packageregistry.VMAppPackageIncoming{
