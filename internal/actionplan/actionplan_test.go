@@ -743,3 +743,26 @@ func assertAllActionsSucceeded(t *testing.T, pkgReg packageregistry.CurrentPacka
 		assert.Contains(t, vmApp.Result, Success)
 	}
 }
+
+func validateApplicationAfterReboot(t *testing.T, applicationName string, numRebootsOccurred int, failedApp bool) {
+	pkr, err := packageregistry.New(el, environment, time.Second)
+	assert.NoError(t, err, "should be able to get current package registry")
+	if err == nil {
+		defer pkr.Close()
+	}
+
+	existingPackages, err := pkr.GetExistingPackages()
+	assert.NoError(t, err, "should be able to get existing packages")
+
+	app, ok := existingPackages[applicationName]
+	assert.True(t, ok, "app should be present in current package registry")
+	assert.Equal(t, numRebootsOccurred, app.NumRebootsOccurred, "number of reboots not as intended")
+
+	if failedApp {
+		assert.Equal(t, packageregistry.Failed, app.OngoingOperation, "operation should have failed due to max reboots exceeded")
+		assert.Contains(t, app.Result, "has resulted in 3 reboots. Cannot complete command.")
+	} else {
+		assert.Equal(t, packageregistry.Install, app.OngoingOperation, "operation should have been preserved during reboot")
+		assert.Contains(t, app.Result, "Reboot detected during 'Install' operation")
+	}
+}

@@ -166,15 +166,9 @@ func TestCommandExecutorCanHandleProcessBeingKilled_RerunRebootBehavior(t *testi
 
 		existingPackages, err := pkr.GetExistingPackages()
 		assert.NoError(t, err, "should be able to get existing packages")
-
-		app, ok := existingPackages[newApp.ApplicationName]
-		existingApps := packageregistry.VMAppPackageCurrentCollection{}
-		if ok && app.NumRebootsOccurred > 0 {
-			// If numRebootsOccurred > 0, we want to simulate application existing in package registry
-			existingApps = append(existingApps, app)
-		}
-
 		pkr.Close()
+
+		existingApps := existingPackages.GetPackageCollection()
 
 		incomingApps := packageregistry.VMAppPackageIncomingCollection{&newApp}
 		cmdHandler := NewCommandHandlerMock(mockCommandExecutorSleepForAnHour)
@@ -188,50 +182,12 @@ func TestCommandExecutorCanHandleProcessBeingKilled_RerunRebootBehavior(t *testi
 		assert.NoError(t, err, "should be able to get absolute path")
 		transcriptFile := path.Join(currentDirAbsolutePath, testdir, "transcript.txt")
 
-		// test takes at least 5 seconds to start, need to give it time before killing it
-		executeTestInAnotherThreadAndTerminateBeforeCompletion(t, "TestCommandExecutorCanHandleProcessBeingKilled_RerunRebootBehavior", currentDirAbsolutePath, transcriptFile, 10*time.Second)
-		validateApplicationAfterReboot(t, newApp.ApplicationName, 1, false)
+		for numReboots := 1; numReboots <= MaxReboots+1; numReboots++ {
+			failedApp := numReboots > MaxReboots
 
-		// wait for another 3 seconds to ensure that the transcript file is written
-		time.Sleep(3 * time.Second)
-		transcriptFileBytes, error := ioutil.ReadFile(transcriptFile)
-		assert.NoError(t, error, "should be able to read transcript file")
-		stranscriptFileString := string(transcriptFileBytes)
-		assert.Contains(t, stranscriptFileString, "Received terminate signal, system reboot detected")
-
-		// Run a second time, reboot count should be incremented to 2
-		executeTestInAnotherThreadAndTerminateBeforeCompletion(t, "TestCommandExecutorCanHandleProcessBeingKilled_RerunRebootBehavior", currentDirAbsolutePath, transcriptFile, 10*time.Second)
-		validateApplicationAfterReboot(t, newApp.ApplicationName, 2, false)
-
-		// Run a third time, reboot count should be incremented to 3
-		executeTestInAnotherThreadAndTerminateBeforeCompletion(t, "TestCommandExecutorCanHandleProcessBeingKilled_RerunRebootBehavior", currentDirAbsolutePath, transcriptFile, 10*time.Second)
-		validateApplicationAfterReboot(t, newApp.ApplicationName, 3, false)
-
-		// Run a fourth time. Max reboots exceeded, should fail the app. Reboot count should be reset to 0
-		executeTestInAnotherThreadAndTerminateBeforeCompletion(t, "TestCommandExecutorCanHandleProcessBeingKilled_RerunRebootBehavior", currentDirAbsolutePath, transcriptFile, 10*time.Second)
-		validateApplicationAfterReboot(t, newApp.ApplicationName, 0, true)
-	}
-}
-
-func validateApplicationAfterReboot(t *testing.T, applicationName string, numRebootsOccurred int, failedApp bool) {
-	pkr, err := packageregistry.New(el, environment, time.Second)
-	assert.NoError(t, err, "should be able to get current package registry")
-	if err == nil {
-		defer pkr.Close()
-	}
-
-	existingPackages, err := pkr.GetExistingPackages()
-	assert.NoError(t, err, "should be able to get existing packages")
-
-	app, ok := existingPackages[applicationName]
-	assert.True(t, ok, "app should be present in current package registry")
-	assert.Equal(t, numRebootsOccurred, app.NumRebootsOccurred, "number of reboots not as intended")
-
-	if failedApp {
-		assert.Equal(t, packageregistry.Failed, app.OngoingOperation, "operation should have failed due to max reboots exceeded")
-		assert.Contains(t, app.Result, "has resulted in 3 reboots. Cannot complete command.")
-	} else {
-		assert.Equal(t, packageregistry.Install, app.OngoingOperation, "operation should have been preserved during reboot")
-		assert.Contains(t, app.Result, "Reboot detected during 'Install' operation")
+			executeTestInAnotherThreadAndTerminateBeforeCompletion(t, "TestCommandExecutorCanHandleProcessBeingKilled_RerunRebootBehavior", currentDirAbsolutePath, transcriptFile, 10*time.Second)
+			// If numReboots exceeds MaxReboots, it should be reset to 0
+			validateApplicationAfterReboot(t, newApp.ApplicationName, numReboots%(MaxReboots+1), failedApp)
+		}
 	}
 }

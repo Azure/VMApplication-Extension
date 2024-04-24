@@ -118,13 +118,15 @@ func TestCommandExecutorCanHandleProcessBeingKilled_RerunRebootBehavior(t *testi
 	if wasStartedByAnotherProcess {
 		initializeTest(t)
 
-		applicationRegistryFilePath := path.Join(environment.ConfigFolder, "applicationRegistry.active")
-		applicationRegistryBytes, err := ioutil.ReadFile(applicationRegistryFilePath)
-		assert.NoError(t, err, "should be able to read application registry file")
-		existingApps := packageregistry.VMAppPackageCurrentCollection{}
+		pkr, err := packageregistry.New(el, environment, time.Second)
+		assert.NoError(t, err, "should be able to get current package registry")
 
-		err = json.Unmarshal(applicationRegistryBytes, &existingApps)
-		assert.NoError(t, err, "should be able to deserialize existing packages")
+		existingPackages, err := pkr.GetExistingPackages()
+		assert.NoError(t, err, "should be able to get existing packages")
+		pkr.Close()
+
+		existingApps := existingPackages.GetPackageCollection()
+
 		incomingApps := packageregistry.VMAppPackageIncomingCollection{&newApp}
 		cmdHandler := NewCommandHandlerMock(mockCommandExecutorKillProcess)
 		newReg, _, _, executeError := executeActionPlan(t, existingApps, incomingApps, cmdHandler)
@@ -138,41 +140,11 @@ func TestCommandExecutorCanHandleProcessBeingKilled_RerunRebootBehavior(t *testi
 		assert.NoError(t, err, "should be able to get absolute path")
 		transcriptFile := path.Join(currentDirAbsolutePath, testdir, "transcript.txt")
 
-		// Run first time, reboot count should be incremented to 1
-		executeTestInAnotherThreadAndTerminateBeforeCompletion(t, "TestCommandExecutorCanHandleProcessBeingKilled_RerunRebootBehavior", currentDirAbsolutePath, transcriptFile)
-		validateApplicationAfterReboot(t, newApp.ApplicationName, 1, false)
+		for numReboots := 1; numReboots <= MaxReboots+1; numReboots++ {
+			failedApp := numReboots > MaxReboots
 
-		// Run second time, reboot count should be incremented to 2
-		executeTestInAnotherThreadAndTerminateBeforeCompletion(t, "TestCommandExecutorCanHandleProcessBeingKilled_RerunRebootBehavior", currentDirAbsolutePath, transcriptFile)
-		validateApplicationAfterReboot(t, newApp.ApplicationName, 2, false)
-
-		// Run third time, reboot count should be incremented to 3
-		executeTestInAnotherThreadAndTerminateBeforeCompletion(t, "TestCommandExecutorCanHandleProcessBeingKilled_RerunRebootBehavior", currentDirAbsolutePath, transcriptFile)
-		validateApplicationAfterReboot(t, newApp.ApplicationName, 3, false)
-
-		// Run fourth time. Max reboots exceeded, should fail the app. Reboot count should be reset to 0
-		executeTestInAnotherThreadAndTerminateBeforeCompletion(t, "TestCommandExecutorCanHandleProcessBeingKilled_RerunRebootBehavior", currentDirAbsolutePath, transcriptFile)
-		validateApplicationAfterReboot(t, newApp.ApplicationName, 0, true)
-	}
-}
-
-func validateApplicationAfterReboot(t *testing.T, applicationName string, numRebootsOccurred int, failedApp bool) {
-	//open the config file
-	applicationRegistryFilePath := path.Join(environment.ConfigFolder, "applicationRegistry.active")
-	applicationRegistryBytes, err := ioutil.ReadFile(applicationRegistryFilePath)
-	assert.NoError(t, err, "should be able to read application registry file")
-	existingPackages := packageregistry.VMAppPackageCurrentCollection{}
-
-	err = json.Unmarshal(applicationRegistryBytes, &existingPackages)
-	assert.NoError(t, err, "should be able to deserialize existing packages")
-	app := existingPackages[0]
-	assert.Equal(t, numRebootsOccurred, app.NumRebootsOccurred, "number of reboots not as intended")
-
-	if failedApp {
-		assert.Equal(t, packageregistry.Failed, app.OngoingOperation, "operation should have failed due to max reboots exceeded")
-		assert.Contains(t, app.Result, "has resulted in 3 reboots. Cannot complete command.")
-	} else {
-		assert.Equal(t, packageregistry.Install, app.OngoingOperation, "operation should have been preserved during reboot")
-		assert.Contains(t, app.Result, "Reboot detected during 'Install' operation")
+			executeTestInAnotherThreadAndTerminateBeforeCompletion(t, "TestCommandExecutorCanHandleProcessBeingKilled_RerunRebootBehavior", currentDirAbsolutePath, transcriptFile)
+			validateApplicationAfterReboot(t, newApp.ApplicationName, numReboots%(MaxReboots+1), failedApp)
+		}
 	}
 }
