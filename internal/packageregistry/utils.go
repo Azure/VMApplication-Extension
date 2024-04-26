@@ -63,6 +63,7 @@ func VMAppPackageIncomingToVmAppPackageCurrent(incoming *VMAppPackageIncoming) (
 		OngoingOperation:   NoAction,
 		PackageFileName:    packageFileName,
 		ConfigFileName:     configFileName,
+		RebootBehavior:     incoming.RebootBehavior,
 	}
 	return current
 }

@@ -24,6 +24,17 @@ func getVMAppIncomingCollection(settings extdeserialization.VmAppProtectedSettin
 		if vmAppInfo.Version == "" {
 			return nil, errors.New("HostGA did not return a valid vmAppInfo")
 		}
+
+		var applicationRebootBehavior packageregistry.RebootBehaviorEnum
+		switch vmAppInfo.RebootBehavior {
+		case packageregistry.None.ToString():
+			applicationRebootBehavior = packageregistry.None
+		case packageregistry.Rerun.ToString():
+			applicationRebootBehavior = packageregistry.Rerun
+		default:
+			applicationRebootBehavior = packageregistry.None
+		}
+
 		incomingPackage := packageregistry.VMAppPackageIncoming{
 			ApplicationName:                 app.ApplicationName,
 			Order:                           app.Order,
@@ -36,6 +47,7 @@ func getVMAppIncomingCollection(settings extdeserialization.VmAppProtectedSettin
 			ConfigFileName:                  vmAppInfo.ConfigFileName,
 			PackageFileName:                 vmAppInfo.PackageFileName,
 			TreatFailureAsDeploymentFailure: app.TreatFailureAsDeploymentFailure,
+			RebootBehavior:                  applicationRebootBehavior,
 		}
 		incomingCollection = append(incomingCollection, &incomingPackage)
 	}

@@ -213,6 +213,36 @@ func Test_getVMPackageData_noVersion(t *testing.T) {
 	require.Error(t, err)
 }
 
+func Test_GetApplicationMetadataWithInvalidRebootBehavior_DefaultsToNone(t *testing.T) {
+	order := 1
+	vmApplications := []extdeserialization.VmAppSetting{
+		{
+			ApplicationName: "rebootapp",
+			Order:           &order,
+		},
+	}
+
+	ext := createTestVMExtension(t, vmApplications)
+	hostGaCommunicator := NoopHostGaCommunicator{}
+	hostGaCommunicator.SetupVMAppInfo("rebootapp", "1.0.1", "install")
+	hostGaCommunicator.MetadataToReturn.RebootBehavior = "invalid"
+
+	requestedSequenceNumber := *ext.CurrentSequenceNumber + 1
+	err := customEnable(ext, &hostGaCommunicator, requestedSequenceNumber)
+	require.NoError(t, err)
+
+	// Test that registry file is written
+	pkr, err := packageregistry.New(ext.ExtensionLogger, ext.HandlerEnv, 1*time.Second)
+	require.NoError(t, err)
+	defer pkr.Close()
+	currentpackages, err := pkr.GetExistingPackages()
+	require.NoError(t, err)
+	require.Len(t, currentpackages, 1)
+	require.Equal(t, packageregistry.NoAction, currentpackages[vmApplications[0].ApplicationName].OngoingOperation)
+	require.Equal(t, packageregistry.None, currentpackages[vmApplications[0].ApplicationName].RebootBehavior)
+	require.Contains(t, currentpackages[vmApplications[0].ApplicationName].Result, actionplan.Success)
+}
+
 func Test_getVMPackageDataCustomAction_valid(t *testing.T) {
 	order := 1
 	actions := extdeserialization.ActionSetting{

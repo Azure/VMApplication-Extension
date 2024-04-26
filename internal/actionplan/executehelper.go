@@ -20,6 +20,8 @@ import (
 	"github.com/pkg/errors"
 )
 
+const MaxReboots = 3
+
 func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPackageRegistry,
 	commandHandler commandhandler.ICommandHandler, registry packageregistry.CurrentPackageRegistry,
 	act *action, eem *extensionevents.ExtensionEventManager) (errorMessageToReturn error) {
@@ -55,6 +57,13 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 		commandToExecute = vmAppPackageCurrent.UpdateCommand
 	default:
 		errorMessageToReturn = errors.Errorf("Unexpected Action to perform encountered %v", act.actionToPerform)
+	}
+
+	if vmAppPackageCurrent.NumRebootsOccurred == MaxReboots {
+		actionPlan.logger.Error("The %v operation on application %v has resulted in %v reboots. Setting it to failed.", act.actionToPerform.ToString(), appName, MaxReboots)
+		// Report failed status for application, reset reboot count in registry
+		errorMessageToReturn = errors.Errorf("The %v operation on application %v has resulted in %v reboots. Cannot complete command.", act.actionToPerform.ToString(), appName, MaxReboots)
+		vmAppPackageCurrent.NumRebootsOccurred = 0
 	}
 
 	actionPlan.logger.Info("Calling command '%v' for application %v, version %v", commandToExecute, appName, version)
@@ -170,26 +179,35 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 			} else if compSignal.retCode != 0 {
 				errorMessageToReturn = extensionerrors.CombineErrors(errorMessageToReturn, errors.Errorf("Command '%v' exited with non-zero error code", commandToExecute))
 			}
+			// Reset count if command successfully completed
+			vmAppPackageCurrent.NumRebootsOccurred = 0
 		case <-interruptSignal:
 			// the command that we executed resulted in system reboot handle system reboot
-			actionPlan.logger.Info("received terminate signal, system reboot detected")
 			eem.LogInformationalEvent("System reboot detected",
 				fmt.Sprintf("cmd=%v, application=%v, version=%v, result=Success",
 					commandToExecute, appName, version))
-			// depending on the action to perform, we either mark than no additional action needs to be taken, or in case of remove action, mark the app as removed
-			switch act.actionToPerform {
-			case packageregistry.Install:
+
+			actionPlan.logger.Info("Received terminate signal, system reboot detected.")
+			if vmAppPackageCurrent.RebootBehavior == packageregistry.Rerun {
+				// vmPackageCurrent.OngoingOperation should remain the same (Install, Update, RemoveForUpdate, or Remove)
+				// Increment reboot count
+				vmAppPackageCurrent.NumRebootsOccurred += 1
+				vmAppPackageCurrent.Result = fmt.Sprintf("Reboot detected during '%s' operation. Rerun operation after reboot.", vmAppPackageCurrent.OngoingOperation.ToString())
+				actionPlan.logger.Info("Rerun operation '%v' after reboot. Number of reboots for operation so far: '%v'",
+					vmAppPackageCurrent.OngoingOperation.ToString(), vmAppPackageCurrent.NumRebootsOccurred)
+			} else {
+				vmAppPackageCurrent.Result = fmt.Sprintf("Reboot detected during '%s' operation. No further action taken.", vmAppPackageCurrent.OngoingOperation.ToString())
+				// Mark no additional action needs to be taken
 				vmAppPackageCurrent.OngoingOperation = packageregistry.NoAction
-				vmAppPackageCurrent.Result = "reboot detected during install, marking operation as success"
-			case packageregistry.Update:
-				vmAppPackageCurrent.OngoingOperation = packageregistry.NoAction
-				vmAppPackageCurrent.Result = "reboot detected during update, marking operation as success"
-			case packageregistry.RemoveForUpdate:
-				fallthrough
-			case packageregistry.Remove:
-				delete(registry, appName)
-				os.RemoveAll(vmAppPackageCurrent.DownloadDir)
+
+				if vmAppPackageCurrent.OngoingOperation == packageregistry.RemoveForUpdate || vmAppPackageCurrent.OngoingOperation == packageregistry.Remove {
+					delete(registry, appName)
+					os.RemoveAll(vmAppPackageCurrent.DownloadDir)
+				}
+
+				actionPlan.logger.Info("Will not rerun operation '%v'. No further action will be taken.", vmAppPackageCurrent.OngoingOperation.ToString())
 			}
+
 			registryHandler.WriteToDisk(registry)
 			exithelper.Exiter.Exit(0)
 		}

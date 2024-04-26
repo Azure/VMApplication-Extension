@@ -30,6 +30,7 @@ type VMAppMetadata struct {
 	ConfigExists       bool
 	PackageFileName    string `json:"packageFileName"`
 	ConfigFileName     string `json:"configFileName"`
+	RebootBehavior     string `json:"scriptBehaviorAfterReboot"`
 }
 
 type VMAppMetadataReceiver struct {
@@ -43,6 +44,7 @@ type VMAppMetadataReceiver struct {
 	Config             string `json:"config"`
 	PackageFileName    string `json:"packageFileName"`
 	ConfigFileName     string `json:"configFileName"`
+	RebootBehavior     string `json:"scriptBehaviorAfterReboot"`
 }
 
 func (receiver *VMAppMetadataReceiver) MapToVMAppMetadata() *VMAppMetadata {
@@ -51,6 +53,7 @@ func (receiver *VMAppMetadataReceiver) MapToVMAppMetadata() *VMAppMetadata {
 		// assume directDownloadOnly is false when parsing fails
 		directDownloadOnly = false
 	}
+
 	configExists := receiver.Config != ""
 	vmAppMetadata := VMAppMetadata{
 		ApplicationName:    receiver.ApplicationName,
@@ -62,6 +65,7 @@ func (receiver *VMAppMetadataReceiver) MapToVMAppMetadata() *VMAppMetadata {
 		ConfigExists:       configExists,
 		PackageFileName:    receiver.PackageFileName,
 		ConfigFileName:     receiver.ConfigFileName,
+		RebootBehavior:     receiver.RebootBehavior,
 	}
 	return &vmAppMetadata
 }

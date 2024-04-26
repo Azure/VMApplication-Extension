@@ -1,6 +1,7 @@
 BUNDLEDIR=bundle/linux
 BINDIR=$(BUNDLEDIR)/bin
 EXTENSIONVERSION=1.0.13
+EXTENSIONNAME=Microsoft.CPlat.Core.VMApplicationManagerLinux
 
 all: clean bundle
 
@@ -12,16 +13,16 @@ clean:
 	-rm -R $(BUNDLEDIR)
 
 extension-launcher:
-	GOOS=linux GOARCH=amd64 go build -o extension-launcher -ldflags="-X 'main.ExtensionVersion=$(EXTENSIONVERSION)' -X 'main.ExecutableName=vm-application-manager'" ./launcher
+	GOOS=linux GOARCH=amd64 go build -o extension-launcher -ldflags="-X 'main.ExtensionName=$(EXTENSIONNAME)' -X 'main.ExtensionVersion=$(EXTENSIONVERSION)' -X 'main.ExecutableName=vm-application-manager'" ./launcher
 
 extension-launcher-arm64:
-	GOOS=linux GOARCH=arm64 go build -o extension-launcher-arm64 -ldflags="-X 'main.ExtensionVersion=$(EXTENSIONVERSION)' -X 'main.ExecutableName=vm-application-manager-arm64'" ./launcher
+	GOOS=linux GOARCH=arm64 go build -o extension-launcher-arm64 -ldflags="-X 'main.ExtensionName=$(EXTENSIONNAME)' -X 'main.ExtensionVersion=$(EXTENSIONVERSION)' -X 'main.ExecutableName=vm-application-manager-arm64'" ./launcher
 
 vm-application-manager:
-	GOOS=linux GOARCH=amd64 go build -o  vm-application-manager -ldflags="-X 'main.ExtensionVersion=$(EXTENSIONVERSION)'" ./main
+	GOOS=linux GOARCH=amd64 go build -o  vm-application-manager -ldflags="-X 'main.ExtensionName=$(EXTENSIONNAME)' -X 'main.ExtensionVersion=$(EXTENSIONVERSION)'" ./main
 
 vm-application-manager-arm64:
-	GOOS=linux GOARCH=arm64 go build -o vm-application-manager-arm64 -ldflags="-X 'main.ExtensionVersion=$(EXTENSIONVERSION)'"  ./main
+	GOOS=linux GOARCH=arm64 go build -o vm-application-manager-arm64 -ldflags="-X 'main.ExtensionName=$(EXTENSIONNAME)' -X 'main.ExtensionVersion=$(EXTENSIONVERSION)'"  ./main
 
 bundle: extension-launcher extension-launcher-arm64 vm-application-manager vm-application-manager-arm64
 	mkdir -p $(BINDIR)

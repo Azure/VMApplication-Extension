@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Azure/VMApplication-Extension/internal/constants"
 	"github.com/Azure/VMApplication-Extension/internal/extdeserialization"
 
 	"github.com/Azure/VMApplication-Extension/internal/actionplan"
@@ -23,6 +22,7 @@ import (
 )
 
 var (
+	ExtensionName         string     // assign at compile time
 	ExtensionVersion      = "1.0.10" // should be assigned at compile time, do not edit in code
 	reportStatusFunc      = utils.ReportStatus
 	getVMExtensionFunc    = getVMExtension
@@ -116,7 +116,7 @@ func dummyVMAppEnableCallback(ext *vmextensionhelper.VMExtension) (string, error
 }
 
 func getVMExtension() (*vmextensionhelper.VMExtension, error) {
-	ii, err := vmextensionhelper.GetInitializationInfo(constants.ExtensionName, ExtensionVersion, false, dummyVMAppEnableCallback)
+	ii, err := vmextensionhelper.GetInitializationInfo(ExtensionName, ExtensionVersion, false, dummyVMAppEnableCallback)
 	if err != nil {
 		return nil, err
 	}
@@ -241,7 +241,7 @@ func customEnable(ext *vmextensionhelper.VMExtension, hostgaCommunicator hostgac
 			return err
 		}
 		// update the sequence number that has been executed
-		if err := setSequenceNumberFunc(constants.ExtensionName, ExtensionVersion, requestedSequenceNumber); err != nil {
+		if err := setSequenceNumberFunc(ExtensionName, ExtensionVersion, requestedSequenceNumber); err != nil {
 			errorMessage := fmt.Sprintf("Failed to update sequence number to %d: %s", requestedSequenceNumber, err.Error())
 			ext.ExtensionLogger.Error(errorMessage)
 			ext.ExtensionEvents.LogErrorEvent("Update Sequence Number", errorMessage)

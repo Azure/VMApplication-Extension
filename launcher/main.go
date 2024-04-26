@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/Azure/VMApplication-Extension/internal/constants"
 	"github.com/Azure/VMApplication-Extension/pkg/utils"
 	platformconstants "github.com/Azure/azure-extension-platform/pkg/constants"
 	"github.com/Azure/azure-extension-platform/pkg/exithelper"
@@ -18,6 +17,7 @@ import (
 )
 
 var ( // set at compile time
+	ExtensionName    string
 	ExtensionVersion string
 	ExecutableName   string
 )
@@ -41,7 +41,7 @@ func main() {
 	}
 
 	// check compile time values
-	if ExecutableName == "" || ExtensionVersion == "" {
+	if ExecutableName == "" || ExtensionName == "" || ExtensionVersion == "" {
 		el.Error("variables not set at compile time, program needs recompilation")
 		eh.Exit(exithelper.MiscError)
 	}
@@ -62,13 +62,13 @@ func main() {
 		eh.Exit(exithelper.ArgumentError)
 	}
 
-	handlerEnv, err := handlerEnvironmentGetter(constants.ExtensionName, ExtensionVersion)
+	handlerEnv, err := handlerEnvironmentGetter(ExtensionName, ExtensionVersion)
 	if err != nil {
 		el.Error("Could not retrieve handler environment %s", err.Error())
 		eh.Exit(exithelper.EnvironmentError)
 	}
 	el = logging.New(handlerEnv)
-	currentSequenceNumber, err := seqno.GetCurrentSequenceNumber(el, currentSeqnoRetriever, constants.ExtensionName, ExtensionVersion)
+	currentSequenceNumber, err := seqno.GetCurrentSequenceNumber(el, currentSeqnoRetriever, ExtensionName, ExtensionVersion)
 	if err != nil {
 		el.Error("Could not determine current sequence number: %v", err)
 		eh.Exit(exithelper.EnvironmentError)

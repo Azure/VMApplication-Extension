@@ -647,6 +647,44 @@ func TestSkippedPackagesAreCleanedUpWhenRemovedFromApplicationProfile(t *testing
 
 }
 
+func TestScriptRerunAfterReboot(t *testing.T) {
+	initializeTest(t)
+	defer cleanupTest()
+	newApp := packageregistry.VMAppPackageIncoming{
+		ApplicationName: "app1",
+		Order:           &one,
+		Version:         "1.0",
+		InstallCommand:  "install app1",
+		RemoveCommand:   "remove app1",
+		UpdateCommand:   "update app1",
+		RebootBehavior:  packageregistry.Rerun,
+	}
+	existingApp := packageregistry.VMAppPackageCurrent{
+		ApplicationName:    "app1",
+		Version:            "1.0",
+		InstallCommand:     "install app1",
+		RemoveCommand:      "remove app1",
+		UpdateCommand:      "update app1",
+		OngoingOperation:   packageregistry.Install,
+		NumRebootsOccurred: 2,
+		RebootBehavior:     packageregistry.Rerun,
+	}
+	existingApps := packageregistry.VMAppPackageCurrentCollection{&existingApp}
+	incomingApps := packageregistry.VMAppPackageIncomingCollection{&newApp}
+	cmdHandler := NewCommandHandlerMock(mockCommandExecutorNoError)
+	newReg, _, statusMessage, executeError := executeActionPlan(t, existingApps, incomingApps, cmdHandler)
+
+	assert.EqualValues(t, newApp.InstallCommand, cmdHandler.Result[0].command, "Install command must be invoked")
+	assertPackageRegistryHasBeenUpdatedProperly(t, newReg, incomingApps)
+	assert.EqualValues(t, 0, newReg["app1"].NumRebootsOccurred, "numRebootsOccurred should have been reset to 0")
+	assert.EqualValues(t, packageregistry.NoAction, newReg["app1"].OngoingOperation, "ongoingOperation should be set to NoAction")
+	assertAllActionsSucceeded(t, newReg)
+	packageOperationResults, ok := statusMessage.(*PackageOperationResults)
+	assert.True(t, ok)
+	assert.EqualValues(t, (*packageOperationResults)[0], PackageOperationResult{Result: Success, Operation: packageregistry.Install.ToString(), AppVersion: newApp.Version, PackageName: newApp.ApplicationName})
+	assert.NoError(t, executeError.GetErrorIfDeploymentFailed())
+}
+
 func executeActionPlan(t *testing.T,
 	currentPackages packageregistry.VMAppPackageCurrentCollection,
 	incomingPackages packageregistry.VMAppPackageIncomingCollection,
@@ -703,5 +741,28 @@ func assertAllActionsSucceeded(t *testing.T, pkgReg packageregistry.CurrentPacka
 	for _, vmApp := range pkgReg {
 		assert.Equal(t, packageregistry.NoAction, vmApp.OngoingOperation)
 		assert.Contains(t, vmApp.Result, Success)
+	}
+}
+
+func validateApplicationAfterReboot(t *testing.T, applicationName string, numRebootsOccurred int, failedApp bool) {
+	pkr, err := packageregistry.New(el, environment, time.Second)
+	assert.NoError(t, err, "should be able to get current package registry")
+	if err == nil {
+		defer pkr.Close()
+	}
+
+	existingPackages, err := pkr.GetExistingPackages()
+	assert.NoError(t, err, "should be able to get existing packages")
+
+	app, ok := existingPackages[applicationName]
+	assert.True(t, ok, "app should be present in current package registry")
+	assert.Equal(t, numRebootsOccurred, app.NumRebootsOccurred, "number of reboots not as intended")
+
+	if failedApp {
+		assert.Equal(t, packageregistry.Failed, app.OngoingOperation, "operation should have failed due to max reboots exceeded")
+		assert.Contains(t, app.Result, "has resulted in 3 reboots. Cannot complete command.")
+	} else {
+		assert.Equal(t, packageregistry.Install, app.OngoingOperation, "operation should have been preserved during reboot")
+		assert.Contains(t, app.Result, "Reboot detected during 'Install' operation")
 	}
 }
