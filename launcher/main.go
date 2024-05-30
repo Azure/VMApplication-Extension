@@ -31,7 +31,7 @@ var ( // variables that can be overwritten for testing
 	args                     []string                                                                = os.Args
 	handlerEnvironmentGetter func(name, version string) (he *handlerenv.HandlerEnvironment, _ error) = handlerenv.GetHandlerEnvironment
 	currentSeqnoRetriever    seqno.ISequenceNumberRetriever                                          = &seqno.ProdSequenceNumberRetriever{}
-	requestedSeqnoRetriever  func(el *logging.ExtensionLogger, configFolder string) (uint, error)    = seqno.FindSeqNum
+	requestedSeqnoRetriever  func(el logging.ILogger, configFolder string) (uint, error)             = seqno.FindSeqNum
 )
 
 func main() {

@@ -42,7 +42,7 @@ func NewCommandHandlerMock(executor func(string, string) (int, error)) *CommandH
 	return &CommandHandlerMock{Result: []commandResult{}, Executor: executor}
 }
 
-func (commandHandlerMock *CommandHandlerMock) Execute(command string, workingDir, logDir string, waitForCompletion bool, el *logging.ExtensionLogger) (returnCode int, err error) {
+func (commandHandlerMock *CommandHandlerMock) Execute(command string, workingDir, logDir string, waitForCompletion bool, el logging.ILogger) (returnCode int, err error) {
 	returnCode, err = commandHandlerMock.Executor(command, workingDir)
 	commandHandlerMock.Result = append(commandHandlerMock.Result, commandResult{command, returnCode, err})
 	return
