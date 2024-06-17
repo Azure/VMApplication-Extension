@@ -33,6 +33,10 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 	registry[appName] = &vmAppPackageCurrent
 	vmAppPackageCurrent.OngoingOperation = act.actionToPerform
 
+	// prefix the app name and version for all extension events
+	prefix := fmt.Sprintf("(%v:%v) ", appName, version)
+	eem.SetPrefix(prefix)
+
 	// return early for Cleanup operation
 	if vmAppPackageCurrent.OngoingOperation == packageregistry.Cleanup {
 		delete(registry, appName)

@@ -302,5 +302,8 @@ func (actionPlan *ActionPlan) Execute(registryHandler packageregistry.IPackageRe
 			}
 		}
 	}
+
+	eem.SetPrefix("")
+
 	return executeError, &executionResult
 }
