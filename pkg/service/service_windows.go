@@ -3,23 +3,16 @@ package service
 import (
 	"fmt"
 	"path/filepath"
+	"time"
 
-	"golang.org/x/sys/windows"
+	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/mgr"
 )
 
 const (
-	// Service start types.
-	StartManual    = windows.SERVICE_DEMAND_START // the service must be started manually
-	StartAutomatic = windows.SERVICE_AUTO_START   // the service will start by itself whenever the computer reboots
-	StartDisabled  = windows.SERVICE_DISABLED     // the service cannot be started
-
-	// The severity of the error, and action taken,
-	// if this service fails to start.
-	ErrorCritical = windows.SERVICE_ERROR_CRITICAL
-	ErrorIgnore   = windows.SERVICE_ERROR_IGNORE
-	ErrorNormal   = windows.SERVICE_ERROR_NORMAL
-	ErrorSevere   = windows.SERVICE_ERROR_SEVERE
+	ServiceStopTimeout             = 30 * time.Second
+	ServiceStopStatusCheckInterval = 500 * time.Millisecond
+	WindowsServiceName             = "windows-service"
 )
 
 type WindowsServiceManager struct{}
@@ -29,7 +22,7 @@ type WindowsService struct {
 }
 
 func (WindowsServiceManager) String() string {
-	return "windows-service"
+	return WindowsServiceName
 }
 
 func (WindowsServiceManager) DetectIsAvailable() bool {
@@ -62,31 +55,102 @@ func (ws *WindowsService) Install() error {
 	}
 
 	s, err = m.CreateService(ws.Config.Name, exepath, mgr.Config{
-		StartType:        windows.SERVICE_AUTO_START,        // Automatically load and run the service on bootup
-		ServiceType:      windows.SERVICE_WIN32_OWN_PROCESS, // Service should be run as a stand-alone process
-		ErrorControl:     windows.SERVICE_ERROR_NORMAL,      // If service fails to startup upon boot, produce a warning but let bootup continue
-		DelayedAutoStart: true,                              // Start service with a delay after other auto-start services are started
+		StartType:        mgr.StartAutomatic, // Automatically load and run the service on bootup
+		ErrorControl:     mgr.ErrorNormal,    // If service fails to startup upon boot, produce a warning but let bootup continue
+		DelayedAutoStart: true,               // Start service with a delay after other auto-start services are started
 		DisplayName:      ws.Config.DisplayName,
-	})
+	}, ws.Config.Arguments...)
 
 	if err != nil {
 		return err
 	}
 	defer s.Close()
-
 	return nil
 }
 
 func (ws *WindowsService) Uninstall() error {
+	m, err := mgr.Connect()
+	if err != nil {
+		return err
+	}
+	defer m.Disconnect()
+
+	s, err := m.OpenService(ws.Config.Name)
+	if err != nil {
+		return fmt.Errorf("Could not access service %s: %v", ws.Config.Name, err)
+	}
+	defer s.Close()
+
+	err = s.Delete()
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
 func (ws *WindowsService) Start() error {
+	m, err := mgr.Connect()
+	if err != nil {
+		return err
+	}
+	defer m.Disconnect()
+
+	s, err := m.OpenService(ws.Config.Name)
+	if err != nil {
+		return fmt.Errorf("Could not access service %s: %v", ws.Config.Name, err)
+	}
+	defer s.Close()
+
+	err = s.Start()
+	if err != nil {
+		return fmt.Errorf("Could not start service %s: %v", ws.Config.Name, err)
+	}
 	return nil
 }
 
 func (ws *WindowsService) Stop() error {
+	m, err := mgr.Connect()
+	if err != nil {
+		return err
+	}
+	defer m.Disconnect()
+
+	s, err := m.OpenService(ws.Config.Name)
+	if err != nil {
+		return fmt.Errorf("Could not access service %s: %v", ws.Config.Name, err)
+	}
+	defer s.Close()
+
+	err = ws.handleStop(s)
+	if err != nil {
+		return fmt.Errorf("Could not stop service %s: %v", ws.Config.Name, err)
+	}
 	return nil
+}
+
+func (ws *WindowsService) Execute(args []string, r <-chan svc.ChangeRequest, changes chan<- svc.Status) (bool, uint32) {
+	const cmdsAccepted = svc.AcceptStop | svc.AcceptShutdown
+	changes <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
+loop:
+	for {
+		c := <-r
+		switch c.Cmd {
+		case svc.Interrogate:
+			changes <- c.CurrentStatus
+		case svc.Stop:
+			// TODO: Determine if process clean up needs to take place here
+			// Or whether we want to log any output
+			break loop
+		case svc.Shutdown:
+			// TODO: Determine if process clean up needs to take place here
+			break loop
+		default:
+			continue loop
+		}
+	}
+
+	changes <- svc.Status{State: svc.StopPending}
+	return false, 0
 }
 
 func (ws *WindowsService) Restart() error {
@@ -95,4 +159,26 @@ func (ws *WindowsService) Restart() error {
 
 func (ws *WindowsService) IsActive() bool {
 	return false
+}
+
+func (ws *WindowsService) handleStop(s *mgr.Service) error {
+	status, err := s.Control(svc.Stop)
+	if err != nil {
+		return fmt.Errorf("Could not stop service %s: %v", ws.Config.Name, err)
+	}
+
+	timeout := time.Now().Add(ServiceStopTimeout)
+	for status.State != svc.Stopped {
+		if timeout.Before(time.Now()) {
+			return fmt.Errorf("timeout waiting for service to go to state=%d", to)
+		}
+
+		time.Sleep(ServiceStopStatusCheckInterval)
+
+		status, err = s.Query()
+		if err != nil {
+			return fmt.Errorf("could not retrieve service status: %v", err)
+		}
+	}
+	return nil
 }
