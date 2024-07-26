@@ -129,6 +129,7 @@ func (ws *WindowsService) Stop() error {
 }
 
 func (ws *WindowsService) Execute(args []string, r <-chan svc.ChangeRequest, changes chan<- svc.Status) (bool, uint32) {
+	changes <- svc.Status{State: svc.StartPending}
 	const cmdsAccepted = svc.AcceptStop | svc.AcceptShutdown
 	changes <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
 loop:
@@ -157,8 +158,33 @@ func (ws *WindowsService) Restart() error {
 	return nil
 }
 
-func (ws *WindowsService) IsActive() bool {
-	return false
+func (ws *WindowsService) IsInstalled() bool {
+	m, err := mgr.Connect()
+	if err != nil {
+		return false
+	}
+	defer m.Disconnect()
+
+	s, err := m.OpenService(ws.Config.Name)
+	defer s.Close()
+	return err == nil
+}
+
+func (ws *WindowsService) IsRunning() bool {
+	m, err := mgr.Connect()
+	if err != nil {
+		return false
+	}
+	defer m.Disconnect()
+
+	s, err := m.OpenService(ws.Config.Name)
+	if err != nil {
+		return false
+	}
+	defer s.Close()
+
+	status, err := s.Query()
+	return status.State == svc.Running
 }
 
 func (ws *WindowsService) handleStop(s *mgr.Service) error {

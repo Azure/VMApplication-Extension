@@ -22,7 +22,8 @@ type Service interface {
 	Start() error
 	Stop() error
 	Restart() error
-	IsActive() bool
+	IsInstalled() bool
+	IsRunning() bool
 }
 
 // Represents the service manager that is available on the given system
