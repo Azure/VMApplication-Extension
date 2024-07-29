@@ -6,11 +6,13 @@ type ServiceConfig struct {
 	DisplayName string
 	Description string
 	Arguments   []string
-	Executable  string // Required for Windows only
+
+	// The following fields are not supported on Linux
+	Executable string // Required for Windows
 
 	// The following fields are not supported on Windows.
 	WorkingDirectory string // Initial working directory.
-	ChRoot           string
+	UnitContent      string // Required for Linux
 
 	EnvVars map[string]string
 }
@@ -21,7 +23,6 @@ type Service interface {
 	Uninstall() error
 	Start() error
 	Stop() error
-	Restart() error
 	IsInstalled() bool
 	IsRunning() bool
 }

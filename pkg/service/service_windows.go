@@ -1,6 +1,7 @@
 package service
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"time"
@@ -30,6 +31,12 @@ func (WindowsServiceManager) DetectIsAvailable() bool {
 }
 
 func (WindowsServiceManager) New(c *ServiceConfig) (Service, error) {
+	if len(c.Name) == 0 {
+		return nil, errors.New("Name field within ServiceConfig is required")
+	} else if len(c.Executable) == 0 {
+		return nil, errors.New("Executable field within ServiceConfig is required")
+	}
+
 	service := &WindowsService{
 		Config: c,
 	}
@@ -37,7 +44,7 @@ func (WindowsServiceManager) New(c *ServiceConfig) (Service, error) {
 }
 
 func (ws *WindowsService) Install() error {
-	exepath, err := filepath.Abs(ws.Config.Executable)
+	exePath, err := filepath.Abs(ws.Config.Executable)
 	if err != nil {
 		return err
 	}
@@ -51,10 +58,10 @@ func (ws *WindowsService) Install() error {
 	s, err := m.OpenService(ws.Config.Name)
 	if err == nil {
 		s.Close()
-		return fmt.Errorf("Service %s already exists", ws.Config.Name)
+		return errors.New(fmt.Sprintf("Service %s already exists", ws.Config.Name))
 	}
 
-	s, err = m.CreateService(ws.Config.Name, exepath, mgr.Config{
+	s, err = m.CreateService(ws.Config.Name, exePath, mgr.Config{
 		StartType:        mgr.StartAutomatic, // Automatically load and run the service on bootup
 		ErrorControl:     mgr.ErrorNormal,    // If service fails to startup upon boot, produce a warning but let bootup continue
 		DelayedAutoStart: true,               // Start service with a delay after other auto-start services are started
@@ -154,10 +161,6 @@ loop:
 	return false, 0
 }
 
-func (ws *WindowsService) Restart() error {
-	return nil
-}
-
 func (ws *WindowsService) IsInstalled() bool {
 	m, err := mgr.Connect()
 	if err != nil {
@@ -196,14 +199,14 @@ func (ws *WindowsService) handleStop(s *mgr.Service) error {
 	timeout := time.Now().Add(ServiceStopTimeout)
 	for status.State != svc.Stopped {
 		if timeout.Before(time.Now()) {
-			return fmt.Errorf("timeout waiting for service to go to state=%d", to)
+			return errors.New("Timeout waiting for service to go to 'Stop' state")
 		}
 
 		time.Sleep(ServiceStopStatusCheckInterval)
 
 		status, err = s.Query()
 		if err != nil {
-			return fmt.Errorf("could not retrieve service status: %v", err)
+			return fmt.Errorf("Could not retrieve service status: %v", err)
 		}
 	}
 	return nil

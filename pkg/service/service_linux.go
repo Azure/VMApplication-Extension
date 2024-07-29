@@ -3,7 +3,10 @@ package service
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path"
+
+	"github.com/pkg/errors"
 )
 
 const (
@@ -11,6 +14,14 @@ const (
 	PreferredUnitConfigurationBasePath   = "/etc/systemd/system"           // Units installed by the system administrator
 	AlternativeUnitConfigurationBasePath = "/usr/local/lib/systemd/system" // Units provided by installed packages
 	SystemCtl                            = "systemctl"
+	SystemCtlDaemonReload                = "daemon-reload"
+	SystemCtlEnable                      = "enable"
+	SystemCtlDisable                     = "disable"
+	SystemCtlIsActive                    = "is-active"
+	SystemCtlIsEnabled                   = "is-enabled"
+	SystemCtlStart                       = "start"
+	SystemCtlStop                        = "stop"
+	SystemCtlStatus                      = "status"
 	UnitConfigurationFileExtension       = ".service"
 	UnitConfigurationFilePermission      = 0644
 )
@@ -30,6 +41,12 @@ func (LinuxServiceManager) DetectIsAvailable() bool {
 }
 
 func (LinuxServiceManager) New(c *ServiceConfig) (Service, error) {
+	if len(c.Name) == 0 {
+		return nil, errors.New("Name field within ServiceConfig is required")
+	} else if len(c.UnitContent) == 0 {
+		return nil, errors.New("UnitContent field within ServiceConfig is required")
+	}
+
 	service := &LinuxService{
 		Config: c,
 	}
@@ -37,32 +54,84 @@ func (LinuxServiceManager) New(c *ServiceConfig) (Service, error) {
 }
 
 func (ls *LinuxService) Install() error {
+	unitName := ls.unitName()
 
-	return nil
+	err := removeUnitConfigurationFile(unitName)
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("Error while removing old unit configuration file: %v", err)
+	}
+
+	err := createUnitConfigurationFile(unitName, ls.Config.UnitContent)
+	if err != nil {
+		return err
+	}
+
+	// Reload systemd manager configuration and unit file
+	err := ls.runSystemCtlAction(SystemCtlDaemonReload)
+	if err != nil {
+		return err
+	}
+
+	return ls.runSystemCtlAction(SystemCtlEnable)
 }
 
 func (ls *LinuxService) Uninstall() error {
+	err := ls.runSystemCtlAction(SystemCtlDisable)
+	if err != nil {
+		return fmt.Errorf("Could not disable service %s: %v", ls.Config.Name, err)
+	}
+
+	unitName := ls.unitName()
+	err := removeUnitConfigurationFile(unitName)
+	if err != nil {
+		return fmt.Errorf("Could not remove unit file %s: %v", unitName, err)
+	}
+
 	return nil
 }
 
 func (ls *LinuxService) Start() error {
+	err := ls.runSystemCtlAction(SystemCtlStart)
+	if err != nil {
+		return fmt.Errorf("Could not start service %s: %v", ls.Config.Name, err)
+	}
+
 	return nil
 }
 
 func (ls *LinuxService) Stop() error {
+	err := ls.runSystemCtlAction(SystemCtlStop)
+	if err != nil {
+		return fmt.Errorf("Could not stop service %s: %v", ls.Config.Name, err)
+	}
+
 	return nil
 }
 
-func (ls *LinuxService) Restart() error {
-	return nil
-}
+func (ls *LinuxService) IsInstalled() (bool, error) {
+	unitName := ls.unitName()
+	unitConfigPath, err := getUnitConfigurationFilePath(unitName)
+	if err != nil {
+		return false, err
+	}
 
-func (ls *LinuxService) IsIntalled() bool {
-	return false
+	_, err = os.Stat(unitConfigPath)
+	if os.IsNotExist(err) {
+		return false, nil
+	} else if err != nil {
+		return false, errors.Wrap(err, "Error occurred while checking existence for file %s: %v", unitName, err)
+	}
+
+	return true, nil
 }
 
 func (ls *LinuxService) IsRunning() bool {
-	return false
+	err := ls.runSystemCtlAction(SystemCtlIsActive)
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
 }
 
 func isSystemdAvailable() bool {
@@ -88,7 +157,7 @@ func getSystemDConfigurationBasePath() (string, error) {
 
 		info, err = os.Stat(AlternativeUnitConfigurationBasePath)
 		if err != nil || info == nil || !info.IsDir() {
-			return nil, fmt.Errorf("Neither %s nor %s were found as directories on the system", PreferredUnitConfigurationBasePath, AlternativeUnitConfigurationBasePath)
+			return nil, errors.New(fmt.Sprintf("Neither %s nor %s were found as directories on the system", PreferredUnitConfigurationBasePath, AlternativeUnitConfigurationBasePath))
 		}
 
 		// ctx.Log("message", fmt.Sprintf("Alternative path was found on the system: %s", unitConfigurationBasePath_alternative))
@@ -99,12 +168,12 @@ func getSystemDConfigurationBasePath() (string, error) {
 	return PreferredUnitConfigurationBasePath, nil
 }
 
-func (ls *LinuxService) runAction(action string, args ...string) error {
-	return run(SystemCtl, append([]string{action}, args...)...)
+func runAction(action string, args ...string) error {
+	return exec.Command(SystemCtl, append([]string{action}, args...)...).Run()
 }
 
-func (ls *LinuxService) runActionForUnit(action string) error {
-	return ls.runSystemCtlAction(action, ls.Config.Name)
+func (ls *LinuxService) runSystemCtlAction(action string) error {
+	return runAction(action, ls.Config.Name)
 }
 
 func (ls *LinuxService) unitName() string {
@@ -112,11 +181,19 @@ func (ls *LinuxService) unitName() string {
 }
 
 func createUnitConfigurationFile(unitName string, content string) error {
-	// Create/override unit configuration file
-	unitConfigPath, err := GetUnitConfigurationFilePath(unitName)
+	unitConfigPath, err := getUnitConfigurationFilePath(unitName)
 	if err != nil {
 		return nil, err
 	}
 
 	return os.WriteFile(unitConfigPath, content, UnitConfigurationFilePermission)
+}
+
+func removeUnitConfigurationFile(unitName string) error {
+	unitConfigPath, err := getUnitConfigurationFilePath(unitName)
+	if err != nil {
+		return err
+	}
+
+	return os.Remove(unitConfigPath)
 }
