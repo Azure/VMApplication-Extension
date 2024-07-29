@@ -6,13 +6,8 @@ type ServiceConfig struct {
 	DisplayName string
 	Description string
 	Arguments   []string
-
-	// The following fields are not supported on Linux
-	Executable string // Required for Windows
-
-	// The following fields are not supported on Windows.
-	WorkingDirectory string // Initial working directory.
-	UnitContent      string // Required for Linux
+	Executable  string // Required for Windows, not supported on Linux
+	UnitContent string // Required for Linux, not supported on Windows
 
 	EnvVars map[string]string
 }

@@ -6,6 +6,8 @@ import (
 	"os/exec"
 	"path"
 
+	"github.com/Azure/azure-extension-platform/pkg/extensionevents"
+	"github.com/Azure/azure-extension-platform/pkg/logging"
 	"github.com/pkg/errors"
 )
 
@@ -29,7 +31,9 @@ const (
 type LinuxServiceManager struct{}
 
 type LinuxService struct {
-	Config *ServiceConfig
+	Config          *ServiceConfig
+	ExtensionEvents *extensionevents.ExtensionEventManager // Allows extension to raise events
+	ExtensionLogger *logging.ExtensionLogger               // Automatically logs to the log directory
 }
 
 func (LinuxServiceManager) String() string {
@@ -40,7 +44,7 @@ func (LinuxServiceManager) DetectIsAvailable() bool {
 	return isSystemdAvailable()
 }
 
-func (LinuxServiceManager) New(c *ServiceConfig) (Service, error) {
+func (LinuxServiceManager) New(c *ServiceConfig, eem *extensionevents.ExtensionEventManager, el *logging.ExtensionLogger) (Service, error) {
 	if len(c.Name) == 0 {
 		return nil, errors.New("Name field within ServiceConfig is required")
 	} else if len(c.UnitContent) == 0 {
@@ -48,7 +52,9 @@ func (LinuxServiceManager) New(c *ServiceConfig) (Service, error) {
 	}
 
 	service := &LinuxService{
-		Config: c,
+		Config:          c,
+		ExtensionEvents: eem,
+		ExtensionLogger: el,
 	}
 	return service, nil
 }
@@ -56,12 +62,12 @@ func (LinuxServiceManager) New(c *ServiceConfig) (Service, error) {
 func (ls *LinuxService) Install() error {
 	unitName := ls.unitName()
 
-	err := removeUnitConfigurationFile(unitName)
+	err := removeUnitConfigurationFile(unitName, ls.ExtensionLogger)
 	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("Error while removing old unit configuration file: %v", err)
 	}
 
-	err := createUnitConfigurationFile(unitName, ls.Config.UnitContent)
+	err := createUnitConfigurationFile(unitName, ls.Config.UnitContent, ls.ExtensionLogger)
 	if err != nil {
 		return err
 	}
@@ -82,7 +88,7 @@ func (ls *LinuxService) Uninstall() error {
 	}
 
 	unitName := ls.unitName()
-	err := removeUnitConfigurationFile(unitName)
+	err := removeUnitConfigurationFile(unitName, ls.ExtensionLogger)
 	if err != nil {
 		return fmt.Errorf("Could not remove unit file %s: %v", unitName, err)
 	}
@@ -110,7 +116,7 @@ func (ls *LinuxService) Stop() error {
 
 func (ls *LinuxService) IsInstalled() (bool, error) {
 	unitName := ls.unitName()
-	unitConfigPath, err := getUnitConfigurationFilePath(unitName)
+	unitConfigPath, err := getUnitConfigurationFilePath(unitName, ls.ExtensionLogger)
 	if err != nil {
 		return false, err
 	}
@@ -140,8 +146,8 @@ func isSystemdAvailable() bool {
 	return err == nil && info.IsDir()
 }
 
-func getUnitConfigurationFilePath(unitName string) (string, error) {
-	systemDPath, err := getSystemDConfigurationBasePath()
+func getUnitConfigurationFilePath(unitName string, logger *logging.ExtensionLogger) (string, error) {
+	systemDPath, err := getSystemDConfigurationBasePath(logger)
 	if err != nil {
 		return nil, err
 	}
@@ -149,22 +155,23 @@ func getUnitConfigurationFilePath(unitName string) (string, error) {
 	return path.Join(systemDPath, unitName), nil
 }
 
-func getSystemDConfigurationBasePath() (string, error) {
-	// ctx.Log("message", "Getting systemd configuration path available in the system")
+func getSystemDConfigurationBasePath(logger *logging.ExtensionLogger) (string, error) {
+	logger.Info("Getting systemd configuration path available in the system")
 	info, err := os.Stat(PreferredUnitConfigurationBasePath)
 	if err != nil || info == nil || !info.IsDir() {
-		// ctx.Log("message", fmt.Sprintf("INFO: %s path was not found on the system", unitConfigurationBasePath_preferred))
+		logger.Info("%v path was not found on the system. Attempt finding alternate path %v",
+			PreferredUnitConfigurationBasePath, AlternativeUnitConfigurationBasePath)
 
 		info, err = os.Stat(AlternativeUnitConfigurationBasePath)
 		if err != nil || info == nil || !info.IsDir() {
 			return nil, errors.New(fmt.Sprintf("Neither %s nor %s were found as directories on the system", PreferredUnitConfigurationBasePath, AlternativeUnitConfigurationBasePath))
 		}
 
-		// ctx.Log("message", fmt.Sprintf("Alternative path was found on the system: %s", unitConfigurationBasePath_alternative))
+		logger.Info("Alternative path '%v' was found on the system", AlternativeUnitConfigurationBasePath)
 		return AlternativeUnitConfigurationBasePath, nil
 	}
 
-	// ctx.Log("message", fmt.Sprintf("Preferred path was found on the system: %s", unitConfigurationBasePath_preferred))
+	logger.Info("Preferred path '%v' was found on the system", PreferredUnitConfigurationBasePath)
 	return PreferredUnitConfigurationBasePath, nil
 }
 
@@ -180,8 +187,8 @@ func (ls *LinuxService) unitName() string {
 	return ls.Config.Name + UnitConfigurationFileExtension
 }
 
-func createUnitConfigurationFile(unitName string, content string) error {
-	unitConfigPath, err := getUnitConfigurationFilePath(unitName)
+func createUnitConfigurationFile(unitName string, content string, logger *logging.ExtensionLogger) error {
+	unitConfigPath, err := getUnitConfigurationFilePath(unitName, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -189,8 +196,8 @@ func createUnitConfigurationFile(unitName string, content string) error {
 	return os.WriteFile(unitConfigPath, content, UnitConfigurationFilePermission)
 }
 
-func removeUnitConfigurationFile(unitName string) error {
-	unitConfigPath, err := getUnitConfigurationFilePath(unitName)
+func removeUnitConfigurationFile(unitName string, logger *logging.ExtensionLogger) error {
+	unitConfigPath, err := getUnitConfigurationFilePath(unitName, logger)
 	if err != nil {
 		return err
 	}

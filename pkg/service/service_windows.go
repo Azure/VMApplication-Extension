@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/Azure/azure-extension-platform/pkg/extensionevents"
+	"github.com/Azure/azure-extension-platform/pkg/logging"
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/mgr"
 )
@@ -19,7 +21,9 @@ const (
 type WindowsServiceManager struct{}
 
 type WindowsService struct {
-	Config *ServiceConfig
+	Config          *ServiceConfig
+	ExtensionEvents *extensionevents.ExtensionEventManager // Allows extension to raise events
+	ExtensionLogger *logging.ExtensionLogger               // Automatically logs to the log directory
 }
 
 func (WindowsServiceManager) String() string {
@@ -30,7 +34,7 @@ func (WindowsServiceManager) DetectIsAvailable() bool {
 	return true
 }
 
-func (WindowsServiceManager) New(c *ServiceConfig) (Service, error) {
+func (WindowsServiceManager) New(c *ServiceConfig, eem *extensionevents.ExtensionEventManager, el *logging.ExtensionLogger) (Service, error) {
 	if len(c.Name) == 0 {
 		return nil, errors.New("Name field within ServiceConfig is required")
 	} else if len(c.Executable) == 0 {
@@ -38,7 +42,9 @@ func (WindowsServiceManager) New(c *ServiceConfig) (Service, error) {
 	}
 
 	service := &WindowsService{
-		Config: c,
+		Config:          c,
+		ExtensionEvents: eem,
+		ExtensionLogger: el,
 	}
 	return service, nil
 }
@@ -48,6 +54,7 @@ func (ws *WindowsService) Install() error {
 	if err != nil {
 		return err
 	}
+	ws.ExtensionLogger.Info("Path of executable to be run by service: %v", exePath)
 
 	m, err := mgr.Connect()
 	if err != nil {
@@ -187,6 +194,8 @@ func (ws *WindowsService) IsRunning() bool {
 	defer s.Close()
 
 	status, err := s.Query()
+	ws.ExtensionLogger.Info("The current status of the service is: %v", status.State)
+
 	return status.State == svc.Running
 }
 
