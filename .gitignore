@@ -10,5 +10,5 @@ VmExtensionHelper/status/statustest/
 internal/actionplan/test.ps1
 vendor
 bundle/*/*
-!vm-application-manager.zip
+!bundle/*/vm-application-manager.zip
 extension-launcher*
