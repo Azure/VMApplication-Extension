@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"io"
 	"io/ioutil"
 	"os"
 	"path"
@@ -20,6 +19,7 @@ var (
 	errorExtensionVersionDirNotFound     = errors.New("could not find the directory that contains all the extension versions")
 	errorNoOlderPakcageRegistryFileFound = errors.New(fmt.Sprintf("could not find an older '%s' file", packageregistry.LocalApplicationRegistryFileName))
 	versionNumberRegx, _                 = regexp.Compile(`[0-9]+\.[0-9]+\.[0-9]+`)
+	emptyPackageRegistryContent          = []byte("[]")
 )
 
 type FileInfoWithFilePath struct {
@@ -80,8 +80,8 @@ func vmAppUpdateCallback(ext *vmextensionhelper.VMExtension) error {
 	currentFolderName := ""
 	pathToFile := ""
 
-	pacageRegistryFilePathForCurrentVersion := filepath.Join(ext.HandlerEnv.ConfigFolder, packageregistry.LocalApplicationRegistryFileName)
-	_, err := os.Stat(pacageRegistryFilePathForCurrentVersion)
+	packageRegistryFilePathForCurrentVersion := filepath.Join(ext.HandlerEnv.ConfigFolder, packageregistry.LocalApplicationRegistryFileName)
+	_, err := os.Stat(packageRegistryFilePathForCurrentVersion)
 	if !os.IsNotExist(err) {
 		// a package registry file already exists for current version, nothing to do
 		return nil
@@ -108,19 +108,22 @@ func vmAppUpdateCallback(ext *vmextensionhelper.VMExtension) error {
 		return err
 	}
 
-	prevFile, err := os.Open(previousPackageRegistryFilePath) //opening the applicationRegistry file
+	previousPackageRegistryContent, err := os.ReadFile(previousPackageRegistryFilePath)
 	if err != nil {
 		return err
 	}
-	defer prevFile.Close()
 
-	newFile, err := os.Create(filepath.Join(ext.HandlerEnv.ConfigFolder, packageregistry.LocalApplicationRegistryFileName)) //creating new file
+	// Overwrite the package registry for older version to be an empty list of applications
+	// This prevents the uninstall operation for older extension removing installed VM Apps
+	// Set file contents for older package registry prior to newer one in order to ensure most recently
+	// updated package registry corresponds to the newest version
+	err = os.WriteFile(previousPackageRegistryFilePath, emptyPackageRegistryContent, 0666)
 	if err != nil {
 		return err
 	}
-	defer newFile.Close()
 
-	_, err = io.Copy(newFile, prevFile) //copying previous registry to new
+	// Creates and writes previous registry content to package registry file for new extension version
+	err = os.WriteFile(packageRegistryFilePathForCurrentVersion, previousPackageRegistryContent, 0666)
 	if err != nil {
 		return err
 	}
