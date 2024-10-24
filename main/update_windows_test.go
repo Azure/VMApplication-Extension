@@ -37,13 +37,22 @@ func Test_didFileMove(t *testing.T) {
 	// cleanup
 	defer os.RemoveAll(testFolderPath)
 
+	oldFileContents, err := os.ReadFile(filepath.Join(testFolderPath, "0.0.1", runtimeFolderName, fileName))
+	assert.NoError(t, err)
+
 	//call update
 	err = vmAppUpdateCallback(ext)
+	assert.NoError(t, err)
+
+	oldFileContentsAfterUpdate, err := os.ReadFile(filepath.Join(testFolderPath, "0.0.1", runtimeFolderName, fileName))
+	assert.NoError(t, err)
+
+	newFileContents, err := os.ReadFile(filepath.Join(ext.HandlerEnv.ConfigFolder, fileName))
+	assert.NoError(t, err)
 
 	//checks
-	assert.NoError(t, err) //check for errors
-	isSame := compareFiles(filepath.Join(testFolderPath, "0.0.1", runtimeFolderName, fileName), filepath.Join(ext.HandlerEnv.ConfigFolder, fileName))
-	assert.True(t, isSame) //check if correct file was moved
+	assert.True(t, bytes.Equal(oldFileContents, newFileContents))
+	assert.True(t, bytes.Equal([]byte("[]"), oldFileContentsAfterUpdate))
 }
 
 func Test_noInfiniteLoops(t *testing.T) {
@@ -108,24 +117,6 @@ func Test_existingPackageRegistryFileIsNotOverwritten(t *testing.T) {
 	readBytes, err := ioutil.ReadFile(packageRegistryFilePath)
 	assert.NoError(t, err)
 	assert.True(t, bytes.Equal(fileBytes, readBytes))
-}
-
-func compareFiles(path1, path2 string) bool {
-	content1, err := ioutil.ReadFile(path1)
-	if err != nil {
-		return false
-	}
-
-	content2, err := ioutil.ReadFile(path2)
-	if err != nil {
-		return false
-	}
-
-	if bytes.Equal(content1, content2) {
-		return true
-	}
-
-	return false
 }
 
 func createTestFiles(folderPath, runtimeFolderName, fileName string) error {
