@@ -3,9 +3,9 @@
 # nmake -f makefile.win
 # from developer (visual studio) command prompt 
 
-BUNDLEDIR=bundle\windows
+BUNDLEDIR=bundle\windows\prod
 BINDIR=$(BUNDLEDIR)\bin
-EXTENSIONVERSION=1.0.15
+EXTENSIONVERSION=1.0.16
 EXTENSIONNAME=Microsoft.CPlat.Core.VMApplicationManagerWindows
 
 all: clean bundle
