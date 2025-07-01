@@ -14,6 +14,7 @@ import (
 const hostGaPluginPort = "32526"
 const WireProtocolAddress = "AZURE_GUEST_AGENT_WIRE_PROTOCOL_ADDRESS"
 const wireServerFallbackAddress = "http://168.63.129.16:32526"
+const versionQueryParameterForHostGaRequests = "version"
 
 type IHostGaCommunicator interface {
 	DownloadPackage(el *logging.ExtensionLogger, appName string, appVersion string, dst string) error
@@ -112,7 +113,7 @@ func getOperationURI(el *logging.ExtensionLogger, appName string, appVersion str
 
 	if appVersion != "" {
 		q := uri.Query()
-		q.Set("version", appVersion)
+		q.Set(versionQueryParameterForHostGaRequests, appVersion)
 		uri.RawQuery = q.Encode()
 	}
 
