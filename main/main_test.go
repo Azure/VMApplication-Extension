@@ -37,15 +37,15 @@ type NoopHostGaCommunicator struct {
 	ConfigFileNameUsed  string
 }
 
-func (communicator *NoopHostGaCommunicator) DownloadPackage(el *logging.ExtensionLogger, appName string, dst string) error {
+func (communicator *NoopHostGaCommunicator) DownloadPackage(el *logging.ExtensionLogger, appName string, appVersion string, dst string) error {
 	communicator.PackageFileNameUsed = dst
 	return nil
 }
-func (communicator *NoopHostGaCommunicator) DownloadConfig(el *logging.ExtensionLogger, appName string, dst string) error {
+func (communicator *NoopHostGaCommunicator) DownloadConfig(el *logging.ExtensionLogger, appName string, appVersion string, dst string) error {
 	communicator.ConfigFileNameUsed = dst
 	return nil
 }
-func (communicator *NoopHostGaCommunicator) GetVMAppInfo(el *logging.ExtensionLogger, appName string) (*hostgacommunicator.VMAppMetadata, error) {
+func (communicator *NoopHostGaCommunicator) GetVMAppInfo(el *logging.ExtensionLogger, appName string, appVersion string) (*hostgacommunicator.VMAppMetadata, error) {
 	return communicator.MetadataToReturn, nil
 }
 
@@ -162,11 +162,12 @@ func Test_getVMAppProtectedSettings_valid(t *testing.T) {
 		ApplicationName: "iggy",
 		Order:           &order,
 		Actions:         []*extdeserialization.ActionSetting{&actions},
+		Version:         "2.0.1",
 	}
 	vmAppProtectedSettings := extdeserialization.VmAppProtectedSettings{&appSettings}
 	testSettings := handlersettings.HandlerSettings{
 		PublicSettings:    "{}",
-		ProtectedSettings: "[{\"applicationName\": \"iggy\", \"order\": 1, \"actions\": [{\"name\": \"logging\",\"script\": \"echo %CustomAction_blobURL%\",\"timestamp\": \"20210604T155300Z\",\"parameters\": [{\"name\": \"blobURL\",\"value\": \"myaccount.blob.core.windows.net\"}],\"tickCount\": 10193113}]}]",
+		ProtectedSettings: "[{\"applicationName\": \"iggy\", \"order\": 1, \"version\": \"2.0.1\", \"actions\": [{\"name\": \"logging\",\"script\": \"echo %CustomAction_blobURL%\",\"timestamp\": \"20210604T155300Z\",\"parameters\": [{\"name\": \"blobURL\",\"value\": \"myaccount.blob.core.windows.net\"}],\"tickCount\": 10193113}]}]",
 	}
 
 	out, err := extdeserialization.GetVMAppProtectedSettings(&testSettings)
@@ -175,6 +176,21 @@ func Test_getVMAppProtectedSettings_valid(t *testing.T) {
 	require.EqualValues(t, vmAppProtectedSettings[0].ApplicationName, out[0].ApplicationName)
 	require.EqualValues(t, *vmAppProtectedSettings[0].Order, *out[0].Order)
 	require.EqualValues(t, *vmAppProtectedSettings[0].Actions[0], *out[0].Actions[0])
+	require.EqualValues(t, vmAppProtectedSettings[0].Version, *&out[0].Version)
+}
+
+func TestGetVMAppProtectedSettingsWithoutVersionDefaultsToEmptyString(t *testing.T) {
+	testSettings := handlersettings.HandlerSettings{
+		PublicSettings:    "{}",
+		ProtectedSettings: "[{\"applicationName\": \"iggy\", \"order\": 1 }]",
+	}
+
+	out, err := extdeserialization.GetVMAppProtectedSettings(&testSettings)
+	require.NoError(t, err)
+
+	require.EqualValues(t, "iggy", out[0].ApplicationName)
+	require.EqualValues(t, 1, *out[0].Order)
+	require.Empty(t, *&out[0].Version)
 }
 
 func Test_getVMAppProtectedSettings_valid_no_custom_actions(t *testing.T) {

@@ -96,7 +96,7 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 				if err == nil {
 					// download packages
 					downloadPackageFileName := path.Join(downloadPath, vmAppPackageCurrent.PackageFileName)
-					if err := actionPlan.hostGaCommunicator.DownloadPackage(actionPlan.logger, vmAppPackageCurrent.ApplicationName, downloadPackageFileName); err != nil {
+					if err := actionPlan.hostGaCommunicator.DownloadPackage(actionPlan.logger, vmAppPackageCurrent.ApplicationName, version, downloadPackageFileName); err != nil {
 						actionPlan.logger.Error("Failed to download package for application %v, version %v. Error: %v", appName, version, err.Error())
 						errorMessageToReturn = extensionerrors.CombineErrors(errorMessageToReturn, errors.Wrapf(err, "failed to download package file %s", downloadPackageFileName))
 					}
@@ -111,7 +111,7 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 					// download configuration
 					if vmAppPackageCurrent.ConfigExists {
 						downloadConfigFileName := path.Join(downloadPath, vmAppPackageCurrent.ConfigFileName)
-						if err := actionPlan.hostGaCommunicator.DownloadConfig(actionPlan.logger, vmAppPackageCurrent.ApplicationName, downloadConfigFileName); err != nil {
+						if err := actionPlan.hostGaCommunicator.DownloadConfig(actionPlan.logger, vmAppPackageCurrent.ApplicationName, version, downloadConfigFileName); err != nil {
 							actionPlan.logger.Error("Failed to download config for application %v, version %v. Error: %v", appName, version, err.Error())
 							errorMessageToReturn = extensionerrors.CombineErrors(errorMessageToReturn, errors.Wrapf(err, "failed to download config file %s", downloadConfigFileName))
 						}

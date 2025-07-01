@@ -74,8 +74,8 @@ type metadataRequestFactory struct {
 	url string
 }
 
-func newMetadataRequestFactory(el *logging.ExtensionLogger, appName string) (*metadataRequestFactory, error) {
-	url, err := getOperationURI(el, appName, metadataOperation)
+func newMetadataRequestFactory(el *logging.ExtensionLogger, appName string, appVersion string) (*metadataRequestFactory, error) {
+	url, err := getOperationURI(el, appName, appVersion, metadataOperation)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to obtain operationURI")
 	}
@@ -88,8 +88,8 @@ func (u metadataRequestFactory) GetRequest() (*http.Request, error) {
 	return http.NewRequest("GET", u.url, nil)
 }
 
-func getMetadataRequestManager(el *logging.ExtensionLogger, appName string) (*requesthelper.RequestManager, error) {
-	factory, err := newMetadataRequestFactory(el, appName)
+func getMetadataRequestManager(el *logging.ExtensionLogger, appName string, appVersion string) (*requesthelper.RequestManager, error) {
+	factory, err := newMetadataRequestFactory(el, appName, appVersion)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to create request factory")
 	}

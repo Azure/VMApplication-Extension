@@ -2,11 +2,12 @@ package hostgacommunicator
 
 import (
 	"fmt"
-	"github.com/Azure/azure-extension-platform/pkg/constants"
 	"io"
 	"net/http"
 	"os"
 	"time"
+
+	"github.com/Azure/azure-extension-platform/pkg/constants"
 
 	"github.com/Azure/VMApplication-Extension/internal/requesthelper"
 	"github.com/Azure/azure-extension-platform/pkg/logging"
@@ -34,8 +35,8 @@ type downloadRequestFactory struct {
 	downloadedBytes int64
 }
 
-func newPackageDownloadRequestFactory(el *logging.ExtensionLogger, appName string) (*downloadRequestFactory, error) {
-	downloadURL, err := getOperationURI(el, appName, packageOperation)
+func newPackageDownloadRequestFactory(el *logging.ExtensionLogger, appName string, appVersion string) (*downloadRequestFactory, error) {
+	downloadURL, err := getOperationURI(el, appName, appVersion, packageOperation)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to obtain operationURI")
 	}
@@ -48,8 +49,8 @@ func newPackageDownloadRequestFactory(el *logging.ExtensionLogger, appName strin
 	return &drf, nil
 }
 
-func newConfigDownloadRequestFactory(el *logging.ExtensionLogger, appName string) (*downloadRequestFactory, error) {
-	downloadURL, err := getOperationURI(el, appName, configOperation)
+func newConfigDownloadRequestFactory(el *logging.ExtensionLogger, appName string, appVersion string) (*downloadRequestFactory, error) {
+	downloadURL, err := getOperationURI(el, appName, appVersion, configOperation)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to obtain operationURI")
 	}

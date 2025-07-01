@@ -90,6 +90,11 @@ func WithRetries(el *logging.ExtensionLogger, rm *RequestManager, sf SleepFunc) 
 func isTransientHTTPStatusCode(statusCode int) bool {
 	switch statusCode {
 	case
+		// A 404 error from HGAP will be considered a transient error. This either means:
+		// - Gallery application data for the container was not found
+		// - Metadata for the specific applicaton version requested was not found
+		// This is not an expected error and is likely an indication of a race condition, so the request will be retried.
+		http.StatusNotFound,            // 404
 		http.StatusRequestTimeout,      // 408
 		http.StatusTooManyRequests,     // 429
 		http.StatusInternalServerError, // 500

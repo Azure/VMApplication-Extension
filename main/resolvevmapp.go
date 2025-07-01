@@ -16,7 +16,7 @@ func getVMAppIncomingCollection(settings extdeserialization.VmAppProtectedSettin
 		if app.ApplicationName == "" {
 			return nil, errors.New("missing application name")
 		}
-		vmAppInfo, err := communicator.GetVMAppInfo(el, app.ApplicationName)
+		vmAppInfo, err := communicator.GetVMAppInfo(el, app.ApplicationName, app.Version)
 		if err != nil {
 			// TODO: ignore errors?
 			return incomingCollection, err

@@ -27,17 +27,21 @@ type mockHostGaCommunicator struct {
 	DownloadConfigCount  int
 }
 
-func (mockCommunicator *mockHostGaCommunicator) GetVMAppInfo(el *logging.ExtensionLogger, appName string) (*hostgacommunicator.VMAppMetadata, error) {
+func (mockCommunicator *mockHostGaCommunicator) GetVMAppInfo(el *logging.ExtensionLogger, appName string, appVersion string) (*hostgacommunicator.VMAppMetadata, error) {
 	return &hostgacommunicator.VMAppMetadata{}, nil
 }
 
-func (mockCommunicator *mockHostGaCommunicator) DownloadPackage(el *logging.ExtensionLogger, appName string, dst string) error {
-	mockCommunicator.DownloadPackageCount++
+func (mockCommunicator *mockHostGaCommunicator) DownloadPackage(el *logging.ExtensionLogger, appName string, appVersion string, dst string) error {
+	if appVersion == vmAppPackageCurrent.Version {
+		mockCommunicator.DownloadPackageCount++
+	}
 	return copyFile(mockCommunicator.pkgFileSourcePath, dst)
 }
 
-func (mockCommunicator *mockHostGaCommunicator) DownloadConfig(el *logging.ExtensionLogger, appName string, dst string) error {
-	mockCommunicator.DownloadConfigCount++
+func (mockCommunicator *mockHostGaCommunicator) DownloadConfig(el *logging.ExtensionLogger, appName string, appVersion string, dst string) error {
+	if appVersion == vmAppPackageCurrent.Version {
+		mockCommunicator.DownloadConfigCount++
+	}
 	return copyFile(mockCommunicator.configFileSourcePath, dst)
 }
 
@@ -88,7 +92,7 @@ var extensionLogger = logging.New(nil)
 var extensionEventManager = extensionevents.New(extensionLogger, &handlerEnvironment)
 var vmAppPackageCurrent = packageregistry.VMAppPackageCurrent{
 	ApplicationName: "test app",
-	Version:         "1.0.0",
+	Version:         "1.5.0",
 	InstallCommand:  "install",
 	RemoveCommand:   "remove",
 	UpdateCommand:   "update",

@@ -91,6 +91,19 @@ func TestWithRetries_failing_validateNumberOfCalls(t *testing.T) {
 	require.EqualValues(t, 7, d.calls, "calls exactly expRetryN times")
 }
 
+func TestRequestRetriedOnHttpNotFound(t *testing.T) {
+	srv := httptest.NewServer(httpbin.GetMux())
+	defer srv.Close()
+
+	d := NewTestURLRequest(srv.URL + "/status/404")
+	rm := requesthelper.GetRequestManager(d, testRequestTimeout)
+
+	sr := new(sleepRecorder)
+	_, err := requesthelper.WithRetries(nopLog(), rm, sr.Sleep)
+	require.EqualError(t, err, "unexpected status code: actual=404 expected=200")
+	require.EqualValues(t, 7, d.calls, "Request should have been retried expRetryN times")
+}
+
 func TestWithRetries_failedCreateRequest(t *testing.T) {
 	bd := &badDownloader{}
 	rm := requesthelper.GetRequestManager(bd, testRequestTimeout)
