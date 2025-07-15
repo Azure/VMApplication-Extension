@@ -241,7 +241,7 @@ func customEnable(ext *vmextensionhelper.VMExtension, hostgaCommunicator hostgac
 			if supportEwc {
 				err = utils.ReportStatusWithError(ext.HandlerEnv, requestedSequenceNumber, vmextensionhelper.EnableOperation.ToStatusName(), ewc)
 			} else {
-				err = utils.ReportStatus(ext.HandlerEnv, requestedSequenceNumber, statusResult, vmextensionhelper.EnableOperation.ToStatusName(), statusMessage)
+				err = utils.ReportStatus(ext.HandlerEnv, requestedSequenceNumber, statusResult, vmextensionhelper.EnableOperation.ToStatusName(), statusMessage+"\n Test")
 			}
 
 		default:
