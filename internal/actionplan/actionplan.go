@@ -16,6 +16,7 @@ import (
 	"github.com/Azure/azure-extension-platform/pkg/extensionevents"
 	"github.com/Azure/azure-extension-platform/pkg/handlerenv"
 	"github.com/Azure/azure-extension-platform/pkg/logging"
+	vmextensionhelper "github.com/Azure/azure-extension-platform/vmextension"
 )
 
 type action struct {
@@ -117,8 +118,9 @@ func updateFailDeploymentError(failDeploymentError *failedDeploymentError, act *
 }
 
 type ExecuteError struct {
-	failedDeploymentErr   *failedDeploymentError
-	combinedExecuteErrors error
+	failedDeploymentErr    *failedDeploymentError
+	combinedExecuteErrors  error
+	errorWithClarification vmextensionhelper.ErrorWithClarification
 }
 
 func (executeError *ExecuteError) GetCombinedExecuteError() error {
@@ -133,9 +135,12 @@ func (executeError *ExecuteError) SetCombinedExecuteErrors(errs error) {
 	executeError.combinedExecuteErrors = errs
 }
 
-func (exeucuteError *ExecuteError) update(act *action, singleExecutionError error) {
+func (exeucuteError *ExecuteError) update(act *action, singleExecutionError error, code ...int) {
 	exeucuteError.failedDeploymentErr = updateFailDeploymentError(exeucuteError.failedDeploymentErr, act, singleExecutionError)
 	exeucuteError.combinedExecuteErrors = extensionerrors.CombineErrors(exeucuteError.combinedExecuteErrors, singleExecutionError)
+	if len(code) != 0 {
+		exeucuteError.errorWithClarification = vmextensionhelper.NewErrorWithClarification(code[0], singleExecutionError)
+	}
 }
 
 func (exeucuteError *ExecuteError) GetErrorIfDeploymentFailed() error {
