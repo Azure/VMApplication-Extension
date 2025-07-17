@@ -131,6 +131,10 @@ func (executeError *ExecuteError) GetErrorWithClarification() *vmextensionhelper
 	return executeError.errorWithClarification
 }
 
+func (executeError *ExecuteError) SetFailedDeploymentErr(err *failedDeploymentError) {
+	executeError.failedDeploymentErr = err
+}
+
 func (executeError *ExecuteError) SetCombinedExecuteErrors(errs error) {
 	executeError.combinedExecuteErrors = errs
 }
