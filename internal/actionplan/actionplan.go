@@ -120,14 +120,14 @@ func updateFailDeploymentError(failDeploymentError *failedDeploymentError, act *
 type ExecuteError struct {
 	failedDeploymentErr    *failedDeploymentError
 	combinedExecuteErrors  error
-	errorWithClarification *vmextensionhelper.ErrorWithClarification
+	errorWithClarification vmextensionhelper.ErrorWithClarification
 }
 
 func (executeError *ExecuteError) GetCombinedExecuteError() error {
 	return executeError.combinedExecuteErrors
 }
 
-func (executeError *ExecuteError) GetErrorWithClarification() *vmextensionhelper.ErrorWithClarification {
+func (executeError *ExecuteError) GetErrorWithClarification() vmextensionhelper.ErrorWithClarification {
 	return executeError.errorWithClarification
 }
 
@@ -143,7 +143,7 @@ func (exeucuteError *ExecuteError) update(act *action, singleExecutionError erro
 	exeucuteError.failedDeploymentErr = updateFailDeploymentError(exeucuteError.failedDeploymentErr, act, singleExecutionError)
 	exeucuteError.combinedExecuteErrors = extensionerrors.CombineErrors(exeucuteError.combinedExecuteErrors, singleExecutionError)
 	if len(code) != 0 {
-		exeucuteError.errorWithClarification = &code[0]
+		exeucuteError.errorWithClarification = vmextensionhelper.NewErrorWithClarification(code[0].ErrorCode, code[0].Err)
 	}
 }
 
@@ -242,7 +242,7 @@ func (actionPlan *ActionPlan) insertOperation(order *int, dependentActions1 ...*
 }
 
 func (actionPlan *ActionPlan) Execute(registryHandler packageregistry.IPackageRegistry, eem *extensionevents.ExtensionEventManager, commandHandler commandhandler.ICommandHandler) (*ExecuteError, IResult) {
-	var executeError *ExecuteError = &ExecuteError{failedDeploymentErr: nil, combinedExecuteErrors: nil, errorWithClarification: nil}
+	var executeError *ExecuteError = &ExecuteError{failedDeploymentErr: nil, combinedExecuteErrors: nil, errorWithClarification: vmextensionhelper.ErrorWithClarification{}}
 	// registry will be mutated and written to disk so that we can keep track of all the actions that have happened
 	registry, err := registryHandler.GetExistingPackages()
 	if err != nil {
@@ -254,7 +254,7 @@ func (actionPlan *ActionPlan) Execute(registryHandler packageregistry.IPackageRe
 	for _, act := range actionPlan.unorderedImplicitUninstalls {
 		newError, ewc := actionPlan.executeHelper(registryHandler, commandHandler, registry, act, eem)
 		appendExecutionResult(&executionResult, act, newError)
-		executeError.update(act, newError, *ewc)
+		executeError.update(act, newError, ewc)
 	}
 
 	// handle ordered operations
@@ -284,7 +284,7 @@ func (actionPlan *ActionPlan) Execute(registryHandler packageregistry.IPackageRe
 				}
 
 				newError, ewc := actionPlan.executeHelper(registryHandler, commandHandler, registry, act, eem)
-				executeError.update(act, newError, *ewc)
+				executeError.update(act, newError, ewc)
 				appendExecutionResult(&executionResult, act, newError)
 
 				if newError != nil {
@@ -302,7 +302,7 @@ func (actionPlan *ActionPlan) Execute(registryHandler packageregistry.IPackageRe
 	for _, depActions := range actionPlan.unorderedOperations {
 		for _, act := range depActions {
 			newError, ewc := actionPlan.executeHelper(registryHandler, commandHandler, registry, act, eem)
-			executeError.update(act, newError, *ewc)
+			executeError.update(act, newError, ewc)
 			appendExecutionResult(&executionResult, act, newError)
 
 			if newError != nil {
