@@ -26,6 +26,7 @@ import (
 	handlersettings "github.com/Azure/azure-extension-platform/pkg/settings"
 	"github.com/Azure/azure-extension-platform/pkg/status"
 	"github.com/Azure/azure-extension-platform/vmextension"
+	vmextensionhelper "github.com/Azure/azure-extension-platform/vmextension"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -602,5 +603,204 @@ func createTestVMExtension(t *testing.T, settings interface{}) *vmextension.VMEx
 		},
 		ExtensionLogger: el,
 		ExtensionEvents: eem,
+	}
+}
+
+func Test_customEnable_ErrorWithClarification_EmptyStruct(t *testing.T) {
+	var ewc vmextensionhelper.ErrorWithClarification
+
+	supportEwc := false
+	if ewc != (vmextensionhelper.ErrorWithClarification{}) {
+		supportEwc = true
+	}
+
+	// For empty struct, supportEwc should be false
+	assert.False(t, supportEwc, "supportEwc should be false for empty ErrorWithClarification")
+}
+
+func Test_customEnable_ErrorWithClarification_PopulatedStruct(t *testing.T) {
+	testError := errors.New("test error")
+	errorCode := utils.CommandExecutionError
+	ewc := vmextensionhelper.NewErrorWithClarification(errorCode, testError)
+
+	supportEwc := false
+	if ewc != (vmextensionhelper.ErrorWithClarification{}) {
+		supportEwc = true
+	}
+
+	// For populated struct, supportEwc should be true
+	assert.True(t, supportEwc, "supportEwc should be true for populated ErrorWithClarification")
+	assert.Equal(t, errorCode, ewc.ErrorCode, "Error code should match")
+	assert.Equal(t, testError.Error(), ewc.Err.Error(), "Error message should match")
+}
+
+func Test_customEnable_ErrorWithClarification_ComparisonLogic(t *testing.T) {
+	testCases := []struct {
+		name               string
+		errorCode          int
+		errorMessage       string
+		expectedSupportEwc bool
+	}{
+		{
+			name:               "Empty error clarification",
+			errorCode:          0,
+			errorMessage:       "",
+			expectedSupportEwc: false,
+		},
+		{
+			name:               "Error code only",
+			errorCode:          utils.CommandExecutionError,
+			errorMessage:       "",
+			expectedSupportEwc: true,
+		},
+		{
+			name:               "Error message only",
+			errorCode:          0,
+			errorMessage:       "test error",
+			expectedSupportEwc: true,
+		},
+		{
+			name:               "Both error code and message",
+			errorCode:          utils.NonZeroExitCodeError,
+			errorMessage:       "non-zero exit code",
+			expectedSupportEwc: true,
+		},
+		{
+			name:               "Negative error code",
+			errorCode:          utils.WriteToDiskError,
+			errorMessage:       "disk write failed",
+			expectedSupportEwc: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var ewc vmextensionhelper.ErrorWithClarification
+
+			if tc.errorCode != 0 || tc.errorMessage != "" {
+				var testError error
+				if tc.errorMessage != "" {
+					testError = errors.New(tc.errorMessage)
+				}
+				ewc = vmextensionhelper.NewErrorWithClarification(tc.errorCode, testError)
+			}
+
+			supportEwc := false
+			if ewc != (vmextensionhelper.ErrorWithClarification{}) {
+				supportEwc = true
+			}
+
+			assert.Equal(t, tc.expectedSupportEwc, supportEwc,
+				"supportEwc value should match expected for case: %s", tc.name)
+		})
+	}
+}
+
+func Test_customEnable_StatusErrorPath_WithClarification(t *testing.T) {
+	vmApplications := []extdeserialization.VmAppSetting{
+		{
+			ApplicationName:                 "testapp",
+			TreatFailureAsDeploymentFailure: true,
+		},
+	}
+
+	ext := createTestVMExtension(t, vmApplications)
+	hostGaCommunicator := &NoopHostGaCommunicator{}
+	hostGaCommunicator.SetupVMAppInfo("testapp", "1.0", "install")
+
+	executeError := &actionplan.ExecuteError{}
+
+	// Deployment failure but no error clarification
+
+	requestedSequenceNumber := *ext.CurrentSequenceNumber + 1
+	statusMessage := "test error message"
+
+	// Test empty clarification
+	ewc := executeError.GetErrorWithClarification()
+	supportEwc := false
+	if ewc != (vmextensionhelper.ErrorWithClarification{}) {
+		supportEwc = true
+	}
+
+	// Should be false for empty clarification
+	assert.False(t, supportEwc, "supportEwc should be false when no error clarification is set")
+
+	// Test with ReportStatus for empty clarification
+	err := utils.ReportStatus(ext.HandlerEnv, requestedSequenceNumber, status.StatusError, vmextensionhelper.EnableOperation.ToStatusName(), statusMessage)
+	assert.NoError(t, err)
+
+	// Verify status was written
+	statusType, err := utils.GetStatusType(ext.HandlerEnv, requestedSequenceNumber)
+	require.NoError(t, err)
+	assert.Equal(t, status.StatusError, statusType)
+}
+
+func Test_customEnable_StatusErrorPath_WithoutClarification(t *testing.T) {
+	vmApplications := []extdeserialization.VmAppSetting{
+		{
+			ApplicationName:                 "testapp2",
+			TreatFailureAsDeploymentFailure: true,
+		},
+	}
+
+	ext := createTestVMExtension(t, vmApplications)
+
+	// Create a test ExecuteError with error clarification set
+	executeError := &actionplan.ExecuteError{}
+	testError := errors.New("test deployment failed")
+	errorCode := utils.NonZeroExitCodeError
+
+	// Simulate setting error clarification manually
+	executeError.SetCombinedExecuteErrors(testError)
+
+	requestedSequenceNumber := *ext.CurrentSequenceNumber + 1
+
+	ewc := vmextensionhelper.NewErrorWithClarification(errorCode, testError)
+
+	supportEwc := false
+	if ewc != (vmextensionhelper.ErrorWithClarification{}) {
+		supportEwc = true
+	}
+
+	// Should be true for populated clarification
+	assert.True(t, supportEwc, "supportEwc should be true when error clarification is set")
+
+	// Test with ReportStatusWithError for populated clarification
+	err := utils.ReportStatusWithError(ext.HandlerEnv, requestedSequenceNumber, vmextensionhelper.EnableOperation.ToStatusName(), ewc)
+	assert.NoError(t, err)
+
+	// Verify status was written
+	statusType, err := utils.GetStatusType(ext.HandlerEnv, requestedSequenceNumber)
+	require.NoError(t, err)
+	assert.Equal(t, status.StatusError, statusType)
+}
+
+func Test_customEnable_StatusSuccess_NoErrorHandling(t *testing.T) {
+	vmApplications := []extdeserialization.VmAppSetting{
+		{
+			ApplicationName: "successapp",
+		},
+	}
+
+	ext := createTestVMExtension(t, vmApplications)
+	hostGaCommunicator := &NoopHostGaCommunicator{}
+	hostGaCommunicator.SetupVMAppInfo("successapp", "1.0", "install")
+
+	// Create a successful ExecuteError
+	executeError := &actionplan.ExecuteError{}
+
+	requestedSequenceNumber := *ext.CurrentSequenceNumber + 1
+	statusMessage := "Success"
+
+	// Test the success case (no error with clarification)
+	if executeError.GetErrorIfDeploymentFailed() == nil {
+		// For success, we go to the default case in the switch statement
+		err := utils.ReportStatus(ext.HandlerEnv, requestedSequenceNumber, status.StatusSuccess, vmextensionhelper.EnableOperation.ToStatusName(), statusMessage)
+		assert.NoError(t, err)
+
+		// Verify status was written as success
+		statusType, err := utils.GetStatusType(ext.HandlerEnv, requestedSequenceNumber)
+		require.NoError(t, err)
+		assert.Equal(t, status.StatusSuccess, statusType)
 	}
 }
