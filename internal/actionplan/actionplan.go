@@ -252,7 +252,7 @@ func (actionPlan *ActionPlan) Execute(registryHandler packageregistry.IPackageRe
 
 	// handle unordered implicit uninstalls
 	for _, act := range actionPlan.unorderedImplicitUninstalls {
-		newError, ewc := actionPlan.executeHelper(registryHandler, commandHandler, registry, act, eem)
+		ewc, newError := actionPlan.executeHelper(registryHandler, commandHandler, registry, act, eem)
 		appendExecutionResult(&executionResult, act, newError)
 		executeError.update(act, newError, ewc)
 	}
@@ -283,7 +283,7 @@ func (actionPlan *ActionPlan) Execute(registryHandler packageregistry.IPackageRe
 					break
 				}
 
-				newError, ewc := actionPlan.executeHelper(registryHandler, commandHandler, registry, act, eem)
+				ewc, newError := actionPlan.executeHelper(registryHandler, commandHandler, registry, act, eem)
 				executeError.update(act, newError, ewc)
 				appendExecutionResult(&executionResult, act, newError)
 
@@ -301,7 +301,7 @@ func (actionPlan *ActionPlan) Execute(registryHandler packageregistry.IPackageRe
 	// handle remaining unordered operations
 	for _, depActions := range actionPlan.unorderedOperations {
 		for _, act := range depActions {
-			newError, ewc := actionPlan.executeHelper(registryHandler, commandHandler, registry, act, eem)
+			ewc, newError := actionPlan.executeHelper(registryHandler, commandHandler, registry, act, eem)
 			executeError.update(act, newError, ewc)
 			appendExecutionResult(&executionResult, act, newError)
 

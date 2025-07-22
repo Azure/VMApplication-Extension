@@ -148,22 +148,22 @@ func TestExecuteHelper(t *testing.T) {
 	defer cleanTest()
 	action := action{vmAppPackageCurrent, false, packageregistry.Install}
 	err, _ := actionPlan.executeHelper(packageRegistry, commandHandler, packageregistry.CurrentPackageRegistry{}, &action, extensionEventManager)
-	assert.NoError(t, err)
+	assert.NoError(t, err.Err)
 	assert.EqualValues(t, 1, mhgCommunicator.DownloadPackageCount, "download package count should be 1")
 	assert.EqualValues(t, 1, mhgCommunicator.DownloadConfigCount, "download config count should be 1")
 
 	action.actionToPerform = packageregistry.Remove
 	err, _ = actionPlan.executeHelper(packageRegistry, commandHandler, packageregistry.CurrentPackageRegistry{}, &action, extensionEventManager)
-	assert.NoError(t, err)
+	assert.NoError(t, err.Err)
 	assert.EqualValues(t, 1, mhgCommunicator.DownloadPackageCount, "download package count should be 1")
 	assert.EqualValues(t, 1, mhgCommunicator.DownloadConfigCount, "download config count should be 1")
 
 	assert.EqualValues(t, vmAppPackageCurrent.InstallCommand, commandHandler.Result[0].command, "1st command should be install")
 	assert.EqualValues(t, vmAppPackageCurrent.RemoveCommand, commandHandler.Result[1].command, "2nd command should be remove")
 	assert.Equal(t, 2, len(commandHandler.Result), "only 2 commands should be executed")
-	_, err = os.Stat(vmAppPackageCurrent.DownloadDir)
+	_, err.Err = os.Stat(vmAppPackageCurrent.DownloadDir)
 	assert.Error(t, err, "downloadDir should be deleted")
-	_, ok := err.(*os.PathError)
+	_, ok := err.Err.(*os.PathError)
 	assert.True(t, ok, "downloadDir should be deleted")
 }
 

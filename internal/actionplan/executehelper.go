@@ -26,7 +26,7 @@ const MaxReboots = 3
 
 func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPackageRegistry,
 	commandHandler commandhandler.ICommandHandler, registry packageregistry.CurrentPackageRegistry,
-	act *action, eem *extensionevents.ExtensionEventManager) (errorMessageToReturn error, errorWithClarification vmextensionhelper.ErrorWithClarification) {
+	act *action, eem *extensionevents.ExtensionEventManager) (errorWithClarification vmextensionhelper.ErrorWithClarification, errorMessageToReturn error) {
 	errorMessageToReturn = nil
 	appName := act.vmAppPackage.ApplicationName
 	version := act.vmAppPackage.Version
@@ -43,12 +43,12 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 	// return early for Cleanup operation
 	if vmAppPackageCurrent.OngoingOperation == packageregistry.Cleanup {
 		delete(registry, appName)
-		return registryHandler.WriteToDisk(registry), ewc
+		return ewc, registryHandler.WriteToDisk(registry)
 	}
 	err := registryHandler.WriteToDisk(registry)
 	if err != nil {
 		ewc = vmextensionhelper.NewErrorWithClarification(utils.WriteToDiskError, err)
-		return err, ewc
+		return ewc, err
 	}
 
 	var commandToExecute string
@@ -250,7 +250,7 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 
 	err = registryHandler.WriteToDisk(registry)
 	if err != nil {
-		return markCommandFailed(act.actionToPerform, commandToExecute, appName, version, err, eem), ewc
+		return ewc, markCommandFailed(act.actionToPerform, commandToExecute, appName, version, err, eem)
 	}
 
 	if errorMessageToReturn == nil {
@@ -260,7 +260,7 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 		return
 	}
 
-	return markCommandFailed(act.actionToPerform, commandToExecute, appName, version, errorMessageToReturn, eem), ewc
+	return ewc, markCommandFailed(act.actionToPerform, commandToExecute, appName, version, errorMessageToReturn, eem)
 }
 
 func markCommandFailed(actionPerformed packageregistry.ActionEnum, commandToExecute string, appName string, version string, err error, eem *extensionevents.ExtensionEventManager) error {
