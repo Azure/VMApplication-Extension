@@ -643,7 +643,7 @@ func Test_customEnable_ErrorWithClarification_ComparisonLogic(t *testing.T) {
 	}{
 		{
 			name:               "Empty error clarification",
-			errorCode:          0,
+			errorCode:          utils.NoError,
 			errorMessage:       "",
 			expectedSupportEwc: false,
 		},
@@ -723,16 +723,16 @@ func Test_customEnable_StatusErrorPath_WithClarification(t *testing.T) {
 	}
 
 	// Should be false for empty clarification
-	assert.False(t, supportEwc, "supportEwc should be false when no error clarification is set")
+	assert.False(t, supportEwc, "testapp: supportEwc should be false when no error clarification is set")
 
 	// Test with ReportStatus for empty clarification
 	err := utils.ReportStatus(ext.HandlerEnv, requestedSequenceNumber, status.StatusError, vmextensionhelper.EnableOperation.ToStatusName(), statusMessage)
-	assert.NoError(t, err)
+	assert.NoError(t, err, "testapp: ReportStatus should not return an error for empty clarification")
 
 	// Verify status was written
 	statusType, err := utils.GetStatusType(ext.HandlerEnv, requestedSequenceNumber)
-	require.NoError(t, err)
-	assert.Equal(t, status.StatusError, statusType)
+	require.NoError(t, err, "testapp: GetStatusType should not return an error")
+	assert.Equal(t, status.StatusError, statusType, "testapp: status should be error")
 }
 
 func Test_customEnable_StatusErrorPath_WithoutClarification(t *testing.T) {
@@ -757,13 +757,7 @@ func Test_customEnable_StatusErrorPath_WithoutClarification(t *testing.T) {
 
 	ewc := vmextensionhelper.NewErrorWithClarification(errorCode, testError)
 
-	supportEwc := false
-	if ewc != (vmextensionhelper.ErrorWithClarification{}) {
-		supportEwc = true
-	}
-
-	// Should be true for populated clarification
-	assert.True(t, supportEwc, "supportEwc should be true when error clarification is set")
+	assert.True(t, (ewc != (vmextensionhelper.ErrorWithClarification{})), "testapp2: error clarification should not be empty")
 
 	// Test with ReportStatusWithError for populated clarification
 	err := utils.ReportStatusWithError(ext.HandlerEnv, requestedSequenceNumber, vmextensionhelper.EnableOperation.ToStatusName(), ewc)
@@ -771,8 +765,8 @@ func Test_customEnable_StatusErrorPath_WithoutClarification(t *testing.T) {
 
 	// Verify status was written
 	statusType, err := utils.GetStatusType(ext.HandlerEnv, requestedSequenceNumber)
-	require.NoError(t, err)
-	assert.Equal(t, status.StatusError, statusType)
+	require.NoError(t, err, "testapp2: GetStatusType should not return an error")
+	assert.Equal(t, status.StatusError, statusType, "testapp2: status should be error")
 }
 
 func Test_customEnable_StatusSuccess_NoErrorHandling(t *testing.T) {
@@ -796,11 +790,11 @@ func Test_customEnable_StatusSuccess_NoErrorHandling(t *testing.T) {
 	if executeError.GetErrorIfDeploymentFailed() == nil {
 		// For success, we go to the default case in the switch statement
 		err := utils.ReportStatus(ext.HandlerEnv, requestedSequenceNumber, status.StatusSuccess, vmextensionhelper.EnableOperation.ToStatusName(), statusMessage)
-		assert.NoError(t, err)
+		assert.NoError(t, err, "ReportStatus should not return an error for successapp")
 
 		// Verify status was written as success
 		statusType, err := utils.GetStatusType(ext.HandlerEnv, requestedSequenceNumber)
-		require.NoError(t, err)
+		require.NoError(t, err, "Successapp: GetStatusType should not return an error")
 		assert.Equal(t, status.StatusSuccess, statusType)
 	}
 }

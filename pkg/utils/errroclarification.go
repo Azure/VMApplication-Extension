@@ -1,12 +1,15 @@
 package utils
 
-var WriteToDiskError = -1
-var UnexpectedActionError = -2
-var FailedToCreateDirectoryError = -3
-var FailedToDownloadPackageError = -4
-var FailedToDownloadConfigError = -5
-var DeleteOperationError = -6
+const (
+	WriteToDiskError             = -1
+	UnexpectedActionError        = -2
+	FailedToCreateDirectoryError = -3
+	FailedToDownloadPackageError = -4
+	FailedToDownloadConfigError  = -5
+	DeleteOperationError         = -6
+	CommandExecutionError        = 1
+	DeletedAppVersionError       = 2
+	NonZeroExitCodeError         = 3
 
-var CommandExecutionError = 1
-var DeletedAppVersionError = 2
-var NonZeroExitCodeError = 3
+	NoError = 0
+)

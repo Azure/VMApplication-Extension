@@ -43,7 +43,9 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 	// return early for Cleanup operation
 	if vmAppPackageCurrent.OngoingOperation == packageregistry.Cleanup {
 		delete(registry, appName)
-		return ewc, registryHandler.WriteToDisk(registry)
+		err := registryHandler.WriteToDisk(registry)
+		ewc = vmextensionhelper.NewErrorWithClarification(utils.WriteToDiskError, err)
+		return ewc, err
 	}
 	err := registryHandler.WriteToDisk(registry)
 	if err != nil {
