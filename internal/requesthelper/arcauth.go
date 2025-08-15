@@ -62,8 +62,6 @@ func (a *ArcAuthHandler) handleArcChallenge(el *logging.ExtensionLogger, wwwAuth
 		return nil, errors.Wrap(err, "failed to parse Arc authentication challenge")
 	}
 
-	el.Info("Arc challenge file path: %s", challengePath) // TODO: remove after
-
 	if err := validateArcChallengePath(el, challengePath); err != nil {
 		el.Error("Arc challenge validation failed: %v", err)
 		return nil, errors.Wrap(err, "Arc challenge validation failed")
@@ -134,15 +132,6 @@ func (a *ArcAuthHandler) makeRequestWithToken(el *logging.ExtensionLogger, token
 	}
 
 	el.Error("Arc authentication failed, status: %d", resp.StatusCode)
-
-	// Read error response for logging TODO: maybe remove
-	// if resp.Body != nil {
-	// 	errorBody, readErr := io.ReadAll(resp.Body)
-	// 	resp.Body.Close()
-	// 	if readErr == nil {
-	// 		el.Error("Arc authentication error response: %s", string(errorBody))
-	// 	}
-	// }
 
 	return resp, fmt.Errorf("arc authentication failed with status: %d", resp.StatusCode)
 }
