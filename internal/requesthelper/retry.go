@@ -32,7 +32,7 @@ const (
 func WithRetries(el *logging.ExtensionLogger, rm *RequestManager, sf SleepFunc) (*http.Response, error) {
 	var lastErr error
 
-	for n := 0; n < expRetryN; n++ {
+	for n := range expRetryN {
 		resp, err := rm.MakeRequest()
 		if err == nil {
 			return resp, nil
@@ -100,4 +100,64 @@ func isTransientHTTPStatusCode(statusCode int) bool {
 	default:
 		return false
 	}
+}
+
+// WithRetriesArc retrieves a response body using the Arc authentication handler with retries.
+// It handles the Arc challenge-response flow and retries on transient errors.
+func WithRetriesArc(el *logging.ExtensionLogger, arcHandler *ArcAuthHandler, sf SleepFunc) (*http.Response, error) {
+	var lastErr error
+
+	for n := range expRetryN {
+		resp, err := arcHandler.MakeArcRequest(el)
+		if err == nil {
+			return resp, nil
+		}
+
+		lastErr = err
+		el.Warn("Arc request error: %v", err)
+
+		status := -1
+		if resp != nil {
+			if resp.Body != nil { // we are not going to read this response body
+				resp.Body.Close()
+			}
+
+			status = resp.StatusCode
+		}
+
+		// status == -1 the value when there was no http request
+		if status == -1 {
+			te, haste := lastErr.(interface {
+				Temporary() bool
+			})
+			to, hasto := lastErr.(interface {
+				Timeout() bool
+			})
+
+			if haste || hasto {
+				if haste && te.Temporary() {
+					el.Info("Temporary error occurred in Arc request. Retrying: %v", lastErr)
+				} else if hasto && to.Timeout() {
+					el.Info("Timeout error occurred in Arc request. Retrying: %v", lastErr)
+				} else {
+					el.Info("Non-timeout, non-temporary error occurred in Arc request, skipping retries: %v", lastErr)
+					break
+				}
+			} else {
+				el.Info("No response returned from Arc request and unexpected error, skipping retries")
+				break
+			}
+		} else if !isTransientHTTPStatusCode(status) {
+			el.Info("Arc request returned %v, skipping retries", status)
+			break
+		}
+
+		if n != expRetryN-1 {
+			// have more retries to go, sleep before retrying
+			slp := expRetryK * time.Duration(int(math.Pow(float64(expRetryM), float64(n))))
+			sf(slp)
+		}
+	}
+
+	return nil, lastErr
 }

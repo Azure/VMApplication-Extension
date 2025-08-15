@@ -5,11 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path"
+	"runtime"
 	"testing"
 
 	"github.com/Azure/azure-extension-platform/pkg/logging"
@@ -50,7 +50,6 @@ func TestGetVmAppInfo_InvalidUri(t *testing.T) {
 func TestGetVmAppInfo_RequestFailed(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusConflict)
-		return
 	}))
 	defer srv.Close()
 
@@ -66,7 +65,6 @@ func TestGetVmAppInfo_CouldNotDecodeResponse(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 		b := []byte(`"Type":"Chipmunk","Age":6,"FavoriteFoods":["Acorns","Cookies"]}`)
 		w.Write(b)
-		return
 	}))
 	defer srv.Close()
 
@@ -90,7 +88,6 @@ func TestGetVmAppInfo_MissingProperties(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		w.Write(output)
-		return
 	}))
 	defer srv.Close()
 
@@ -119,7 +116,6 @@ func TestGetVmAppInfo_ValidResponse(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		w.Write(output)
-		return
 	}))
 	defer srv.Close()
 
@@ -140,16 +136,15 @@ func TestDownloadPackage_CannotRemoveExistingFile(t *testing.T) {
 	defer cleanupTestDir()
 	filePath := path.Join(testDirPath, "LockedFile")
 	lf, err := os.Create(filePath)
+	require.Nil(t, err, "File creation failed")
 	defer lf.Close()
 	removeFileFunc = func(filename string) error {
 		return errors.New("Could not remove the existing file")
 	}
 	defer func() { removeFileFunc = removeFile }()
-	require.Nil(t, err, "File creation failed")
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		return
 	}))
 	defer srv.Close()
 
@@ -165,7 +160,6 @@ func TestDownloadPackage_InvalidPath(t *testing.T) {
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		return
 	}))
 	defer srv.Close()
 
@@ -186,7 +180,6 @@ func TestDownloadPackage_SingeCallDownload(t *testing.T) {
 		b := []byte(expected)
 		w.WriteHeader(http.StatusOK)
 		w.Write(b)
-		return
 	}))
 	defer srv.Close()
 
@@ -217,7 +210,6 @@ func TestDownloadPackage_TooManyTries(t *testing.T) {
 		}
 
 		w.Write(b)
-		return
 	}))
 	defer srv.Close()
 
@@ -247,8 +239,6 @@ func TestDownloadPackage_IntermediateCallFails(t *testing.T) {
 		} else {
 			w.WriteHeader(http.StatusNotFound)
 		}
-
-		return
 	}))
 	defer srv.Close()
 
@@ -284,7 +274,6 @@ func TestDownloadPackage_MultipleCallDownload(t *testing.T) {
 		}
 
 		w.Write(b)
-		return
 	}))
 	defer srv.Close()
 
@@ -306,7 +295,6 @@ func TestDownloadConfig_SingeCallDownload(t *testing.T) {
 		b := []byte(expected)
 		w.WriteHeader(http.StatusOK)
 		w.Write(b)
-		return
 	}))
 	defer srv.Close()
 
@@ -351,7 +339,11 @@ func TestGetOperationUri(t *testing.T) {
 	os.Setenv(WireProtocolAddress, "")
 	uri, err = getOperationURI(el, appName, operation)
 	assert.NoError(t, err)
-	assert.Equal(t, fmt.Sprintf("%s/applications/%s/%s", wireServerFallbackAddress, appName, operation), uri)
+	if isArcAgentPresent(el) {
+		assert.Equal(t, fmt.Sprintf("%s/applications/%s/%s", "https://localhost:40342", appName, operation), uri)
+	} else {
+		assert.Equal(t, fmt.Sprintf("%s/applications/%s/%s", wireServerFallbackAddress, appName, operation), uri)
+	}
 }
 
 func TestGetGetVmAppInfo(t *testing.T) {
@@ -378,7 +370,6 @@ func TestGetGetVmAppInfo(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		w.Write(b)
-		return
 	}))
 	defer srv.Close()
 
@@ -391,10 +382,182 @@ func TestGetGetVmAppInfo(t *testing.T) {
 }
 
 func verifyFileContents(t *testing.T, file string, expected string) {
-	content, err := ioutil.ReadFile(file)
+	content, err := os.ReadFile(file)
 	require.Nil(t, err, "File does not exist")
 	actual := string(content)
 	require.Equal(t, expected, actual)
+}
+
+func TestIsArcAgentPresent_FileExists(t *testing.T) {
+	// Create a temporary file to simulate Arc agent presence
+	tempDir := t.TempDir()
+	arcFile := path.Join(tempDir, "himds.exe")
+	f, err := os.Create(arcFile)
+	require.NoError(t, err)
+	f.Close()
+
+	el := nopLog()
+	result := isArcAgentPresentWithPaths(el, arcFile, arcFile)
+	assert.True(t, result, "Arc agent should be detected when file exists")
+}
+
+func TestIsArcAgentPresent_FileDoesNotExist(t *testing.T) {
+	// Set path to non-existent file
+	nonExistentPath := path.Join(t.TempDir(), "non-existent-himds")
+
+	el := nopLog()
+	result := isArcAgentPresentWithPaths(el, nonExistentPath, nonExistentPath)
+	assert.False(t, result, "Arc agent should not be detected when file does not exist")
+}
+
+func TestGetOperationURI_WithEnvironmentVariable(t *testing.T) {
+	appName := "testApp"
+	operation := "metadata"
+	expectedHost := "custom.host.com:1234"
+
+	// Test with environment variable set
+	os.Setenv(WireProtocolAddress, expectedHost)
+	defer os.Unsetenv(WireProtocolAddress)
+
+	el := nopLog()
+	uri, err := getOperationURI(el, appName, operation)
+	assert.NoError(t, err)
+	assert.Equal(t, fmt.Sprintf("http://%s/applications/%s/%s", expectedHost, appName, operation), uri)
+}
+
+func TestGetOperationURI_WithoutEnvironmentVariable(t *testing.T) {
+	appName := "testApp"
+	operation := "metadata"
+
+	// Ensure no environment variable is set
+	os.Unsetenv(WireProtocolAddress)
+
+	el := nopLog()
+	uri, err := getOperationURI(el, appName, operation)
+	assert.NoError(t, err)
+	// Should either use Arc endpoint or fallback to wire server depending on Arc agent presence
+	// The exact result depends on the test environment, but it should not error
+	assert.Contains(t, uri, fmt.Sprintf("applications/%s/%s", appName, operation))
+
+	if isArcAgentPresent(el) {
+		assert.Contains(t, uri, "localhost")
+	} else {
+		assert.Contains(t, uri, wireServerFallbackAddress)
+	}
+}
+
+func TestGetOperationURI_PriorityOrder(t *testing.T) {
+	appName := "testApp"
+	operation := "metadata"
+
+	// Set environment variable (should take priority over Arc detection)
+	expectedHost := "env.host.com:5678"
+	os.Setenv(WireProtocolAddress, expectedHost)
+	defer os.Unsetenv(WireProtocolAddress)
+
+	el := nopLog()
+	uri, err := getOperationURI(el, appName, operation)
+	assert.NoError(t, err)
+	// Environment variable should take priority
+	assert.Equal(t, fmt.Sprintf("http://%s/applications/%s/%s", expectedHost, appName, operation), uri)
+}
+
+func TestBuildUriUsingWireProtocolAddress_CompleteURL(t *testing.T) {
+	baseAddress := "https://complete.example.com:8080"
+	appName := "testApp"
+	operation := "metadata"
+
+	uri, err := buildUriUsingWireProtocolAddress(baseAddress, appName, operation)
+	assert.NoError(t, err)
+	assert.Equal(t, "https://complete.example.com:8080/applications/testApp/metadata", uri)
+}
+
+func TestBuildUriUsingWireProtocolAddress_HostWithPort(t *testing.T) {
+	baseAddress := "example.com:9090"
+	appName := "testApp"
+	operation := "package"
+
+	uri, err := buildUriUsingWireProtocolAddress(baseAddress, appName, operation)
+	assert.NoError(t, err)
+	assert.Equal(t, "http://example.com:9090/applications/testApp/package", uri)
+}
+
+func TestBuildUriUsingWireProtocolAddress_HostWithoutPort(t *testing.T) {
+	baseAddress := "example.com"
+	appName := "testApp"
+	operation := "config"
+
+	uri, err := buildUriUsingWireProtocolAddress(baseAddress, appName, operation)
+	assert.NoError(t, err)
+	assert.Equal(t, fmt.Sprintf("http://example.com:%s/applications/testApp/config", hostGaPluginPort), uri)
+}
+
+func TestBuildUriUsingWireProtocolAddress_IPWithoutPort(t *testing.T) {
+	baseAddress := "192.168.1.100"
+	appName := "testApp"
+	operation := "metadata"
+
+	uri, err := buildUriUsingWireProtocolAddress(baseAddress, appName, operation)
+	assert.NoError(t, err)
+	assert.Equal(t, fmt.Sprintf("http://192.168.1.100:%s/applications/testApp/metadata", hostGaPluginPort), uri)
+}
+
+func TestBuildUriUsingWireProtocolAddress_IPWithPort(t *testing.T) {
+	baseAddress := "10.0.0.1:1234"
+	appName := "testApp"
+	operation := "package"
+
+	uri, err := buildUriUsingWireProtocolAddress(baseAddress, appName, operation)
+	assert.NoError(t, err)
+	assert.Equal(t, "http://10.0.0.1:1234/applications/testApp/package", uri)
+}
+
+func TestBuildUriUsingWireProtocolAddress_InvalidURL(t *testing.T) {
+	baseAddress := "h%t!p:invalid-url!"
+	appName := "testApp"
+	operation := "metadata"
+
+	_, err := buildUriUsingWireProtocolAddress(baseAddress, appName, operation)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "Could not parse the HostGA URI")
+}
+
+func TestIsArcAgentPresentWithPaths_WindowsPath(t *testing.T) {
+	// Create a temporary file to simulate Arc agent presence
+	tempDir := t.TempDir()
+	arcFile := path.Join(tempDir, "himds.exe")
+	f, err := os.Create(arcFile)
+	require.NoError(t, err)
+	f.Close()
+
+	el := nopLog()
+	result := isArcAgentPresentWithPaths(el, arcFile, "non-existent-linux-path")
+
+	// Result depends on the OS we're running on
+	if runtime.GOOS == "windows" {
+		assert.True(t, result, "Arc agent should be detected when Windows file exists and we're on Windows")
+	} else {
+		assert.False(t, result, "Arc agent should not be detected when we're not on Windows")
+	}
+}
+
+func TestIsArcAgentPresentWithPaths_LinuxPath(t *testing.T) {
+	// Create a temporary file to simulate Arc agent presence
+	tempDir := t.TempDir()
+	arcFile := path.Join(tempDir, "himds")
+	f, err := os.Create(arcFile)
+	require.NoError(t, err)
+	f.Close()
+
+	el := nopLog()
+	result := isArcAgentPresentWithPaths(el, "non-existent-windows-path", arcFile)
+
+	// Result depends on the OS we're running on
+	if runtime.GOOS == "linux" {
+		assert.True(t, result, "Arc agent should be detected when Linux file exists and we're on Linux")
+	} else {
+		assert.False(t, result, "Arc agent should not be detected when we're not on Linux")
+	}
 }
 
 func nopLog() *logging.ExtensionLogger {

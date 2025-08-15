@@ -88,11 +88,13 @@ func (u metadataRequestFactory) GetRequest() (*http.Request, error) {
 	return http.NewRequest("GET", u.url, nil)
 }
 
-func getMetadataRequestManager(el *logging.ExtensionLogger, appName string) (*requesthelper.RequestManager, error) {
+func getMetadataRequestManager(el *logging.ExtensionLogger, appName string) (*requesthelper.RequestManager, bool, error) {
 	factory, err := newMetadataRequestFactory(el, appName)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to create request factory")
+		return nil, false, errors.Wrapf(err, "failed to create request factory")
 	}
 
-	return requesthelper.GetRequestManager(factory, metadataRequestTimeout), nil
+	isArc := isArcAgentPresent(el)
+
+	return requesthelper.GetRequestManager(factory, metadataRequestTimeout), isArc, nil
 }
