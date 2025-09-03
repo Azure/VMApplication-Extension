@@ -24,22 +24,24 @@ const (
 	expRetryM = 2
 )
 
-// WithRetries retrieves a response body using the specified downloader. Any
-// error returned from d will be retried (and retrieved response bodies will be
-// closed on failures). If the retries do not succeed, the last error is returned.
-//
-// It sleeps in exponentially increasing durations between retries.
-func WithRetries(el *logging.ExtensionLogger, rm *RequestManager, sf SleepFunc) (*http.Response, error) {
+// retryRequest is a shared function for retrying HTTP requests with exponential backoff.
+func retryRequest(
+	el *logging.ExtensionLogger,
+	sf SleepFunc,
+	requestFunc func() (*http.Response, error),
+	warnMsg string,
+	infoPrefix string,
+) (*http.Response, error) {
 	var lastErr error
 
-	for n := 0; n < expRetryN; n++ {
-		resp, err := rm.MakeRequest()
+	for n := range expRetryN {
+		resp, err := requestFunc()
 		if err == nil {
 			return resp, nil
 		}
 
 		lastErr = err
-		el.Warn("error: %v", err)
+		el.Warn(warnMsg, err)
 
 		status := -1
 		if resp != nil {
@@ -61,19 +63,19 @@ func WithRetries(el *logging.ExtensionLogger, rm *RequestManager, sf SleepFunc) 
 
 			if haste || hasto {
 				if haste && te.Temporary() {
-					el.Info("Temporary error occurred. Retrying: %v", lastErr)
+					el.Info("%sTemporary error occurred. Retrying: %v", infoPrefix, lastErr)
 				} else if hasto && to.Timeout() {
-					el.Info("Timeout error occurred. Retrying: %v", lastErr)
+					el.Info("%sTimeout error occurred. Retrying: %v", infoPrefix, lastErr)
 				} else {
-					el.Info("Non-timeout, non-temporary error occurred, skipping retries: %v", lastErr)
+					el.Info("%sNon-timeout, non-temporary error occurred, skipping retries: %v", infoPrefix, lastErr)
 					break
 				}
 			} else {
-				el.Info("No response returned and unexpected error, skipping retries")
+				el.Info("%sNo response returned and unexpected error, skipping retries", infoPrefix)
 				break
 			}
 		} else if !isTransientHTTPStatusCode(status) {
-			el.Info("RequestManager returned %v, skipping retries", status)
+			el.Info("%sRequest returned %v, skipping retries", infoPrefix, status)
 			break
 		}
 
@@ -85,6 +87,21 @@ func WithRetries(el *logging.ExtensionLogger, rm *RequestManager, sf SleepFunc) 
 	}
 
 	return nil, lastErr
+}
+
+// WithRetries retrieves a response body using the specified downloader. Any
+// error returned from d will be retried (and retrieved response bodies will be
+// closed on failures). If the retries do not succeed, the last error is returned.
+//
+// It sleeps in exponentially increasing durations between retries.
+func WithRetries(el *logging.ExtensionLogger, rm *RequestManager, sf SleepFunc) (*http.Response, error) {
+	return retryRequest(
+		el,
+		sf,
+		rm.MakeRequest,
+		"error: %v",
+		"",
+	)
 }
 
 func isTransientHTTPStatusCode(statusCode int) bool {
@@ -100,4 +117,16 @@ func isTransientHTTPStatusCode(statusCode int) bool {
 	default:
 		return false
 	}
+}
+
+// WithRetriesArc retrieves a response body using the Arc authentication handler with retries.
+// It handles the Arc challenge-response flow and retries on transient errors.
+func WithRetriesArc(el *logging.ExtensionLogger, arcHandler *ArcAuthHandler, sf SleepFunc) (*http.Response, error) {
+	return retryRequest(
+		el,
+		sf,
+		func() (*http.Response, error) { return arcHandler.MakeArcRequest(el) },
+		"Arc request error: %v",
+		"Arc request: ",
+	)
 }

@@ -3,11 +3,13 @@ package hostgacommunicator
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/url"
+	"os"
+
 	"github.com/Azure/VMApplication-Extension/internal/requesthelper"
 	"github.com/Azure/azure-extension-platform/pkg/logging"
 	"github.com/pkg/errors"
-	"net/url"
-	"os"
 )
 
 const hostGaPluginPort = "32526"
@@ -26,12 +28,21 @@ type HostGaCommunicator struct{}
 
 // GetVMAppInfo returns the metadata for the application
 func (*HostGaCommunicator) GetVMAppInfo(el *logging.ExtensionLogger, appName string) (*VMAppMetadata, error) {
-	requestManager, err := getMetadataRequestManager(el, appName)
+	requestManager, isArc, err := getMetadataRequestManager(el, appName)
 	if err != nil {
 		return nil, errors.Wrapf(err, "Could not create the request manager")
 	}
 
-	resp, err := requesthelper.WithRetries(el, requestManager, requesthelper.ActualSleep)
+	var resp *http.Response
+	if isArc {
+		// Use Arc authentication for Arc endpoints
+		arcHandler := requesthelper.NewArcAuthHandler(requestManager)
+		resp, err = requesthelper.WithRetriesArc(el, arcHandler, requesthelper.ActualSleep)
+	} else {
+		// Use standard retry logic for non-Arc endpoints
+		resp, err = requesthelper.WithRetries(el, requestManager, requesthelper.ActualSleep)
+	}
+
 	if err != nil {
 		return nil, errors.Wrapf(err, "Metadata request failed with retries.")
 	}
@@ -76,13 +87,29 @@ func (*HostGaCommunicator) DownloadConfig(el *logging.ExtensionLogger, appName s
 
 func getOperationURI(el *logging.ExtensionLogger, appName string, operation string) (string, error) {
 	baseAddress := os.Getenv(WireProtocolAddress)
-	if baseAddress == "" {
-		el.Warn("environment variable %s not set, using WireProtocol fallback address", WireProtocolAddress)
-		uri, _ := url.Parse(wireServerFallbackAddress)
-		uri.Path = fmt.Sprintf("applications/%s/%s", appName, operation)
-		return uri.String(), nil
+	if baseAddress != "" {
+		return buildUriUsingWireProtocolAddress(baseAddress, appName, operation)
 	}
 
+	var baseEndpoint string
+	isArcPresent := isArcAgentPresent(el)
+	if isArcPresent {
+		arcEndpoint := getArcEndpoint(el)
+		el.Info("Arc agent detected, using Arc endpoint: %s", arcEndpoint)
+		baseEndpoint = arcEndpoint
+	} else {
+		el.Warn("environment variable %s not set, using WireProtocol fallback address", WireProtocolAddress)
+		baseEndpoint = wireServerFallbackAddress
+	}
+
+	uri, _ := url.Parse(baseEndpoint)
+	// For both Arc and Azure, use the same path structure
+	uri.Path = fmt.Sprintf("applications/%s/%s", appName, operation)
+
+	return uri.String(), nil
+}
+
+func buildUriUsingWireProtocolAddress(baseAddress string, appName string, operation string) (string, error) {
 	uri, err := url.Parse(baseAddress)
 	if err != nil {
 		// ip with port 10.0.0.1:1234 will fail otherwise

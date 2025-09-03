@@ -2,11 +2,12 @@ package hostgacommunicator
 
 import (
 	"fmt"
-	"github.com/Azure/azure-extension-platform/pkg/constants"
 	"io"
 	"net/http"
 	"os"
 	"time"
+
+	"github.com/Azure/azure-extension-platform/pkg/constants"
 
 	"github.com/Azure/VMApplication-Extension/internal/requesthelper"
 	"github.com/Azure/azure-extension-platform/pkg/logging"
@@ -72,7 +73,7 @@ func (u downloadRequestFactory) downloadFile(el *logging.ExtensionLogger, filena
 	finished := false
 	attempts := 0
 
-	for finished == false && err == nil && attempts < maxDownloadAttempts {
+	for !finished && err == nil && attempts < maxDownloadAttempts {
 		finished, err = u.downloadAttempt(el, filename)
 		if err != nil {
 			return errors.Wrapf(err, "Unrecoverable error while downloading the file")
@@ -81,7 +82,7 @@ func (u downloadRequestFactory) downloadFile(el *logging.ExtensionLogger, filena
 		attempts++
 	}
 
-	if finished == false {
+	if !finished {
 		return errors.New("Failed to completely download the file")
 	}
 
@@ -113,7 +114,18 @@ func (u downloadRequestFactory) downloadAttempt(el *logging.ExtensionLogger, fil
 	}
 
 	u.downloadedBytes = fi.Size()
-	resp, err := requesthelper.WithRetries(el, requestManager, requesthelper.ActualSleep)
+
+	var resp *http.Response
+	isArc := isArcAgentPresent(el)
+	if isArc {
+		// Use Arc authentication for Arc endpoints
+		arcHandler := requesthelper.NewArcAuthHandler(requestManager)
+		resp, err = requesthelper.WithRetriesArc(el, arcHandler, requesthelper.ActualSleep)
+	} else {
+		// Use standard retry logic for non-Arc endpoints
+		resp, err = requesthelper.WithRetries(el, requestManager, requesthelper.ActualSleep)
+	}
+
 	if err != nil {
 		return true, errors.Wrapf(err, "Download request failed with retries.")
 	}
