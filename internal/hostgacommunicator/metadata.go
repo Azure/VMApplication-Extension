@@ -21,34 +21,38 @@ var (
 
 // VMAppMetadata contains the format of the metadata returned by HostGAPlugin
 type VMAppMetadata struct {
-	ApplicationName    string `json:"name"`
-	Version            string `json:"version"`
-	InstallCommand     string `json:"install"`
-	UpdateCommand      string `json:"update"`
-	RemoveCommand      string `json:"remove"`
-	DirectDownloadOnly bool   `json:"directOnly"`
-	ConfigExists       bool
-	PackageFileName    string `json:"packageFileName"`
-	ConfigFileName     string `json:"configFileName"`
-	RebootBehavior     string `json:"scriptBehaviorAfterReboot"`
+	ApplicationName         string `json:"name"`
+	Version                 string `json:"version"`
+	InstallCommand          string `json:"install"`
+	UpdateCommand           string `json:"update"`
+	RemoveCommand           string `json:"remove"`
+	DirectDownloadOnly      bool   `json:"directOnly"`
+	ConfigExists            bool
+	PackageFileName         string `json:"packageFileName"`
+	ConfigFileName          string `json:"configFileName"`
+	RebootBehavior          string `json:"scriptBehaviorAfterReboot"`
+	EnableApplicationEvents bool   `json:"enableApplicationEvents"`
 }
 
 type VMAppMetadataReceiver struct {
-	ApplicationName    string `json:"name"`
-	Version            string `json:"version"`
-	InstallCommand     string `json:"install"`
-	UpdateCommand      string `json:"update"`
-	RemoveCommand      string `json:"remove"`
-	DirectDownloadOnly string `json:"directOnly"`
-	Package            string `json:"package"`
-	Config             string `json:"config"`
-	PackageFileName    string `json:"packageFileName"`
-	ConfigFileName     string `json:"configFileName"`
-	RebootBehavior     string `json:"scriptBehaviorAfterReboot"`
+	ApplicationName         string `json:"name"`
+	Version                 string `json:"version"`
+	InstallCommand          string `json:"install"`
+	UpdateCommand           string `json:"update"`
+	RemoveCommand           string `json:"remove"`
+	DirectDownloadOnly      string `json:"directOnly"`
+	Package                 string `json:"package"`
+	Config                  string `json:"config"`
+	PackageFileName         string `json:"packageFileName"`
+	ConfigFileName          string `json:"configFileName"`
+	RebootBehavior          string `json:"scriptBehaviorAfterReboot"`
+	EnableApplicationEvents string `json:"enableApplicationEvents"`
 }
 
 func (receiver *VMAppMetadataReceiver) MapToVMAppMetadata() *VMAppMetadata {
 	directDownloadOnly, err := strconv.ParseBool(receiver.DirectDownloadOnly)
+	enableApplicationEvents, err := strconv.ParseBool(receiver.EnableApplicationEvents)
+	
 	if err != nil {
 		// assume directDownloadOnly is false when parsing fails
 		directDownloadOnly = false
@@ -56,16 +60,17 @@ func (receiver *VMAppMetadataReceiver) MapToVMAppMetadata() *VMAppMetadata {
 
 	configExists := receiver.Config != ""
 	vmAppMetadata := VMAppMetadata{
-		ApplicationName:    receiver.ApplicationName,
-		Version:            receiver.Version,
-		InstallCommand:     receiver.InstallCommand,
-		UpdateCommand:      receiver.UpdateCommand,
-		RemoveCommand:      receiver.RemoveCommand,
-		DirectDownloadOnly: directDownloadOnly,
-		ConfigExists:       configExists,
-		PackageFileName:    receiver.PackageFileName,
-		ConfigFileName:     receiver.ConfigFileName,
-		RebootBehavior:     receiver.RebootBehavior,
+		ApplicationName:         receiver.ApplicationName,
+		Version:                 receiver.Version,
+		InstallCommand:          receiver.InstallCommand,
+		UpdateCommand:           receiver.UpdateCommand,
+		RemoveCommand:           receiver.RemoveCommand,
+		DirectDownloadOnly:      directDownloadOnly,
+		ConfigExists:            configExists,
+		PackageFileName:         receiver.PackageFileName,
+		ConfigFileName:          receiver.ConfigFileName,
+		RebootBehavior:          receiver.RebootBehavior,
+		EnableApplicationEvents: enableApplicationEvents,
 	}
 	return &vmAppMetadata
 }
