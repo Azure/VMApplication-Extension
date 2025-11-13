@@ -1,6 +1,6 @@
 BUNDLEDIR=bundle/linux/prod
 BINDIR=$(BUNDLEDIR)/bin
-EXTENSIONVERSION=1.0.16
+EXTENSIONVERSION=1.0.17
 EXTENSIONNAME=Microsoft.CPlat.Core.VMApplicationManagerLinux
 
 all: clean bundle
