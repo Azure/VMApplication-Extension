@@ -49,5 +49,8 @@ jobs:
     - name: Build
       run: go build -v ./...
 
+    - name: Install gsudo
+      run: choco install gsudo
+      
     - name: Test
       run: gsudo go test -v ./...
