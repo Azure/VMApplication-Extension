@@ -118,7 +118,7 @@ func TestCommandExecutorCanHandleProcessBeingKilled_SingleReboot(t *testing.T) {
 		assert.NoError(t, err, "should be able to get absolute path")
 		transcriptFile := path.Join(currentDirAbsolutePath, testdir, "transcript.txt")
 		// test takes at least 5 seconds to start, need to give it time before killing it
-		executeTestInAnotherThreadAndTerminateBeforeCompletion(t, "TestCommandExecutorCanHandleProcessBeingKilled_SingleReboot", currentDirAbsolutePath, transcriptFile, 20*time.Second)
+		executeTestInAnotherThreadAndTerminateBeforeCompletion(t, "TestCommandExecutorCanHandleProcessBeingKilled_SingleReboot", currentDirAbsolutePath, transcriptFile, 50*time.Second)
 		pkr, err := packageregistry.New(el, environment, time.Second)
 		assert.NoError(t, err, "should be able to get current package registry")
 		if err == nil {
@@ -185,7 +185,7 @@ func TestCommandExecutorCanHandleProcessBeingKilled_RerunRebootBehavior(t *testi
 		for numReboots := 1; numReboots <= MaxReboots+1; numReboots++ {
 			failedApp := numReboots > MaxReboots
 
-			executeTestInAnotherThreadAndTerminateBeforeCompletion(t, "TestCommandExecutorCanHandleProcessBeingKilled_RerunRebootBehavior", currentDirAbsolutePath, transcriptFile, 20*time.Second)
+			executeTestInAnotherThreadAndTerminateBeforeCompletion(t, "TestCommandExecutorCanHandleProcessBeingKilled_RerunRebootBehavior", currentDirAbsolutePath, transcriptFile, 50*time.Second)
 			// If numReboots exceeds MaxReboots, it should be reset to 0
 			validateApplicationAfterReboot(t, newApp.ApplicationName, numReboots%(MaxReboots+1), failedApp)
 		}
