@@ -36,7 +36,7 @@ jobs:
     - uses: actions/checkout@v2
 
     - name: Install gsudo
-      run: choco install gsudo
+      run: choco install gsudo --version 2.6.1
       
     - name: Set up Go
       uses: actions/setup-go@v2
