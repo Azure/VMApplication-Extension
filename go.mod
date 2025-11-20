@@ -1,6 +1,8 @@
 module github.com/Azure/VMApplication-Extension
 
-go 1.23.4
+go 1.24.0
+
+toolchain go1.24.3
 
 require (
 	github.com/Azure/azure-extension-platform v0.0.0-20250107200156-aa20f765d49f
@@ -16,6 +18,6 @@ require (
 	github.com/gorilla/mux v1.7.3 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	golang.org/x/net v0.7.0 // indirect
-	golang.org/x/sys v0.5.0 // indirect
+	golang.org/x/sys v0.38.0 // indirect
 	gopkg.in/yaml.v3 v3.0.0-20200313102051-9f266ea9e77c // indirect
 )

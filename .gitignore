@@ -9,6 +9,5 @@ VmExtensionHelper/seqno/flooperflop/
 VmExtensionHelper/status/statustest/
 internal/actionplan/test.ps1
 vendor
-bundle/*/*/*
-!bundle/*/*/vm-application-manager.zip
+bundle
 extension-launcher*
