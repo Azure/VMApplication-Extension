@@ -16,7 +16,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v2
       with:
-        go-version: 1.23.4
+        go-version: 1.24.0
 
     - name: Download dependencies
       run: go get ./...
@@ -35,10 +35,13 @@ jobs:
     steps:
     - uses: actions/checkout@v2
 
+    - name: Install gsudo
+      run: choco install gsudo --version 2.6.1
+      
     - name: Set up Go
       uses: actions/setup-go@v2
       with:
-        go-version: 1.23.4
+        go-version: 1.24.0
 
     - name: Download dependencies
       run: go get ./...
@@ -48,6 +51,6 @@ jobs:
 
     - name: Build
       run: go build -v ./...
-
+      
     - name: Test
-      run: go test -v ./...
+      run: C:\tools\gsudo\Current\gsudo.exe go test -v ./...

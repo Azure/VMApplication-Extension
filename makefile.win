@@ -5,7 +5,7 @@
 
 BUNDLEDIR=bundle\windows\prod
 BINDIR=$(BUNDLEDIR)\bin
-EXTENSIONVERSION=1.0.16
+EXTENSIONVERSION=1.0.17
 EXTENSIONNAME=Microsoft.CPlat.Core.VMApplicationManagerWindows
 
 all: clean bundle
@@ -20,24 +20,28 @@ clean:
 extension-launcher:
     set GOOS=windows
     set GOARCH=amd64
+    set CGO_ENABLED=0
     go env GOOS GOARCH
     go build -o extension-launcher.exe -ldflags="-X 'main.ExtensionName=$(EXTENSIONNAME)' -X 'main.ExtensionVersion=$(EXTENSIONVERSION)' -X 'main.ExecutableName=vm-application-manager.exe'" .\launcher
 
 extension-launcher-arm64:
     set GOOS=windows
     set GOARCH=arm64
+    set CGO_ENABLED=0
     go env GOOS GOARCH
     go build -o extension-launcher-arm64.exe -ldflags="-X 'main.ExtensionName=$(EXTENSIONNAME)' -X 'main.ExtensionVersion=$(EXTENSIONVERSION)' -X 'main.ExecutableName=vm-application-manager.exe'" .\launcher
 
 vm-application-manager:
     set GOOS=windows
     set GOARCH=amd64
+    set CGO_ENABLED=0
     go env GOOS GOARCH
     go build -o  vm-application-manager.exe -ldflags="-X 'main.ExtensionName=$(EXTENSIONNAME)' -X 'main.ExtensionVersion=$(EXTENSIONVERSION)'" .\main
 
 vm-application-manager-arm64:
     set GOOS=windows
     set GOARCH=arm64
+    set CGO_ENABLED=0
     go env GOOS GOARCH
     go build -o vm-application-manager-arm64.exe -ldflags="-X 'main.ExtensionName=$(EXTENSIONNAME)' -X 'main.ExtensionVersion=$(EXTENSIONVERSION)'"  .\main
 

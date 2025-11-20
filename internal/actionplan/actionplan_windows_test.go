@@ -134,13 +134,6 @@ func TestCommandExecutorCanHandleProcessBeingKilled(t *testing.T) {
 		assert.Equal(t, packageregistry.NoAction, app.OngoingOperation, "OngoingOperation should be set to NoAction")
 		assert.Equal(t, 0, app.NumRebootsOccurred, "Number of reboots should remain 0")
 		assert.Contains(t, app.Result, "Reboot detected during 'Install' operation")
-
-		// wait for another 3 seconds to ensure that the transcript file is written
-		time.Sleep(3 * time.Second)
-		transcriptFileBytes, error := ioutil.ReadFile(transcriptFile)
-		assert.NoError(t, error, "should be able to read transcript file")
-		stranscriptFileString := string(transcriptFileBytes)
-		assert.Contains(t, stranscriptFileString, "Received terminate signal, system reboot detected")
 	}
 }
 

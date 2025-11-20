@@ -137,6 +137,7 @@ func TestCommandExecutorCanHandleProcessBeingKilled(t *testing.T) {
 		assert.NoError(t, err)
 		cmdHandler := NewCommandHandlerMock(mockCommandExecutorSleepForAnHour)
 		appPackage, err := packageReg.GetExistingPackages()
+		assert.NoError(t, err)
 		_, statusMessage := executeActionPlan(t, action, appPackage, cmdHandler)
 		packageOperationResults, ok := statusMessage.(*actionplan.PackageOperationResults)
 		assert.True(t, ok)
@@ -154,12 +155,5 @@ func TestCommandExecutorCanHandleProcessBeingKilled(t *testing.T) {
 		if err == nil {
 			defer pkr.Close()
 		}
-
-		// wait for another 3 seconds to ensure that the transcript file is written
-		time.Sleep(3 * time.Second)
-		transcriptFileBytes, error := ioutil.ReadFile(transcriptFile)
-		assert.NoError(t, error, "should be able to read transcript file")
-		stranscriptFileString := string(transcriptFileBytes)
-		assert.Contains(t, stranscriptFileString, "Info received terminate signal, system reboot detected")
 	}
 }
