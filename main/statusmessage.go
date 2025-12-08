@@ -11,8 +11,6 @@ import (
 	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
 )
 
-const fiveKilo = 5 * 1024
-
 type VmAppPackageCurrentForStatusCollection []*VmAppPackageCurrentForStatus
 
 type VmAppPackageCurrentForStatus struct {
