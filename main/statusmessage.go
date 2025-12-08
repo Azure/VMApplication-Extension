@@ -80,9 +80,5 @@ func getStatusMessage(vmAppCurrentCollection packageregistry.VMAppPackageCurrent
 		}
 	}
 
-	if len(statusMessageString) > fiveKilo {
-		statusMessageString = statusMessageString[:fiveKilo]
-	}
-
 	return statusMessageString
 }
