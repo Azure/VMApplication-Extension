@@ -72,14 +72,6 @@ func TestGetStatusMessage02(t *testing.T) {
 	assert.EqualValues(t, ce, statusMessage2.CriticalError)
 }
 
-func TestGetStatusMessageTruncatesStringsOver5KB(t *testing.T) {
-	messageLength := fiveKilo + 100
-	ce := criticalError(generateRandomStringOfLength(messageLength))
-	statusMessage := getStatusMessage(vmAppCurrentCollection, &executeError, &ce)
-	assert.Greater(t, len(ce), fiveKilo, "critical error string length should be greater than 5 kb")
-	assert.Equal(t, fiveKilo, len(statusMessage), "statusMessage string should be less than 5 kb")
-}
-
 func assertCollectionsMatch(t *testing.T, vmAppCurrentCollection packageregistry.VMAppPackageCurrentCollection, vmAppCurrentForStatusCollection VmAppPackageCurrentForStatusCollection) {
 	assert.Equal(t, len(vmAppCurrentCollection), len(vmAppCurrentForStatusCollection), "lengths should match")
 	for i, vmAppCurrent := range vmAppCurrentCollection {

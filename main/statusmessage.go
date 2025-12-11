@@ -11,8 +11,6 @@ import (
 	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
 )
 
-const fiveKilo = 5 * 1024
-
 type VmAppPackageCurrentForStatusCollection []*VmAppPackageCurrentForStatus
 
 type VmAppPackageCurrentForStatus struct {
@@ -78,10 +76,6 @@ func getStatusMessage(vmAppCurrentCollection packageregistry.VMAppPackageCurrent
 		} else {
 			statusMessageString = string(statusM)
 		}
-	}
-
-	if len(statusMessageString) > fiveKilo {
-		statusMessageString = statusMessageString[:fiveKilo]
 	}
 
 	return statusMessageString
