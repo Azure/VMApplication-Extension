@@ -49,13 +49,17 @@ type VMAppMetadataReceiver struct {
 	EnableApplicationEvents string `json:"enableApplicationEvents"`
 }
 
-func (receiver *VMAppMetadataReceiver) MapToVMAppMetadata() *VMAppMetadata {
+func (receiver *VMAppMetadataReceiver) MapToVMAppMetadata() (*VMAppMetadata) {
 	directDownloadOnly, err := strconv.ParseBool(receiver.DirectDownloadOnly)
-	enableApplicationEvents, err := strconv.ParseBool(receiver.EnableApplicationEvents)
-	
 	if err != nil {
 		// assume directDownloadOnly is false when parsing fails
 		directDownloadOnly = false
+	}
+
+	enableApplicationEvents, err := strconv.ParseBool(receiver.EnableApplicationEvents)
+	if err != nil {
+		// assume enableApplicationEvents is false when parsing fails
+		enableApplicationEvents = false
 	}
 
 	configExists := receiver.Config != ""

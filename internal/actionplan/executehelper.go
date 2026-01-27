@@ -291,6 +291,8 @@ func logApplicationEvents(downloadDir string, appName string, errorMessageToRetu
 	//kusto log limit 
 	maxEvents := 30
 	eventCount := 0
+	isFirstStdOutEvent := true;
+	loggingStr := ""
 
 	//read std err file to write to kusto
 	stderrFileName := filepath.Join(downloadDir, "stderr")
@@ -301,7 +303,7 @@ func logApplicationEvents(downloadDir string, appName string, errorMessageToRetu
 		// create reader + buffer
 		stderrReader := bufio.NewReader(stderrFile)
     	stderrBuffer := make([]byte, 16*1024) //16 KB buffer due to event size constraint 
- 
+		
     	for eventCount <= maxEvents {
 			// read content to buffer
 			bytesRead, err := stderrReader.Read(stderrBuffer)
@@ -311,7 +313,14 @@ func logApplicationEvents(downloadDir string, appName string, errorMessageToRetu
 				}
 				break
         	}
-			eem.LogErrorEvent(appName, string(stderrBuffer[:bytesRead]))
+			if bytesRead != 0 {
+				loggingStr = string(stderrBuffer[:bytesRead])
+			}
+			if eventCount == 0 {
+				eem.LogInformationalEvent(appName, " stderr: " + loggingStr)
+			} else {
+				eem.LogErrorEvent(appName, loggingStr)
+			}
 			eventCount++; 
     	}
 	}
@@ -336,7 +345,15 @@ func logApplicationEvents(downloadDir string, appName string, errorMessageToRetu
 				}
 				break
 			}
-			eem.LogInformationalEvent(appName, string(stdoutBuffer[:bytesRead]))
+			if bytesRead != 0 {
+				loggingStr = string(stdoutBuffer[:bytesRead])
+			}
+			if isFirstStdOutEvent {
+				eem.LogInformationalEvent(appName, " stdout: " + loggingStr)
+				isFirstStdOutEvent = false;
+			} else {
+				eem.LogInformationalEvent(appName, loggingStr)
+			}
 			eventCount++; 
 		}
 	}
