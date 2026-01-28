@@ -330,7 +330,7 @@ func logApplicationEvents(downloadDir string, appName string, errorMessageToRetu
 	stdoutFileName := filepath.Join(downloadDir, "stdout")
 	stdoutFile, err := os.Open(stdoutFileName)
 	if err != nil {
-		errorMessageToReturn = extensionerrors.CombineErrors(errorMessageToReturn, errors.Wrapf(err, "Error opening std out file for application %", appName))
+		errorMessageToReturn = extensionerrors.CombineErrors(errorMessageToReturn, errors.Wrapf(err, "Error opening std out file for application %s", appName))
 	} else {
 		// create reader + buffer
 		stdoutReader := bufio.NewReader(stdoutFile)
@@ -341,7 +341,7 @@ func logApplicationEvents(downloadDir string, appName string, errorMessageToRetu
 			bytesRead, err := stdoutReader.Read(stdoutBuffer)
 			if err != nil {
 				if err != io.EOF {
-					errorMessageToReturn = extensionerrors.CombineErrors(errorMessageToReturn, errors.Wrapf(err, "Error reading std out file for application %", appName))
+					errorMessageToReturn = extensionerrors.CombineErrors(errorMessageToReturn, errors.Wrapf(err, "Error reading std out file for application %s", appName))
 				}
 				break
 			}
