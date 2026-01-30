@@ -110,6 +110,7 @@ func WithRetries(el *logging.ExtensionLogger, rm *RequestManager, sf SleepFunc) 
 func isTransientHTTPStatusCode(statusCode int) bool {
 	switch statusCode {
 	case
+		http.StatusNotFound,            // 404. This will occur if there is a timing issue with the NodeService CCF cache
 		http.StatusRequestTimeout,      // 408
 		http.StatusTooManyRequests,     // 429
 		http.StatusInternalServerError, // 500

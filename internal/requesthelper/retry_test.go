@@ -148,7 +148,32 @@ func TestWithRetries_failingBadStatusCode_validateSleeps(t *testing.T) {
 }
 
 func TestWithRetries_healingServer(t *testing.T) {
-	srv := httptest.NewServer(new(healingServer))
+	h := &healingServer{
+		HealAfter:   4,
+		FailCode:    500,
+		SuccessCode: 200,
+	}
+	srv := httptest.NewServer(h)
+	defer srv.Close()
+
+	d := NewTestURLRequest(srv.URL)
+	rm := requesthelper.GetRequestManager(d, testRequestTimeout)
+	sr := new(sleepRecorder)
+	resp, err := requesthelper.WithRetries(nopLog(), rm, sr.Sleep)
+	defer resp.Body.Close()
+	require.Nil(t, err, "should eventually succeed")
+	require.NotNil(t, resp.Body, "response body exists")
+
+	require.Equal(t, sleepSchedule[:3], []time.Duration(*sr))
+}
+
+func TestWithRetries_retry404(t *testing.T) {
+	h := &healingServer{
+		HealAfter:   4,
+		FailCode:    404,
+		SuccessCode: 200,
+	}
+	srv := httptest.NewServer(h)
 	defer srv.Close()
 
 	d := NewTestURLRequest(srv.URL)
@@ -173,14 +198,19 @@ func (s *sleepRecorder) Sleep(d time.Duration) {
 }
 
 // healingServer returns HTTP 500 until 4th call, then HTTP 200 afterwards
-type healingServer int
+type healingServer struct {
+	calls       int
+	HealAfter   int // number of calls that must happen before we start succeeding
+	FailCode    int
+	SuccessCode int
+}
 
 func (h *healingServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	*h++
-	if *h < 4 {
-		w.WriteHeader(http.StatusInternalServerError)
+	h.calls++
+	if h.calls < h.HealAfter {
+		w.WriteHeader(h.FailCode)
 	} else {
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(h.SuccessCode)
 	}
 }
 
