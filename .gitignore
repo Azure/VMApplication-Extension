@@ -11,3 +11,4 @@ internal/actionplan/test.ps1
 vendor
 bundle
 extension-launcher*
+internal/customactionplan/testdir/
