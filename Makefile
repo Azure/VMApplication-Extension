@@ -1,9 +1,15 @@
 BUNDLEDIR=bundle/linux/prod
+BUNDLEDIR_TEST=bundle/linux/test
 BINDIR=$(BUNDLEDIR)/bin
+BINDIR_TEST=$(BUNDLEDIR_TEST)/bin
 EXTENSIONVERSION=1.0.18
-EXTENSIONNAME=Microsoft.CPlat.Core.VMApplicationManagerLinux
+ALLOWED_EXT1=Microsoft.CPlat.Core.VMApplicationManagerLinux
+ALLOWED_EXT2=Microsoft.CPlat.Core.EDP.VMApplicationManagerLinux
 
-all: clean bundle
+# Allow overriding from the command line; default to the prod extension name
+EXTENSIONNAME ?= $(ALLOWED_EXT1)
+
+all: clean bundle-prod bundle-test
 
 clean:
 	-rm extension-launcher
@@ -12,19 +18,32 @@ clean:
 	-rm  vm-application-manager-arm64
 	-rm -R $(BUNDLEDIR)
 
-extension-launcher:
+extension-launcher: validate-extension-name
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o extension-launcher -ldflags="-X 'main.ExtensionName=$(EXTENSIONNAME)' -X 'main.ExtensionVersion=$(EXTENSIONVERSION)' -X 'main.ExecutableName=vm-application-manager'" ./launcher
 
-extension-launcher-arm64:
+extension-launcher-arm64: validate-extension-name
 	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o extension-launcher-arm64 -ldflags="-X 'main.ExtensionName=$(EXTENSIONNAME)' -X 'main.ExtensionVersion=$(EXTENSIONVERSION)' -X 'main.ExecutableName=vm-application-manager-arm64'" ./launcher
 
-vm-application-manager:
+vm-application-manager: validate-extension-name
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o  vm-application-manager -ldflags="-X 'main.ExtensionName=$(EXTENSIONNAME)' -X 'main.ExtensionVersion=$(EXTENSIONVERSION)'" ./main
 
-vm-application-manager-arm64:
+vm-application-manager-arm64: validate-extension-name
 	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o vm-application-manager-arm64 -ldflags="-X 'main.ExtensionName=$(EXTENSIONNAME)' -X 'main.ExtensionVersion=$(EXTENSIONVERSION)'"  ./main
 
-bundle: extension-launcher extension-launcher-arm64 vm-application-manager vm-application-manager-arm64
+
+.PHONY: validate-extension-name
+validate-extension-name:
+	@case "$(EXTENSIONNAME)" in \
+	  "$(ALLOWED_EXT1)"|"$(ALLOWED_EXT2)" ) ;; \
+	  * ) echo "Invalid EXTENSIONNAME: $(EXTENSIONNAME)"; \
+	       echo "Valid values: $(ALLOWED_EXT1) or $(ALLOWED_EXT2)"; \
+	       echo "Examples: make EXTENSIONNAME=\"$(ALLOWED_EXT1)\""; \
+	       echo "          make EXTENSIONNAME=\"$(ALLOWED_EXT2)\""; \
+	       exit 1 ;; \
+	esac
+
+bundle-prod: extension-launcher extension-launcher-arm64 vm-application-manager vm-application-manager-arm64
+	@echo "Packaging PROD bundle into $(BUNDLEDIR) with EXTENSIONNAME=$(ALLOWED_EXT1)"
 	mkdir -p $(BINDIR)
 	mv extension-launcher "$(BINDIR)/"
 	mv extension-launcher-arm64 "$(BINDIR)/"
@@ -34,5 +53,18 @@ bundle: extension-launcher extension-launcher-arm64 vm-application-manager vm-ap
 	cp misc/linux/update.sh "$(BINDIR)/"
 	cp misc/linux/HandlerManifest.json "$(BUNDLEDIR)/"
 	cd $(BUNDLEDIR) && zip -r vm-application-manager.zip ./*
+
+bundle-test:
+	@echo "Building and packaging TEST bundle into $(BUNDLEDIR_TEST) with EXTENSIONNAME=$(ALLOWED_EXT2)"
+	$(MAKE) EXTENSIONNAME=$(ALLOWED_EXT2) extension-launcher extension-launcher-arm64 vm-application-manager vm-application-manager-arm64
+	mkdir -p $(BINDIR_TEST)
+	mv extension-launcher "$(BINDIR_TEST)/"
+	mv extension-launcher-arm64 "$(BINDIR_TEST)/"
+	mv vm-application-manager "$(BINDIR_TEST)/"
+	mv vm-application-manager-arm64 "$(BINDIR_TEST)/"
+	cp misc/linux/install.sh "$(BINDIR_TEST)/"
+	cp misc/linux/update.sh "$(BINDIR_TEST)/"
+	cp misc/linux/HandlerManifest.json "$(BUNDLEDIR_TEST)/"
+	cd $(BUNDLEDIR_TEST) && zip -r vm-application-manager.zip ./*
 
 .PHONY: clean bundle
