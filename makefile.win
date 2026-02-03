@@ -1,57 +1,93 @@
 # makefile for windows
 # to call this makefile invoke
-# nmake -f makefile.win
+# nmake -f makefile.win [EXTENSIONNAME=<extension_name>]
 # from developer (visual studio) command prompt 
 
-BUNDLEDIR=bundle\windows\prod
-BINDIR=$(BUNDLEDIR)\bin
+BUNDLEDIR_PROD=bundle\windows\prod
+BUNDLEDIR_TEST=bundle\windows\test
+BINDIR_PROD=$(BUNDLEDIR_PROD)\bin
+BINDIR_TEST=$(BUNDLEDIR_TEST)\bin
 EXTENSIONVERSION=1.0.18
-EXTENSIONNAME=Microsoft.CPlat.Core.VMApplicationManagerWindows
+EXTENSIONNAME_PROD=Microsoft.CPlat.Core.VMApplicationManagerWindows
+EXTENSIONNAME_TEST=Microsoft.CPlat.Core.EDP.VMApplicationManagerWindows
 
-all: clean bundle
+# Default EXTENSIONNAME if not provided
+!IFNDEF EXTENSIONNAME
+EXTENSIONNAME=$(EXTENSIONNAME_PROD)
+!ENDIF
+
+all: validate-extensionname clean bundle
+
+validate-extensionname:
+!IF "$(EXTENSIONNAME)" == ""
+    @echo Error: EXTENSIONNAME parameter is required
+    @echo Usage: nmake -f makefile.win EXTENSIONNAME=^<extension_name^>
+    @echo Valid values: $(EXTENSIONNAME_PROD) or $(EXTENSIONNAME_TEST)
+    @exit 1
+!ENDIF
+!IF "$(EXTENSIONNAME)" != "$(EXTENSIONNAME_PROD)" && "$(EXTENSIONNAME)" != "$(EXTENSIONNAME_TEST)"
+    @echo Error: Invalid EXTENSIONNAME "$(EXTENSIONNAME)"
+    @echo Valid values: $(EXTENSIONNAME_PROD) or $(EXTENSIONNAME_TEST)
+    @exit 1
+!ENDIF
+    @echo Using EXTENSIONNAME: $(EXTENSIONNAME)
 
 clean:
     -del extension-launcher.exe
     -del extension-launcher-arm64.exe
     -del vm-application-manager.exe
     -del vm-application-manager-arm64.exe
-    -rmdir /S /Q $(BUNDLEDIR)
+    -rmdir /S /Q $(BUNDLEDIR_PROD)
+    -rmdir /S /Q $(BUNDLEDIR_TEST)
 
-extension-launcher:
+extension-launcher: validate-extensionname
     set GOOS=windows
     set GOARCH=amd64
     set CGO_ENABLED=0
     go env GOOS GOARCH
     go build -o extension-launcher.exe -ldflags="-X 'main.ExtensionName=$(EXTENSIONNAME)' -X 'main.ExtensionVersion=$(EXTENSIONVERSION)' -X 'main.ExecutableName=vm-application-manager.exe'" .\launcher
 
-extension-launcher-arm64:
+extension-launcher-arm64: validate-extensionname
     set GOOS=windows
     set GOARCH=arm64
     set CGO_ENABLED=0
     go env GOOS GOARCH
     go build -o extension-launcher-arm64.exe -ldflags="-X 'main.ExtensionName=$(EXTENSIONNAME)' -X 'main.ExtensionVersion=$(EXTENSIONVERSION)' -X 'main.ExecutableName=vm-application-manager.exe'" .\launcher
 
-vm-application-manager:
+vm-application-manager: validate-extensionname
     set GOOS=windows
     set GOARCH=amd64
     set CGO_ENABLED=0
     go env GOOS GOARCH
-    go build -o  vm-application-manager.exe -ldflags="-X 'main.ExtensionName=$(EXTENSIONNAME)' -X 'main.ExtensionVersion=$(EXTENSIONVERSION)'" .\main
+    go build -o vm-application-manager.exe -ldflags="-X 'main.ExtensionName=$(EXTENSIONNAME)' -X 'main.ExtensionVersion=$(EXTENSIONVERSION)'" .\main
 
-vm-application-manager-arm64:
+vm-application-manager-arm64: validate-extensionname
     set GOOS=windows
     set GOARCH=arm64
     set CGO_ENABLED=0
     go env GOOS GOARCH
-    go build -o vm-application-manager-arm64.exe -ldflags="-X 'main.ExtensionName=$(EXTENSIONNAME)' -X 'main.ExtensionVersion=$(EXTENSIONVERSION)'"  .\main
+    go build -o vm-application-manager-arm64.exe -ldflags="-X 'main.ExtensionName=$(EXTENSIONNAME)' -X 'main.ExtensionVersion=$(EXTENSIONVERSION)'" .\main
 
-bundle: extension-launcher extension-launcher-arm64 vm-application-manager vm-application-manager-arm64
-    mkdir $(BINDIR)
-    move extension-launcher.exe "$(BINDIR)\"
-    move extension-launcher-arm64.exe "$(BINDIR)\"
-    move vm-application-manager.exe "$(BINDIR)\"
-    move vm-application-manager-arm64.exe "$(BINDIR)\"
-    copy misc\windows\* "$(BUNDLEDIR)\"
-    powershell -c "Compress-Archive -Path $(BUNDLEDIR)\* -DestinationPath $(BUNDLEDIR)\vm-application-manager.zip"
+bundle-prod: 
+    nmake -f makefile.win EXTENSIONNAME="$(EXTENSIONNAME_PROD)" extension-launcher extension-launcher-arm64 vm-application-manager vm-application-manager-arm64
+    mkdir $(BINDIR_PROD)
+    move extension-launcher.exe "$(BINDIR_PROD)\"
+    move extension-launcher-arm64.exe "$(BINDIR_PROD)\"
+    move vm-application-manager.exe "$(BINDIR_PROD)\"
+    move vm-application-manager-arm64.exe "$(BINDIR_PROD)\"
+    copy misc\windows\* "$(BUNDLEDIR_PROD)\"
+    powershell -c "Compress-Archive -Path $(BUNDLEDIR_PROD)\* -DestinationPath $(BUNDLEDIR_PROD)\vm-application-manager.zip"
 
-.phony: clean bundle
+bundle-test:
+    nmake -f makefile.win EXTENSIONNAME="$(EXTENSIONNAME_TEST)" extension-launcher extension-launcher-arm64 vm-application-manager vm-application-manager-arm64
+    mkdir $(BINDIR_TEST)
+    move extension-launcher.exe "$(BINDIR_TEST)\"
+    move extension-launcher-arm64.exe "$(BINDIR_TEST)\"
+    move vm-application-manager.exe "$(BINDIR_TEST)\"
+    move vm-application-manager-arm64.exe "$(BINDIR_TEST)\"
+    copy misc\windows\* "$(BUNDLEDIR_TEST)\"
+    powershell -c "Compress-Archive -Path $(BUNDLEDIR_TEST)\* -DestinationPath $(BUNDLEDIR_TEST)\vm-application-manager.zip"
+
+bundle: bundle-prod bundle-test
+
+.phony: clean bundle bundle-prod bundle-test validate-extensionname
