@@ -1,8 +1,11 @@
 # Normalize text files and let users' git config control checkout line endings
 * text=auto
 
-# Keep shell scripts and JSON as LF in the repo
+# Keep shell scripts and linux makefile as LF on all platforms
 *.sh text eol=lf
+Makefile text eol=lf
+
+# JSON files for different platforms
 misc/windows/*.json text eol=crlf
 misc/linux/*.json text eol=lf
 
