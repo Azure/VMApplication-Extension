@@ -1,0 +1,11 @@
+# Normalize text files and let users' git config control checkout line endings
+* text=auto
+
+# Keep shell scripts and JSON as LF in the repo
+*.sh text eol=lf
+misc/windows/*.json text eol=crlf
+misc/linux/*.json text eol=lf
+
+# Windows batch files should have CRLF on checkout if user has autocrlf enabled
+*.cmd text eol=crlf
+makefile.win text eol=crlf
