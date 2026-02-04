@@ -1,0 +1,90 @@
+name: Release Build
+
+on:
+  release:
+    types: [created]
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.24.0'
+
+    - name: Download dependencies
+      run: go get ./...
+
+    - name: Tidy modules
+      run: go mod tidy
+
+    - name: Build Linux artifacts
+      run: make
+
+    - name: Upload Linux prod bundle
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ github.event.release.upload_url }}
+        asset_path: ./bundle/linux/prod/vm-application-manager.zip
+        asset_name: vm-application-manager-linux-prod.zip
+        asset_content_type: application/zip
+
+    - name: Upload Linux test bundle
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ github.event.release.upload_url }}
+        asset_path: ./bundle/linux/test/vm-application-manager.zip
+        asset_name: vm-application-manager-linux-test.zip
+        asset_content_type: application/zip
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.24.0'
+
+    - name: Setup Visual Studio Build Tools
+      uses: microsoft/setup-msbuild@v1.1
+
+    - name: Download dependencies
+      run: go get ./...
+
+    - name: Tidy modules
+      run: go mod tidy
+
+    - name: Build Windows artifacts
+      shell: cmd
+      run: nmake -f makefile.win
+
+    - name: Upload Windows prod bundle
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ github.event.release.upload_url }}
+        asset_path: ./bundle/windows/prod/vm-application-manager.zip
+        asset_name: vm-application-manager-windows-prod.zip
+        asset_content_type: application/zip
+
+    - name: Upload Windows test bundle
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ github.event.release.upload_url }}
+        asset_path: ./bundle/windows/test/vm-application-manager.zip
+        asset_name: vm-application-manager-windows-test.zip
+        asset_content_type: application/zip
