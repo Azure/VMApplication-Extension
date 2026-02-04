@@ -14,10 +14,11 @@ all: clean collect-licenses bundle-prod bundle-test
 clean:
 	-rm extension-launcher
 	-rm extension-launcher-arm64
-	-rm  vm-application-manager
-	-rm  vm-application-manager-arm64
-	-rm -R $(BUNDLEDIR)
-	-rm -R licenses
+	-rm vm-application-manager
+	-rm vm-application-manager-arm64
+	-rm -Rf $(BUNDLEDIR)
+	-rm -Rf $(BUNDLEDIR_TEST)
+	-rm -Rf licenses
 
 extension-launcher: validate-extension-name
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o extension-launcher -ldflags="-X 'main.ExtensionName=$(EXTENSIONNAME)' -X 'main.ExtensionVersion=$(EXTENSIONVERSION)' -X 'main.ExecutableName=vm-application-manager'" ./launcher
