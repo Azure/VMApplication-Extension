@@ -89,23 +89,24 @@ type DesiredPackageRegistry map[string]*VMAppPackageIncoming
 type VMAppPackageCurrentCollection []*VMAppPackageCurrent
 
 type VMAppPackageCurrent struct {
-	ApplicationName        string             `json:"applicationName"`
-	Version                string             `json:"version"`
-	InstallCommand         string             `json:"install"`
-	RemoveCommand          string             `json:"remove"`
-	UpdateCommand          string             `json:"update"`
-	DirectDownloadOnly     bool               `json:"directOnly"`
-	ConfigExists           bool               `json:"configExists"`
-	OngoingOperation       ActionEnum         `json:"ongoingOperation"`
-	DownloadDir            string             `json:"downloadDir"`
-	PackageFileName        string             `json:"packageFileName"`
-	ConfigFileName         string             `json:"configFileName"`
-	IsDeleted              bool               `json:"isDeleted"`
-	PackageFileMD5Checksum []byte             `json:"packageFileMD5Checksum"`
-	ConfigFileMD5Checksum  []byte             `json:"configFileMD5Checksum"`
-	Result                 string             `json:"result"`
-	RebootBehavior         RebootBehaviorEnum `json:"rebootBehavior"`
-	NumRebootsOccurred     int                `json:"numRebootsOccurred"`
+	ApplicationName         string             `json:"applicationName"`
+	Version                 string             `json:"version"`
+	InstallCommand          string             `json:"install"`
+	RemoveCommand           string             `json:"remove"`
+	UpdateCommand           string             `json:"update"`
+	DirectDownloadOnly      bool               `json:"directOnly"`
+	ConfigExists            bool               `json:"configExists"`
+	OngoingOperation        ActionEnum         `json:"ongoingOperation"`
+	DownloadDir             string             `json:"downloadDir"`
+	PackageFileName         string             `json:"packageFileName"`
+	ConfigFileName          string             `json:"configFileName"`
+	IsDeleted               bool               `json:"isDeleted"`
+	PackageFileMD5Checksum  []byte             `json:"packageFileMD5Checksum"`
+	ConfigFileMD5Checksum   []byte             `json:"configFileMD5Checksum"`
+	Result                  string             `json:"result"`
+	RebootBehavior          RebootBehaviorEnum `json:"rebootBehavior"`
+	NumRebootsOccurred      int                `json:"numRebootsOccurred"`
+	EnableApplicationEvents bool               `json:"enableApplicationEvents"`
 }
 
 func (vmAppPackageCurrent *VMAppPackageCurrent) GetWorkingDirectory(environment *handlerenv.HandlerEnvironment) string {
@@ -128,6 +129,7 @@ type VMAppPackageIncoming struct {
 	IsDeleted                       bool               `json:"isDeleted"`
 	TreatFailureAsDeploymentFailure bool               `json:"treatFailureAsDeploymentFailure"`
 	RebootBehavior                  RebootBehaviorEnum `json:"rebootBehavior"`
+	EnableApplicationEvents         bool               `json:"enableApplicationEvents"`
 }
 
 type IPackageRegistry interface {

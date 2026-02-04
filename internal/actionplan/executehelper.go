@@ -4,6 +4,7 @@
 package actionplan
 
 import (
+	"bufio"
 	"bytes"
 	"crypto/md5"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 	"os"
 	"os/signal"
 	"path"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -221,6 +223,10 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 		signal.Stop(interruptSignal)
 	}
 
+	if vmAppPackageCurrent.EnableApplicationEvents {
+		logApplicationEvents(vmAppPackageCurrent.DownloadDir, appName, errorMessageToReturn, eem, actionPlan)
+	}
+
 	if isDeleteOperation {
 		delete(registry, appName)
 		// also cleanup directory
@@ -282,4 +288,84 @@ func verifyMD5CheckSum(filePath string, checkSum []byte) (bool, error) {
 		return false, err
 	}
 	return bytes.Equal(checkSumNew, checkSum), nil
+}
+
+func logApplicationEvents(downloadDir string, appName string, errorMessageToReturn error, eem *extensionevents.ExtensionEventManager, actionPlan *ActionPlan) () {
+	//kusto log limit 
+	maxEvents := 30
+	eventCount := 0
+	isFirstStdOutEvent := true;
+	loggingStr := ""
+
+	//read std err file to write to kusto
+	stderrFileName := filepath.Join(downloadDir, "stderr")
+	stderrFile, err := os.Open(stderrFileName)
+    if err != nil {
+		errorMessageToReturn = extensionerrors.CombineErrors(errorMessageToReturn, errors.Wrapf(err, "Error opening std err file for application %s", appName))
+    } else {
+		// create reader + buffer
+		stderrReader := bufio.NewReader(stderrFile)
+    	stderrBuffer := make([]byte, 16*1024) //16 KB buffer due to event size constraint 
+		
+    	for eventCount <= maxEvents {
+			// read content to buffer
+			bytesRead, err := stderrReader.Read(stderrBuffer)
+			if err != nil {
+				if err != io.EOF {
+					errorMessageToReturn = extensionerrors.CombineErrors(errorMessageToReturn, errors.Wrapf(err, "Error reading std err file for application %s", appName))
+				}
+				break
+        	}
+			if bytesRead != 0 {
+				loggingStr = string(stderrBuffer[:bytesRead])
+			}
+			if eventCount == 0 {
+				eem.LogInformationalEvent(appName, " stderr: " + loggingStr)
+			} else {
+				eem.LogErrorEvent(appName, loggingStr)
+			}
+			eventCount++; 
+    	}
+	}
+    defer stderrFile.Close()
+ 
+	//read std out file to write to kusto
+	stdoutFileName := filepath.Join(downloadDir, "stdout")
+	stdoutFile, err := os.Open(stdoutFileName)
+	if err != nil {
+		errorMessageToReturn = extensionerrors.CombineErrors(errorMessageToReturn, errors.Wrapf(err, "Error opening std out file for application %s", appName))
+	} else {
+		// create reader + buffer
+		stdoutReader := bufio.NewReader(stdoutFile)
+		stdoutBuffer := make([]byte, 16*1024) //16 KB buffer due to event size constraint
+
+		for eventCount <= maxEvents {
+			// read content to buffer
+			bytesRead, err := stdoutReader.Read(stdoutBuffer)
+			if err != nil {
+				if err != io.EOF {
+					errorMessageToReturn = extensionerrors.CombineErrors(errorMessageToReturn, errors.Wrapf(err, "Error reading std out file for application %s", appName))
+				}
+				break
+			}
+			if bytesRead != 0 {
+				loggingStr = string(stdoutBuffer[:bytesRead])
+			}
+			if isFirstStdOutEvent {
+				eem.LogInformationalEvent(appName, " stdout: " + loggingStr)
+				isFirstStdOutEvent = false;
+			} else {
+				eem.LogInformationalEvent(appName, loggingStr)
+			}
+			eventCount++; 
+		}
+	}
+	defer stdoutFile.Close()
+
+	//check if max count reached and log summary 
+	if (eventCount == maxEvents) {
+		actionPlan.logger.Info("Maximum event count %d reached for application %s, view remaining logs in VM.", maxEvents, appName)
+	} else {
+		actionPlan.logger.Info("Logged all application events for application %s", appName)
+	}
 }

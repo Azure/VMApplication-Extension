@@ -121,6 +121,35 @@ func TestPackageRegistryDeserialization_NumRebootsOccurred_DefaultToZero(t *test
 	assert.NoError(t, err, "operation should not throw error")
 }
 
+func TestPackageRegistryDeserialization_EnableAppEvents_DefaultToFalse(t *testing.T) {
+	initializeTest(t)
+	defer cleanupTest()
+
+	var pkgHndlr IPackageRegistry
+	pkgHndlr, err := New(nopLog(), &hndlEnv, time.Second)
+	assert.NoError(t, err, "operation should not throw error")
+
+	// Overwrite package2
+	pkg := packageRegistry["package2"]
+	pkg.EnableApplicationEvents = true
+	packageRegistry["package2"] = pkg
+
+	err = pkgHndlr.WriteToDisk(packageRegistry)
+	assert.NoError(t, err, "operation should not throw error")
+
+	result, err := pkgHndlr.GetExistingPackages()
+	assert.NoError(t, err, "operation should not throw error")
+
+	package1 := result["package1"]
+	package2 := result["package2"]
+
+	assert.Equal(t, false, package1.EnableApplicationEvents, "deserializing package from registry without EnableApplicationEvents set should default to false")
+	assert.Equal(t, true, package2.EnableApplicationEvents, "EnableApplicationEvents for package2 should be true")
+
+	err = pkgHndlr.Close()
+	assert.NoError(t, err, "operation should not throw error")
+}
+
 func TestValuesAreProperlySaved(t *testing.T) {
 	initializeTest(t)
 	defer cleanupTest()
