@@ -1,0 +1,14 @@
+# Normalize text files and let users' git config control checkout line endings
+* text=auto
+
+# Keep shell scripts and linux makefile as LF on all platforms
+*.sh text eol=lf
+Makefile text eol=lf
+
+# JSON files for different platforms
+misc/windows/*.json text eol=crlf
+misc/linux/*.json text eol=lf
+
+# Windows batch files should have CRLF on checkout if user has autocrlf enabled
+*.cmd text eol=crlf
+makefile.win text eol=crlf
