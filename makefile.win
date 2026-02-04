@@ -11,7 +11,7 @@ EXTENSIONVERSION=1.0.18
 EXTENSIONNAME_PROD=Microsoft.CPlat.Core.VMApplicationManagerWindows
 EXTENSIONNAME_TEST=Microsoft.CPlat.Core.EDP.VMApplicationManagerWindows
 
-all: clean bundle
+all: clean collect-licenses bundle
 
 validate-extensionname:
 !IF "$(EXTENSIONNAME)" == ""
@@ -34,6 +34,7 @@ clean:
     -del vm-application-manager-arm64.exe
     -rmdir /S /Q $(BUNDLEDIR_PROD)
     -rmdir /S /Q $(BUNDLEDIR_TEST)
+    -rmdir /S /Q licenses
 
 extension-launcher: validate-extensionname
     set GOOS=windows
@@ -63,6 +64,17 @@ vm-application-manager-arm64: validate-extensionname
     go env GOOS GOARCH
     go build -o vm-application-manager-arm64.exe -ldflags="-X 'main.ExtensionName=$(EXTENSIONNAME)' -X 'main.ExtensionVersion=$(EXTENSIONVERSION)'" .\main
 
+collect-licenses:
+    @echo Collecting open source licenses...
+    @where go-licenses >nul 2>&1 || (
+        echo Installing go-licenses...
+        go install github.com/google/go-licenses@latest
+    )
+    @if not exist "licenses\reports" mkdir "licenses\reports"
+    go-licenses save .\main --save_path=licenses\texts
+    go-licenses csv .\main > licenses\reports\THIRD_PARTY_LICENSES.csv
+    @echo License collection complete!
+
 bundle-prod: 
     nmake -f makefile.win EXTENSIONNAME="$(EXTENSIONNAME_PROD)" extension-launcher extension-launcher-arm64 vm-application-manager vm-application-manager-arm64
     mkdir $(BINDIR_PROD)
@@ -71,6 +83,7 @@ bundle-prod:
     move vm-application-manager.exe "$(BINDIR_PROD)\"
     move vm-application-manager-arm64.exe "$(BINDIR_PROD)\"
     copy misc\windows\* "$(BUNDLEDIR_PROD)\"
+    xcopy licenses "$(BUNDLEDIR_PROD)\licenses\" /E /I
     powershell -c "Compress-Archive -Path $(BUNDLEDIR_PROD)\* -DestinationPath $(BUNDLEDIR_PROD)\vm-application-manager.zip"
 
 bundle-test:
@@ -81,8 +94,9 @@ bundle-test:
     move vm-application-manager.exe "$(BINDIR_TEST)\"
     move vm-application-manager-arm64.exe "$(BINDIR_TEST)\"
     copy misc\windows\* "$(BUNDLEDIR_TEST)\"
+    xcopy licenses "$(BUNDLEDIR_TEST)\licenses\" /E /I
     powershell -c "Compress-Archive -Path $(BUNDLEDIR_TEST)\* -DestinationPath $(BUNDLEDIR_TEST)\vm-application-manager.zip"
 
 bundle: bundle-prod bundle-test
 
-.phony: clean bundle bundle-prod bundle-test validate-extensionname
+.phony: clean bundle bundle-prod bundle-test validate-extensionname collect-licenses
