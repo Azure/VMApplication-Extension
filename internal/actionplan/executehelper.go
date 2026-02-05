@@ -221,7 +221,7 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 	}
 
 	if vmAppPackageCurrent.EnableApplicationEvents {
-		logApplicationEvents(vmAppPackageCurrent.DownloadDir, appName, errorMessageToReturn, eem, actionPlan)
+		logApplicationEvents(vmAppPackageCurrent.DownloadDir, appName, act.actionToPerform, errorMessageToReturn, eem, actionPlan)
 	}
 
 	if isDeleteOperation {
@@ -287,10 +287,11 @@ func verifyMD5CheckSum(filePath string, checkSum []byte) (bool, error) {
 	return bytes.Equal(checkSumNew, checkSum), nil
 }
 
-func logApplicationEvents(downloadDir string, appName string, errorMessageToReturn error, eem *extensionevents.ExtensionEventManager, actionPlan *ActionPlan) () {
+func logApplicationEvents(downloadDir string, appName string, actionPerformed packageregistry.ActionEnum, errorMessageToReturn error, eem *extensionevents.ExtensionEventManager, actionPlan *ActionPlan) () {
 	//kusto log limit 
 	maxEvents := 30
 	eventCount := 0
+	isFirstStdErrEvent := true;
 	isFirstStdOutEvent := true;
 	loggingStr := ""
 
@@ -310,6 +311,8 @@ func logApplicationEvents(downloadDir string, appName string, errorMessageToRetu
 			if err != nil {
 				if err != io.EOF {
 					errorMessageToReturn = extensionerrors.CombineErrors(errorMessageToReturn, errors.Wrapf(err, "Error reading std err file for application %s", appName))
+				} else if isFirstStdErrEvent {
+					eem.LogErrorEvent(appName, actionPerformed.ToString() + " stderr: ")
 				}
 				break
         	}
@@ -317,7 +320,7 @@ func logApplicationEvents(downloadDir string, appName string, errorMessageToRetu
 				loggingStr = string(stderrBuffer[:bytesRead])
 			}
 			if eventCount == 0 {
-				eem.LogInformationalEvent(appName, " stderr: " + loggingStr)
+				eem.LogErrorEvent(appName, actionPerformed.ToString() + " stderr: " + loggingStr)
 			} else {
 				eem.LogErrorEvent(appName, loggingStr)
 			}
@@ -342,6 +345,8 @@ func logApplicationEvents(downloadDir string, appName string, errorMessageToRetu
 			if err != nil {
 				if err != io.EOF {
 					errorMessageToReturn = extensionerrors.CombineErrors(errorMessageToReturn, errors.Wrapf(err, "Error reading std out file for application %s", appName))
+				} else if isFirstStdOutEvent {
+					eem.LogInformationalEvent(appName, actionPerformed.ToString() + " stdout: ")
 				}
 				break
 			}
@@ -349,7 +354,7 @@ func logApplicationEvents(downloadDir string, appName string, errorMessageToRetu
 				loggingStr = string(stdoutBuffer[:bytesRead])
 			}
 			if isFirstStdOutEvent {
-				eem.LogInformationalEvent(appName, " stdout: " + loggingStr)
+				eem.LogInformationalEvent(appName, actionPerformed.ToString() + " stdout: " + loggingStr)
 				isFirstStdOutEvent = false;
 			} else {
 				eem.LogInformationalEvent(appName, loggingStr)
