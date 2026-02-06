@@ -1,3 +1,5 @@
+## VMApplication Extension for Azure VMs
+VMApplication extension is responsible for managing the lifecycle of [VMApplication](https://learn.microsoft.com/en-us/azure/virtual-machines/vm-applications) packages on Azure VMs and scalesets. This extension in automatically deployed to Azure VMs and scalesets when a VMApp is added to the VM or scaleset configuration. It requires the VM or scaleset to have the VM Agent enabled.
 
 # Contributing
 
