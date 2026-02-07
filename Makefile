@@ -24,7 +24,7 @@ extension-launcher: validate-extension-name
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o extension-launcher -ldflags="-X 'main.ExtensionName=$(EXTENSIONNAME)' -X 'main.ExtensionVersion=$(EXTENSIONVERSION)' -X 'main.ExecutableName=vm-application-manager'" ./launcher
 
 extension-launcher-arm64: validate-extension-name
-	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o extension-launcher-arm64 -ldflags="-X 'main.ExtensionName=$(EXTENSIONNAME)' -X 'main.ExtensionVersion=$(EXTENSIONVERSION)' -X 'main.ExecutableName=vm-application-manager-arm64'" ./launcher
+	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o extension-launcher-arm64 -ldflags="-X 'main.ExtensionName=$(EXTENSIONNAME)' -X 'main.ExtensionVersion=$(EXTENSIONVERSION)' -X 'main.ExecutableName=vm-application-manager'" ./launcher # For ARM64 machines, install command will rename vm-application-manager-arm64 to vm-application-manager
 
 vm-application-manager: validate-extension-name
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o  vm-application-manager -ldflags="-X 'main.ExtensionName=$(EXTENSIONNAME)' -X 'main.ExtensionVersion=$(EXTENSIONVERSION)'" ./main
