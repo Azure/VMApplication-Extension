@@ -46,7 +46,7 @@ validate-extension-name:
 
 collect-licenses:
 	@echo "Collecting open source licenses..."
-	@if ! command -v go-licenses >/dev/null 2>&1; then \
+	@if [ ! -f "$$(go env GOPATH)/bin/go-licenses" ]; then \
 		echo "Installing go-licenses..."; \
 		go install github.com/google/go-licenses@latest; \
 	fi
