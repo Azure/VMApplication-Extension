@@ -46,13 +46,13 @@ validate-extension-name:
 
 collect-licenses:
 	@echo "Collecting open source licenses..."
-	@if ! command -v go-licenses >/dev/null 2>&1; then \
+	@if [ ! -f "$$(go env GOPATH)/bin/go-licenses" ]; then \
 		echo "Installing go-licenses..."; \
 		go install github.com/google/go-licenses@latest; \
 	fi
 	mkdir -p licenses/reports
-	go-licenses save ./main --save_path=licenses/texts
-	go-licenses csv ./main > licenses/reports/THIRD_PARTY_LICENSES.csv
+	$$(go env GOPATH)/bin/go-licenses save ./main --save_path=licenses/texts
+	$$(go env GOPATH)/bin/go-licenses csv ./main > licenses/reports/THIRD_PARTY_LICENSES.csv
 	@echo "License collection complete!"
 
 bundle-prod: extension-launcher extension-launcher-arm64 vm-application-manager vm-application-manager-arm64
