@@ -27,20 +27,6 @@ validate-extensionname:
 !ENDIF
     @echo Using EXTENSIONNAME: $(EXTENSIONNAME)
 
-validate-extensionname:
-!IF "$(EXTENSIONNAME)" == ""
-    @echo Error: EXTENSIONNAME parameter is required
-    @echo Usage: nmake -f makefile.win EXTENSIONNAME=^<extension_name^>
-    @echo Valid values: $(EXTENSIONNAME_PROD) or $(EXTENSIONNAME_TEST)
-    @exit 1
-!ENDIF
-!IF "$(EXTENSIONNAME)" != "$(EXTENSIONNAME_PROD)" && "$(EXTENSIONNAME)" != "$(EXTENSIONNAME_TEST)"
-    @echo Error: Invalid EXTENSIONNAME "$(EXTENSIONNAME)"
-    @echo Valid values: $(EXTENSIONNAME_PROD) or $(EXTENSIONNAME_TEST)
-    @exit 1
-!ENDIF
-    @echo Using EXTENSIONNAME: $(EXTENSIONNAME)
-
 clean:
     -del extension-launcher.exe
     -del extension-launcher-arm64.exe
