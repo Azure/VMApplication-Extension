@@ -11,6 +11,7 @@ import (
 
 	"github.com/Azure/azure-extension-platform/pkg/handlerenv"
 	"github.com/Azure/azure-extension-platform/pkg/status"
+	"github.com/Azure/azure-extension-platform/vmextension"
 	"github.com/pkg/errors"
 )
 
@@ -37,9 +38,20 @@ func GetStatusType(handlerEnv *handlerenv.HandlerEnvironment, sequenceNumber uin
 	return statusReport[0].Status.Status, nil
 }
 
-func ReportStatus(handlerEnv *handlerenv.HandlerEnvironment, requestedSequenceNumber uint, statusType status.StatusType, operationName string, message string) error {
+func ReportStatus(handlerEnv *handlerenv.HandlerEnvironment, requestedSequenceNumber uint, statusType status.StatusType, operationName string, message string, ewc *vmextension.ErrorWithClarification) error {
 	formattedMessage := status.StatusMsg(operationName, statusType, message)
-	s := status.New(statusType, operationName, formattedMessage)
+
+	var s status.StatusReport
+	if ewc == nil {
+		s = status.New(statusType, operationName, formattedMessage)
+	} else {
+		errorClarification := status.ErrorClarification{
+			Code:    ewc.ErrorCode,
+			Message: ewc.Err.Error(),
+		}
+		s = status.NewError(operationName, errorClarification)
+	}
+
 	err := s.Save(handlerEnv.StatusFolder, requestedSequenceNumber)
 	if err != nil {
 		errorMsg := "failed to save handler status"

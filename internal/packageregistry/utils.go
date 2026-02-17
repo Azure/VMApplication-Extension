@@ -3,12 +3,16 @@
 
 package packageregistry
 
-import "github.com/pkg/errors"
+import (
+	"github.com/Azure/VMApplication-Extension/pkg/utils"
+	"github.com/Azure/azure-extension-platform/vmextension"
+	"github.com/pkg/errors"
+)
 
-func (self CurrentPackageRegistry) Populate(collection VMAppPackageCurrentCollection) error {
+func (self CurrentPackageRegistry) Populate(collection VMAppPackageCurrentCollection) *vmextension.ErrorWithClarification {
 	for _, v := range collection {
 		if _, exists := self[v.ApplicationName]; exists {
-			return errors.Errorf("Duplicate application name %s detected in application registry", v.ApplicationName)
+			return vmextension.NewErrorWithClarificationPtr(utils.PackageRegistry_DuplicateName, errors.Errorf("Duplicate application name %s detected in application registry", v.ApplicationName))
 		}
 		self[v.ApplicationName] = v
 	}

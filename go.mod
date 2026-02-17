@@ -5,7 +5,7 @@ go 1.24.0
 toolchain go1.24.3
 
 require (
-	github.com/Azure/azure-extension-platform v0.0.0-20250107200156-aa20f765d49f
+	github.com/Azure/azure-extension-platform v0.0.0-20260107210613-2a62cc200c34
 	github.com/ahmetalpbalkan/go-httpbin v0.0.0-20200921172446-862fbad56b77
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.7.0

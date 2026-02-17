@@ -11,8 +11,10 @@ import (
 	"time"
 
 	"github.com/Azure/azure-extension-platform/pkg/constants"
+	"github.com/Azure/azure-extension-platform/vmextension"
 
 	"github.com/Azure/VMApplication-Extension/internal/requesthelper"
+	"github.com/Azure/VMApplication-Extension/pkg/utils"
 	"github.com/Azure/azure-extension-platform/pkg/logging"
 	"github.com/pkg/errors"
 )
@@ -38,10 +40,10 @@ type downloadRequestFactory struct {
 	downloadedBytes int64
 }
 
-func newPackageDownloadRequestFactory(el *logging.ExtensionLogger, appName string) (*downloadRequestFactory, error) {
-	downloadURL, err := getOperationURI(el, appName, packageOperation)
-	if err != nil {
-		return nil, errors.Wrapf(err, "failed to obtain operationURI")
+func newPackageDownloadRequestFactory(el *logging.ExtensionLogger, appName string) (*downloadRequestFactory, *vmextension.ErrorWithClarification) {
+	downloadURL, ewc := getOperationURI(el, appName, packageOperation)
+	if ewc != nil {
+		return nil, ewc
 	}
 
 	drf := downloadRequestFactory{
@@ -52,10 +54,10 @@ func newPackageDownloadRequestFactory(el *logging.ExtensionLogger, appName strin
 	return &drf, nil
 }
 
-func newConfigDownloadRequestFactory(el *logging.ExtensionLogger, appName string) (*downloadRequestFactory, error) {
-	downloadURL, err := getOperationURI(el, appName, configOperation)
-	if err != nil {
-		return nil, errors.Wrapf(err, "failed to obtain operationURI")
+func newConfigDownloadRequestFactory(el *logging.ExtensionLogger, appName string) (*downloadRequestFactory, *vmextension.ErrorWithClarification) {
+	downloadURL, ewc := getOperationURI(el, appName, configOperation)
+	if ewc != nil {
+		return nil, ewc
 	}
 
 	drf := downloadRequestFactory{
@@ -66,27 +68,28 @@ func newConfigDownloadRequestFactory(el *logging.ExtensionLogger, appName string
 	return &drf, nil
 }
 
-func (u downloadRequestFactory) downloadFile(el *logging.ExtensionLogger, filename string) error {
+func (u downloadRequestFactory) downloadFile(el *logging.ExtensionLogger, filename string) *vmextension.ErrorWithClarification {
 	// Delete the file if it already exists
 	err := removeFileFunc(filename)
 	if err != nil {
-		return errors.Wrapf(err, "Could not remove the existing file")
+		return vmextension.NewErrorWithClarificationPtr(utils.FileSystem_CouldNotRemoveFile, errors.Wrapf(err, "Could not remove the existing file"))
 	}
 
+	var ewc *vmextension.ErrorWithClarification
 	finished := false
 	attempts := 0
 
 	for !finished && err == nil && attempts < maxDownloadAttempts {
-		finished, err = u.downloadAttempt(el, filename)
-		if err != nil {
-			return errors.Wrapf(err, "Unrecoverable error while downloading the file")
+		finished, ewc = u.downloadAttempt(el, filename)
+		if ewc != nil {
+			return ewc
 		}
 
 		attempts++
 	}
 
 	if !finished {
-		return errors.New("Failed to completely download the file")
+		return vmextension.NewErrorWithClarificationPtr(utils.HGAP_FailedToCompletelyDownloadFile, errors.New("Failed to completely download the file"))
 	}
 
 	return nil
@@ -95,25 +98,25 @@ func (u downloadRequestFactory) downloadFile(el *logging.ExtensionLogger, filena
 // downloadAttempt tries once to download as much of the file as it can
 // It returns true if the download is now complete, or false if it isn't yet
 // complete. It returns an error if a non-recoverable error occurred
-func (u downloadRequestFactory) downloadAttempt(el *logging.ExtensionLogger, filename string) (bool, error) {
+func (u downloadRequestFactory) downloadAttempt(el *logging.ExtensionLogger, filename string) (bool, *vmextension.ErrorWithClarification) {
 	requestManager := requesthelper.GetRequestManager(u, downloadRequestTimeout)
 
 	f, err := os.OpenFile(filename, os.O_RDWR|os.O_CREATE, constants.FilePermissions_UserOnly_ReadWriteExecute)
 	if err != nil {
-		return true, err
+		return true, vmextension.NewErrorWithClarificationPtr(utils.FileSystem_CouldNotOpenDownloadFile, err)
 	}
 	defer f.Close()
 
 	// Find out how much of the file we've downloaded, if any
 	fi, err := f.Stat()
 	if err != nil {
-		return true, errors.Wrapf(err, "Could not retrieve stats for file")
+		return true, vmextension.NewErrorWithClarificationPtr(utils.FileSystem_CouldNotRetrieveFileStats, errors.Wrapf(err, "Could not retrieve stats for file"))
 	}
 
 	// Start writing at the end of the file
 	_, err = f.Seek(0, io.SeekEnd)
 	if err != nil {
-		return true, errors.Wrapf(err, "Could not seek to end of file")
+		return true, vmextension.NewErrorWithClarificationPtr(utils.FileSystem_CouldNotSeekEOF, errors.Wrapf(err, "Could not seek to end of file"))
 	}
 
 	u.downloadedBytes = fi.Size()
@@ -130,7 +133,7 @@ func (u downloadRequestFactory) downloadAttempt(el *logging.ExtensionLogger, fil
 	}
 
 	if err != nil {
-		return true, errors.Wrapf(err, "Download request failed with retries.")
+		return true, vmextension.NewErrorWithClarificationPtr(utils.HGAP_PackageDownloadFailed, errors.Wrapf(err, "Download request failed with retries."))
 	}
 
 	body := resp.Body
@@ -140,7 +143,7 @@ func (u downloadRequestFactory) downloadAttempt(el *logging.ExtensionLogger, fil
 	// the entire file in memory
 	_, err = io.Copy(f, body)
 	if err != nil {
-		return true, errors.Wrapf(err, "Could not copy response data to file")
+		return true, vmextension.NewErrorWithClarificationPtr(utils.FileSystem_CouldNotCopyResponseData, errors.Wrapf(err, "Could not copy response data to file"))
 	}
 
 	if resp.StatusCode == http.StatusOK {
@@ -153,7 +156,7 @@ func (u downloadRequestFactory) downloadAttempt(el *logging.ExtensionLogger, fil
 		return false, nil
 	}
 
-	return true, errors.New("Unexpected status code")
+	return true, vmextension.NewErrorWithClarificationPtr(utils.HGAP_UnexpectedPackageStatusCode, errors.New("Unexpected status code"))
 }
 
 func removeFile(filename string) error {

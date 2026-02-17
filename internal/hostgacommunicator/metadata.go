@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/Azure/azure-extension-platform/pkg/logging"
+	"github.com/Azure/azure-extension-platform/vmextension"
 
 	"github.com/Azure/VMApplication-Extension/internal/requesthelper"
-	"github.com/pkg/errors"
 )
 
 const (
@@ -77,10 +77,10 @@ type metadataRequestFactory struct {
 	url string
 }
 
-func newMetadataRequestFactory(el *logging.ExtensionLogger, appName string) (*metadataRequestFactory, error) {
-	url, err := getOperationURI(el, appName, metadataOperation)
-	if err != nil {
-		return nil, errors.Wrapf(err, "failed to obtain operationURI")
+func newMetadataRequestFactory(el *logging.ExtensionLogger, appName string) (*metadataRequestFactory, *vmextension.ErrorWithClarification) {
+	url, ewc := getOperationURI(el, appName, metadataOperation)
+	if ewc != nil {
+		return nil, ewc
 	}
 
 	return &metadataRequestFactory{url}, nil
@@ -91,10 +91,10 @@ func (u metadataRequestFactory) GetRequest() (*http.Request, error) {
 	return http.NewRequest("GET", u.url, nil)
 }
 
-func getMetadataRequestManager(el *logging.ExtensionLogger, appName string) (*requesthelper.RequestManager, bool, error) {
-	factory, err := newMetadataRequestFactory(el, appName)
-	if err != nil {
-		return nil, false, errors.Wrapf(err, "failed to create request factory")
+func getMetadataRequestManager(el *logging.ExtensionLogger, appName string) (*requesthelper.RequestManager, bool, *vmextension.ErrorWithClarification) {
+	factory, ewc := newMetadataRequestFactory(el, appName)
+	if ewc != nil {
+		return nil, false, ewc
 	}
 
 	isArc := isArcAgentPresent(el)

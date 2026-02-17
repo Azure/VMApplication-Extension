@@ -89,7 +89,7 @@ func main() {
 		if getStatusError != nil {
 			// either no transitioning status file was found, or the status file was malformed
 			// either way create a new transitioning status file
-			err = utils.ReportStatus(handlerEnv, requestedSequenceNumber, status.StatusTransitioning, arg, "transitioning")
+			err = utils.ReportStatus(handlerEnv, requestedSequenceNumber, status.StatusTransitioning, arg, "transitioning", nil)
 			if err != nil {
 				el.Error(fmt.Sprintf("Could not write transitioning status: %s", err.Error()))
 				extensionEvents.LogCriticalEvent("Save Status", err.Error())

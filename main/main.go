@@ -20,6 +20,7 @@ import (
 	"github.com/Azure/azure-extension-platform/pkg/lockedfile"
 	"github.com/Azure/azure-extension-platform/pkg/seqno"
 	"github.com/Azure/azure-extension-platform/pkg/status"
+	"github.com/Azure/azure-extension-platform/vmextension"
 	vmextensionhelper "github.com/Azure/azure-extension-platform/vmextension"
 	"github.com/pkg/errors"
 )
@@ -97,9 +98,14 @@ func getExtensionAndRun(arguments []string) error {
 			default:
 				ext.ExtensionLogger.Error(enableError.Error())
 				ext.ExtensionEvents.LogErrorEvent("Enable Failed", enableError.Error())
+
+				// Determine if this contains an error clarification
+				var ewc *vmextensionhelper.ErrorWithClarification
+				errors.As(enableError, &ewc)
+
 				// try to save status file
 				statusMessage := enableError.Error()
-				err := reportStatusFunc(ext.HandlerEnv, requestedSequenceNumber, status.StatusError, vmextensionhelper.EnableOperation.ToStatusName(), statusMessage)
+				err := reportStatusFunc(ext.HandlerEnv, requestedSequenceNumber, status.StatusError, vmextensionhelper.EnableOperation.ToStatusName(), statusMessage, ewc)
 				if err != nil {
 					errorMessage := fmt.Sprintf("Failed to save status file: %s", err.Error())
 					ext.ExtensionLogger.Error(errorMessage)
@@ -144,37 +150,36 @@ func customEnable(ext *vmextensionhelper.VMExtension, hostgaCommunicator hostgac
 	packageRegistry, err := packageregistry.New(ext.ExtensionLogger, ext.HandlerEnv, filelockTimeoutDuration)
 	if err != nil {
 		// log error and exit
+		var errMsg string
 		switch err.(type) {
 		case *lockedfile.FileLockTimeoutError:
-			ext.ExtensionEvents.LogInformationalEvent(
-				"Acquire lock",
-				fmt.Sprintf("Failed to acquire package registry lock. Request timed out. It is likely that another instance is already running %v", err.Error()))
+			errMsg = fmt.Sprintf("Failed to acquire package registry lock. Request timed out. It is likely that another instance is already running %v", err.Error())
+			ext.ExtensionEvents.LogInformationalEvent("Acquire lock", errMsg
 		default:
-			ext.ExtensionEvents.LogInformationalEvent(
-				"Acquire lock",
-				fmt.Sprintf("Failed to acquire package registry lock. %v", err.Error()))
+			errMsg = fmt.Sprintf("Failed to acquire package registry lock. %v", err.Error())
+			ext.ExtensionEvents.LogInformationalEvent("Acquire lock", errMsg)
 		}
-		return err
+		return vmextension.NewErrorWithClarificationPtr(utils.FileSystem_CannotObtainLock, errors.New(errMsg))
 	}
 	defer packageRegistry.Close()
 
 	settings, err := ext.GetSettings()
 	if err != nil {
-		return errors.Wrap(err, "Could not get extension settings")
+		return vmextension.NewErrorWithClarificationPtr(utils.Infra_CouldNotGetSettings, err)
 	}
 
 	protSettings, err := extdeserialization.GetVMAppProtectedSettings(settings)
 	if err != nil {
-		return errors.Wrap(err, "Could not deserialize protected settings")
+		return vmextension.NewErrorWithClarificationPtr(utils.Infra_CouldNotDeserializeProtectedSettings, errors.Wrap(err, "Could not deserialize protected settings"))
 	}
-	vmAppIncomingCollection, err := getVMAppIncomingCollection(protSettings, hostgaCommunicator, ext.ExtensionLogger)
-	if err != nil {
-		return errors.Wrap(err, "Resolving packages failed")
+	vmAppIncomingCollection, ewc := getVMAppIncomingCollection(protSettings, hostgaCommunicator, ext.ExtensionLogger)
+	if ewc != nil {
+		return ewc
 	}
 
-	currentPackageRegistry, err := packageRegistry.GetExistingPackages()
-	if err != nil {
-		return errors.Wrap(err, "Could not read current package registry")
+	currentPackageRegistry, ewc := packageRegistry.GetExistingPackages()
+	if ewc != nil {
+		return ewc
 	}
 
 	commandHandler := commandhandler.CommandHandler{}

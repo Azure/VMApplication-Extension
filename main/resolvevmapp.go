@@ -9,23 +9,25 @@ import (
 	"github.com/Azure/VMApplication-Extension/internal/extdeserialization"
 	"github.com/Azure/VMApplication-Extension/internal/hostgacommunicator"
 	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
+	"github.com/Azure/VMApplication-Extension/pkg/utils"
 	"github.com/Azure/azure-extension-platform/pkg/logging"
+	"github.com/Azure/azure-extension-platform/vmextension"
 )
 
-func getVMAppIncomingCollection(settings extdeserialization.VmAppProtectedSettings, communicator hostgacommunicator.IHostGaCommunicator, el *logging.ExtensionLogger) (packageregistry.VMAppPackageIncomingCollection, error) {
+func getVMAppIncomingCollection(settings extdeserialization.VmAppProtectedSettings, communicator hostgacommunicator.IHostGaCommunicator, el *logging.ExtensionLogger) (packageregistry.VMAppPackageIncomingCollection, *vmextension.ErrorWithClarification) {
 
 	incomingCollection := make(packageregistry.VMAppPackageIncomingCollection, 0)
 	for _, app := range settings {
 		if app.ApplicationName == "" {
-			return nil, errors.New("missing application name")
+			return nil, vmextension.NewErrorWithClarificationPtr(utils.DataFormat_MissingApplicationName, errors.New("missing application name"))
 		}
-		vmAppInfo, err := communicator.GetVMAppInfo(el, app.ApplicationName)
-		if err != nil {
+		vmAppInfo, ewc := communicator.GetVMAppInfo(el, app.ApplicationName)
+		if ewc != nil {
 			// TODO: ignore errors?
-			return incomingCollection, err
+			return incomingCollection, ewc
 		}
 		if vmAppInfo.Version == "" {
-			return nil, errors.New("HostGA did not return a valid vmAppInfo")
+			return nil, vmextension.NewErrorWithClarificationPtr(utils.HGAP_InvalidAppInfo, errors.New("HostGA did not return a valid vmAppInfo"))
 		}
 
 		var applicationRebootBehavior packageregistry.RebootBehaviorEnum

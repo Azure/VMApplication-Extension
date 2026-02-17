@@ -10,10 +10,12 @@ import (
 	"path"
 	"time"
 
+	"github.com/Azure/VMApplication-Extension/pkg/utils"
 	"github.com/Azure/azure-extension-platform/pkg/constants"
 	"github.com/Azure/azure-extension-platform/pkg/handlerenv"
 	"github.com/Azure/azure-extension-platform/pkg/lockedfile"
 	"github.com/Azure/azure-extension-platform/pkg/logging"
+	"github.com/Azure/azure-extension-platform/vmextension"
 )
 
 const (
@@ -131,8 +133,8 @@ type VMAppPackageIncoming struct {
 }
 
 type IPackageRegistry interface {
-	GetExistingPackages() (CurrentPackageRegistry, error)
-	WriteToDisk(packageRegistry CurrentPackageRegistry) error
+	GetExistingPackages() (CurrentPackageRegistry, *vmextension.ErrorWithClarification)
+	WriteToDisk(packageRegistry CurrentPackageRegistry) *vmextension.ErrorWithClarification
 	Close() error
 }
 
@@ -159,7 +161,7 @@ func (self *PackageRegistry) Close() error {
 	return self.lockedFile.Close()
 }
 
-func (self *PackageRegistry) GetExistingPackages() (CurrentPackageRegistry, error) {
+func (self *PackageRegistry) GetExistingPackages() (CurrentPackageRegistry, *vmextension.ErrorWithClarification) {
 	var currentPackageRegistry CurrentPackageRegistry
 	currentPackageRegistry = nil
 	localApplicationRegistryFilePath := self.getLocalApplicationRegistryFilePath()
@@ -170,27 +172,27 @@ func (self *PackageRegistry) GetExistingPackages() (CurrentPackageRegistry, erro
 		// The file exists
 		fileBytes, err := ioutil.ReadFile(localApplicationRegistryFilePath)
 		if err != nil {
-			return currentPackageRegistry, err
+			return currentPackageRegistry, vmextension.NewErrorWithClarificationPtr(utils.PackageRegistry_DoesNotExist, err)
 		}
 
 		if len(fileBytes) > 0 {
 			err = json.Unmarshal(fileBytes, &vmAppPackageCurrentCollection)
 			if err != nil {
-				return currentPackageRegistry, err
+				return currentPackageRegistry, vmextension.NewErrorWithClarificationPtr(utils.PackageRegistry_CouldNotUnmarshal, err)
 			}
 		}
 	} else if !os.IsNotExist(err) {
-		self.logger.Info("Package registry file %v does not exist. Creating it.", localApplicationRegistryFilePath)
-		return currentPackageRegistry, err
+		self.logger.Info("Package registry file %v does exist, but could not be accessed.", localApplicationRegistryFilePath)
+		return currentPackageRegistry, vmextension.NewErrorWithClarificationPtr(utils.PackageRegistry_CouldNotAccess, err)
 	}
 
 	self.logger.Info("Read package registry file %v with %v entries", localApplicationRegistryFilePath, len(vmAppPackageCurrentCollection))
 	currentPackageRegistry = make(CurrentPackageRegistry)
-	err = currentPackageRegistry.Populate(vmAppPackageCurrentCollection)
-	return currentPackageRegistry, err
+	ewc := currentPackageRegistry.Populate(vmAppPackageCurrentCollection)
+	return currentPackageRegistry, ewc
 }
 
-func (self *PackageRegistry) WriteToDisk(packageRegistry CurrentPackageRegistry) error {
+func (self *PackageRegistry) WriteToDisk(packageRegistry CurrentPackageRegistry) *vmextension.ErrorWithClarification {
 	regFile := self.getLocalApplicationRegistryFilePath()
 	regFileBackup := self.getLocalApplicationRegistryBackupFilePath()
 	var doesBackupFileExist = false
@@ -198,7 +200,7 @@ func (self *PackageRegistry) WriteToDisk(packageRegistry CurrentPackageRegistry)
 	if err != nil {
 		if !os.IsNotExist(err) {
 			// return on errors other than source file does not exist for os.Rename operation
-			return err
+			return vmextension.NewErrorWithClarificationPtr(utils.PackageRegistry_RenameFailed, err)
 		}
 	} else {
 		doesBackupFileExist = true
@@ -207,17 +209,24 @@ func (self *PackageRegistry) WriteToDisk(packageRegistry CurrentPackageRegistry)
 	vmAppPackageCurrentCollection := packageRegistry.GetPackageCollection()
 	bytes, err := json.Marshal(vmAppPackageCurrentCollection)
 	if err != nil {
-		return err
+		return vmextension.NewErrorWithClarificationPtr(utils.PackageRegistry_CouldNotReadCollection, err)
 	}
 
 	err = ioutil.WriteFile(regFile, bytes, constants.FilePermissions_UserOnly_ReadWrite)
 	self.logger.Info("Wrote package registry to %v", regFile)
 
 	if doesBackupFileExist {
-		return os.Remove(regFileBackup)
-	} else {
-		return err
+		err = os.Remove(regFileBackup)
+		if err != nil {
+			return vmextension.NewErrorWithClarificationPtr(utils.PackageRegistry_CouldNotRemoveBackup, err)
+		}
 	}
+
+	if err != nil {
+		return vmextension.NewErrorWithClarificationPtr(utils.PackageRegistry_CouldNotWrite, err)
+	}
+
+	return nil
 }
 
 func (self *PackageRegistry) getLocalApplicationRegistryFilePath() string {

@@ -141,12 +141,12 @@ func (exeucuteError *ExecuteError) update(act *action, singleExecutionError erro
 	exeucuteError.combinedExecuteErrors = extensionerrors.CombineErrors(exeucuteError.combinedExecuteErrors, singleExecutionError)
 }
 
-func (exeucuteError *ExecuteError) GetErrorIfDeploymentFailed() error {
-	if exeucuteError.failedDeploymentErr == nil {
+func (executeError *ExecuteError) GetErrorIfDeploymentFailed() error {
+	if executeError.failedDeploymentErr == nil {
 		return nil
 	}
-	exeucuteError.failedDeploymentErr.additionalErrorForContext = exeucuteError.combinedExecuteErrors
-	return exeucuteError.failedDeploymentErr
+	executeError.failedDeploymentErr.additionalErrorForContext = executeError.combinedExecuteErrors
+	return executeError.failedDeploymentErr
 }
 
 func New(currentPackageRegistry packageregistry.CurrentPackageRegistry, desiredVMAppCollection packageregistry.VMAppPackageIncomingCollection, environment *handlerenv.HandlerEnvironment, hostGaCommunicator hostgacommunicator.IHostGaCommunicator, logger *logging.ExtensionLogger) *ActionPlan {

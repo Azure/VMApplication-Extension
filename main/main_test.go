@@ -422,7 +422,7 @@ func Test_main_nothingToProcess_noStatusUpdate(t *testing.T) {
 
 	hostGaCommunicator := NoopHostGaCommunicator{}
 	requestedSequenceNumber := uint(0)
-	err := utils.ReportStatus(ext.HandlerEnv, requestedSequenceNumber, status.StatusError, vmextension.EnableOperation.ToStatusName(), "test")
+	err := utils.ReportStatus(ext.HandlerEnv, requestedSequenceNumber, status.StatusError, vmextension.EnableOperation.ToStatusName(), "test", nil)
 	require.NoError(t, err)
 	err = customEnable(ext, &hostGaCommunicator, requestedSequenceNumber)
 	require.NoError(t, err)
@@ -439,7 +439,7 @@ func Test_main_transitioningStatusIsUpdated(t *testing.T) {
 
 	hostGaCommunicator := NoopHostGaCommunicator{}
 	requestedSequenceNumber := uint(0)
-	err := utils.ReportStatus(ext.HandlerEnv, requestedSequenceNumber, status.StatusTransitioning, vmextension.EnableOperation.ToStatusName(), "test")
+	err := utils.ReportStatus(ext.HandlerEnv, requestedSequenceNumber, status.StatusTransitioning, vmextension.EnableOperation.ToStatusName(), "test", nil)
 	require.NoError(t, err)
 	err = customEnable(ext, &hostGaCommunicator, requestedSequenceNumber)
 	require.NoError(t, err)
