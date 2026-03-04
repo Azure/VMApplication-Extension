@@ -214,21 +214,19 @@ func customEnable(ext *vmextensionhelper.VMExtension, hostgaCommunicator hostgac
 		return errors.Wrapf(err, "Could not get package registry")
 	}
 
-	// write success status if requested sequence number is newer
-	shouldReportStatus := false
-
-	if ext.CurrentSequenceNumber == nil || requestedSequenceNumber > *ext.CurrentSequenceNumber {
-		shouldReportStatus = true
-	} else if requestedSequenceNumber == *ext.CurrentSequenceNumber {
-		statusType, err := utils.GetStatusType(ext.HandlerEnv, requestedSequenceNumber)
-		if err != nil || strings.EqualFold(string(statusType), string(status.StatusTransitioning)) {
-			// either something is wrong with the status file
-			// or its a transitioning status file
-			// overwrite it in either case
-			shouldReportStatus = true
-		}
-	}
-	if shouldReportStatus {
+	// The status file needs to be updated whenever there is some VM App actions because
+	// all VM Apps are always processed. It also needed to be updated if the status is
+	// Transitioning even if there's no VM App actions to do. The only time update isn't
+	// needed is when VM is rebooted and there are no changes to the desired packages,
+	// and no VM App re-run after rebooting.
+	//
+	// This matters even if the extension already has a non-transitioning status file
+	// for the requested sequence number because an app might have failed earlier
+	// but become successful in the current run or vice versa. When an app reaches MaxReboot
+	// or when it runs successfully, the number of reboot is reset to 0, allowing it to
+	// run again if the VM is rebooted by any other process, which is why its new run
+	// status needs to be reflected in the status file.
+	if shouldReportStatus(ext, requestedSequenceNumber, vmAppResults) {
 		var statusResult status.StatusType
 		statusMessage := getStatusMessage(currentPackageRegistry.GetPackageCollection(), executeError, result)
 		if executeError.GetErrorIfDeploymentFailed() == nil { // treatFailureAsDeploymentFailure
@@ -258,7 +256,20 @@ func customEnable(ext *vmextensionhelper.VMExtension, hostgaCommunicator hostgac
 	return nil
 }
 
-// Callback indicating the extension is being removed
+func shouldReportStatus(ext *vmextensionhelper.VMExtension, requestedSequenceNumber uint, vmAppResults *actionplan.PackageOperationResults) bool {
+	// Report status if any VM App operations were executed
+	if vmAppResults != nil && len(*vmAppResults) > 0 {
+		return true
+	}
+	// Also report status if the current status is Transitioning (to update it to Success/Error)
+	// or if there is something wrong with the status file
+	statusType, err := utils.GetStatusType(ext.HandlerEnv, requestedSequenceNumber)
+	if err != nil || strings.EqualFold(string(statusType), string(status.StatusTransitioning)) {
+		return true
+	}
+	return false
+}
+
 func vmAppUninstallCallback(ext *vmextensionhelper.VMExtension) error {
 	ext.ExtensionEvents.LogInformationalEvent("Uninstalling", "VmApplications extension - removing all applications for uninstall")
 	hostGaCommunicator := hostgacommunicator.HostGaCommunicator{}
