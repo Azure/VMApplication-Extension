@@ -484,6 +484,50 @@ func Test_main_nothingToProcess_withStatus(t *testing.T) {
 	require.Equal(t, requestedSequenceNumber, currentSequenceNumber)
 }
 
+// Test that shouldReportStatus returns true when vmAppResults has elements,
+// even if there's an existing error status file
+func Test_shouldReportStatus_withVmAppResults_existingErrorStatus(t *testing.T) {
+	setupTest(t)
+	vmApplications := []extdeserialization.VmAppSetting{}
+	ext := createTestVMExtension(t, vmApplications)
+	requestedSequenceNumber := *ext.CurrentSequenceNumber
+
+	// Pre-create a status file with error status
+	err := utils.ReportStatus(ext.HandlerEnv, requestedSequenceNumber, status.StatusError, vmextension.EnableOperation.ToStatusName(), "previous failure")
+	require.NoError(t, err)
+
+	// Create vmAppResults with one result (simulating an app was executed)
+	vmAppResults := &actionplan.PackageOperationResults{
+		{PackageName: "testapp", Operation: "install", Result: actionplan.Success},
+	}
+
+	// shouldReportStatus should return true because vmAppResults has elements
+	result := shouldReportStatus(ext, requestedSequenceNumber, vmAppResults)
+	require.True(t, result, "shouldReportStatus should return true when vmAppResults has elements")
+}
+
+// Test that shouldReportStatus returns true when vmAppResults has elements,
+// even if there's an existing success status file
+func Test_shouldReportStatus_withVmAppResults_existingSuccessStatus(t *testing.T) {
+	setupTest(t)
+	vmApplications := []extdeserialization.VmAppSetting{}
+	ext := createTestVMExtension(t, vmApplications)
+	requestedSequenceNumber := *ext.CurrentSequenceNumber
+
+	// Pre-create a status file with success status
+	err := utils.ReportStatus(ext.HandlerEnv, requestedSequenceNumber, status.StatusSuccess, vmextension.EnableOperation.ToStatusName(), "previous success")
+	require.NoError(t, err)
+
+	// Create vmAppResults with one result (simulating an app was executed)
+	vmAppResults := &actionplan.PackageOperationResults{
+		{PackageName: "testapp", Operation: "install", Result: "Error: command failed"},
+	}
+
+	// shouldReportStatus should return true because vmAppResults has elements
+	result := shouldReportStatus(ext, requestedSequenceNumber, vmAppResults)
+	require.True(t, result, "shouldReportStatus should return true when vmAppResults has elements")
+}
+
 func Test_uninstall_cannotCreatePackageRegistry(t *testing.T) {
 	setupTest(t)
 	vmApplications := []extdeserialization.VmAppSetting{}
