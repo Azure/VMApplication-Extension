@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
@@ -296,7 +295,7 @@ func Test_getVMPackageDataCustomAction_valid(t *testing.T) {
 	require.Contains(t, currentpackages[vmApplications[0].ApplicationName].Result, actionplan.Success)
 	// test contents of the status file
 	statusFilePath := filepath.Join(ext.HandlerEnv.StatusFolder, fmt.Sprintf("%d.status", requestedSequenceNumber))
-	fileBytes, err := ioutil.ReadFile(statusFilePath)
+	fileBytes, err := os.ReadFile(statusFilePath)
 	require.NoError(t, err)
 	statusReport := status.StatusReport{}
 	err = json.Unmarshal(fileBytes, &statusReport)
@@ -386,7 +385,7 @@ func Test_main_statusIsWrittenForCriticalErrors(t *testing.T) {
 	err := getExtensionAndRun([]string{"vm-application-manager", vmextension.EnableOperation.ToString()})
 	require.NoError(t, err)
 	statusFilePath := filepath.Join(ext.HandlerEnv.StatusFolder, fmt.Sprintf("%d.status", requestedSequenceNumber))
-	fileBytes, err := ioutil.ReadFile(statusFilePath)
+	fileBytes, err := os.ReadFile(statusFilePath)
 	require.NoError(t, err)
 	fileString := string(fileBytes)
 	require.Contains(t, fileString, vmextension.EnableOperation.ToStatusName())
@@ -476,7 +475,7 @@ func Test_main_nothingToProcess_withStatus(t *testing.T) {
 	err := customEnable(ext, &hostGaCommunicator, requestedSequenceNumber)
 	require.NoError(t, err)
 	statusFilePath := filepath.Join(ext.HandlerEnv.StatusFolder, fmt.Sprintf("%d.status", requestedSequenceNumber))
-	fileBytes, err := ioutil.ReadFile(statusFilePath)
+	fileBytes, err := os.ReadFile(statusFilePath)
 	require.NoError(t, err)
 	fileString := string(fileBytes)
 	require.Contains(t, fileString, vmextension.EnableOperation.ToStatusName())
@@ -550,7 +549,7 @@ func Test_uninstall_cannotReadPackageRegistry(t *testing.T) {
 
 	// Write an invalid registry so we can't create a package registry
 	appRegistryFilePath := path.Join(ext.HandlerEnv.ConfigFolder, packageregistry.LocalApplicationRegistryFileName)
-	ioutil.WriteFile(appRegistryFilePath, []byte("}"), 0644)
+	os.WriteFile(appRegistryFilePath, []byte("}"), 0644)
 	defer os.Remove(appRegistryFilePath)
 
 	err := doVmAppUninstallCallback(ext, &hostGaCommunicator)
