@@ -73,15 +73,15 @@ func nopLog() *logging.ExtensionLogger {
 
 var maintestdir string
 
-func TestMain(m *testing.M) {
-	testdir, err := ioutil.TempDir("", "maintest")
+func setupTest(t *testing.T) {
+	testdir, err := os.MkdirTemp("", "maintest")
 	if err != nil {
-		return
+		t.Fatalf("Failed to create temp dir: %v", err)
 	}
 
 	err = os.MkdirAll(testdir, constants.FilePermissions_UserOnly_ReadWriteExecute)
 	if err != nil {
-		return
+		t.Fatalf("Failed to create test dir: %v", err)
 	}
 
 	setSequenceNumberFunc = func(extName, extVersion string, seqNo uint) error {
@@ -90,13 +90,14 @@ func TestMain(m *testing.M) {
 	}
 
 	maintestdir = testdir
-	exitVal := m.Run()
-	os.RemoveAll(maintestdir)
 
-	os.Exit(exitVal)
+	t.Cleanup(func() {
+		os.RemoveAll(maintestdir)
+	})
 }
 
 func Test_settingsFailToInit(t *testing.T) {
+	setupTest(t)
 	ExtensionVersion = ""
 	defer resetExtensionVersion()
 	err := getExtensionAndRun([]string{"vm-application-manager", "enable"})
@@ -104,18 +105,21 @@ func Test_settingsFailToInit(t *testing.T) {
 }
 
 func Test_failToCreateExtension(t *testing.T) {
+	setupTest(t)
 	// This will fail automatically because Guest Agent hasn't set the required sequence numbers
 	err := getExtensionAndRun([]string{"vm-application-manager", "enable"})
 	require.Error(t, err)
 }
 
 func Test_getVMPackageData_noSettings(t *testing.T) {
+	setupTest(t)
 	ext := createTestVMExtension(t, nil)
 	err := customEnable(ext, noopHostGaCommunicator, 0)
 	require.Error(t, err)
 }
 
 func Test_getVMPackageData_cannotDeserialize(t *testing.T) {
+	setupTest(t)
 	vmPackages := "yabasnarfle {}"
 
 	ext := createTestVMExtension(t, vmPackages)
@@ -124,6 +128,7 @@ func Test_getVMPackageData_cannotDeserialize(t *testing.T) {
 }
 
 func Test_getVMPackageData_noApplications(t *testing.T) {
+	setupTest(t)
 	vmApplications := []extdeserialization.VmAppSetting{}
 
 	ext := createTestVMExtension(t, vmApplications)
@@ -132,6 +137,7 @@ func Test_getVMPackageData_noApplications(t *testing.T) {
 }
 
 func Test_getVMPackageData_valid(t *testing.T) {
+	setupTest(t)
 	order := 1
 	vmApplications := []extdeserialization.VmAppSetting{
 		{
@@ -148,6 +154,7 @@ func Test_getVMPackageData_valid(t *testing.T) {
 }
 
 func Test_getVMAppProtectedSettings_valid(t *testing.T) {
+	setupTest(t)
 	order := 1
 	actions := extdeserialization.ActionSetting{
 		ActionName:   "logging",
@@ -181,6 +188,7 @@ func Test_getVMAppProtectedSettings_valid(t *testing.T) {
 }
 
 func Test_getVMAppProtectedSettings_valid_no_custom_actions(t *testing.T) {
+	setupTest(t)
 	order := 1
 
 	appSettings := extdeserialization.VmAppSetting{
@@ -201,6 +209,7 @@ func Test_getVMAppProtectedSettings_valid_no_custom_actions(t *testing.T) {
 }
 
 func Test_getVMPackageData_noVersion(t *testing.T) {
+	setupTest(t)
 	order := 1
 	vmApplications := []extdeserialization.VmAppSetting{
 		{
@@ -217,6 +226,7 @@ func Test_getVMPackageData_noVersion(t *testing.T) {
 }
 
 func Test_GetApplicationMetadataWithInvalidRebootBehavior_DefaultsToNone(t *testing.T) {
+	setupTest(t)
 	order := 1
 	vmApplications := []extdeserialization.VmAppSetting{
 		{
@@ -247,6 +257,7 @@ func Test_GetApplicationMetadataWithInvalidRebootBehavior_DefaultsToNone(t *test
 }
 
 func Test_getVMPackageDataCustomAction_valid(t *testing.T) {
+	setupTest(t)
 	order := 1
 	actions := extdeserialization.ActionSetting{
 		ActionName:   "Action1",
@@ -309,6 +320,7 @@ func Test_getVMPackageDataCustomAction_valid(t *testing.T) {
 }
 
 func Test_getVMPackageDataCustomAction_CriticalError(t *testing.T) {
+	setupTest(t)
 	order := 1
 	actions := extdeserialization.ActionSetting{
 		ActionName:   "Action1",
@@ -333,6 +345,7 @@ func Test_getVMPackageDataCustomAction_CriticalError(t *testing.T) {
 }
 
 func Test_getVMPackageData_noApplicationName(t *testing.T) {
+	setupTest(t)
 	order := 1
 	vmApplications := []extdeserialization.VmAppSetting{
 		{
@@ -349,6 +362,7 @@ func Test_getVMPackageData_noApplicationName(t *testing.T) {
 }
 
 func Test_main_statusIsWrittenForCriticalErrors(t *testing.T) {
+	setupTest(t)
 	order := 1
 	vmApplications := []extdeserialization.VmAppSetting{
 		{
@@ -384,6 +398,7 @@ func Test_main_statusIsWrittenForCriticalErrors(t *testing.T) {
 }
 
 func Test_main_statusIsNotWrittenForFileLockErrors(t *testing.T) {
+	setupTest(t)
 	order := 1
 	vmApplications := []extdeserialization.VmAppSetting{
 		{
@@ -417,6 +432,7 @@ func Test_main_statusIsNotWrittenForFileLockErrors(t *testing.T) {
 }
 
 func Test_main_nothingToProcess_noStatusUpdate(t *testing.T) {
+	setupTest(t)
 	vmApplications := []extdeserialization.VmAppSetting{}
 	ext := createTestVMExtension(t, vmApplications)
 
@@ -434,6 +450,7 @@ func Test_main_nothingToProcess_noStatusUpdate(t *testing.T) {
 }
 
 func Test_main_transitioningStatusIsUpdated(t *testing.T) {
+	setupTest(t)
 	vmApplications := []extdeserialization.VmAppSetting{}
 	ext := createTestVMExtension(t, vmApplications)
 
@@ -451,6 +468,7 @@ func Test_main_transitioningStatusIsUpdated(t *testing.T) {
 }
 
 func Test_main_nothingToProcess_withStatus(t *testing.T) {
+	setupTest(t)
 	vmApplications := []extdeserialization.VmAppSetting{}
 	ext := createTestVMExtension(t, vmApplications)
 	hostGaCommunicator := NoopHostGaCommunicator{}
@@ -467,6 +485,7 @@ func Test_main_nothingToProcess_withStatus(t *testing.T) {
 }
 
 func Test_uninstall_cannotCreatePackageRegistry(t *testing.T) {
+	setupTest(t)
 	vmApplications := []extdeserialization.VmAppSetting{}
 	ext := createTestVMExtension(t, vmApplications)
 	hostGaCommunicator := NoopHostGaCommunicator{}
@@ -480,6 +499,7 @@ func Test_uninstall_cannotCreatePackageRegistry(t *testing.T) {
 }
 
 func Test_uninstall_cannotReadPackageRegistry(t *testing.T) {
+	setupTest(t)
 	vmApplications := []extdeserialization.VmAppSetting{}
 	ext := createTestVMExtension(t, vmApplications)
 	hostGaCommunicator := NoopHostGaCommunicator{}
@@ -495,6 +515,7 @@ func Test_uninstall_cannotReadPackageRegistry(t *testing.T) {
 }
 
 func Test_uninstall_noAppsToUninstall(t *testing.T) {
+	setupTest(t)
 	vmApplications := []extdeserialization.VmAppSetting{}
 	ext := createTestVMExtension(t, vmApplications)
 	hostGaCommunicator := NoopHostGaCommunicator{}
@@ -536,6 +557,7 @@ func Test_uninstall_noAppsToUninstall(t *testing.T) {
 }
 
 func Test_uninstall_uninstallApps(t *testing.T) {
+	setupTest(t)
 	vmApplications := []extdeserialization.VmAppSetting{}
 	ext := createTestVMExtension(t, vmApplications)
 	hostGaCommunicator := NoopHostGaCommunicator{}
