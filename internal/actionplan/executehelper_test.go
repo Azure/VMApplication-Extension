@@ -150,23 +150,23 @@ func TestExecuteHelper(t *testing.T) {
 	initTest(t)
 	defer cleanTest()
 	action := action{vmAppPackageCurrent, false, packageregistry.Install}
-	err := actionPlan.executeHelper(packageRegistry, commandHandler, packageregistry.CurrentPackageRegistry{}, &action, extensionEventManager)
-	assert.NoError(t, err)
+	err, _ := actionPlan.executeHelper(packageRegistry, commandHandler, packageregistry.CurrentPackageRegistry{}, &action, extensionEventManager)
+	assert.NoError(t, err.Err)
 	assert.EqualValues(t, 1, mhgCommunicator.DownloadPackageCount, "download package count should be 1")
 	assert.EqualValues(t, 1, mhgCommunicator.DownloadConfigCount, "download config count should be 1")
 
 	action.actionToPerform = packageregistry.Remove
-	err = actionPlan.executeHelper(packageRegistry, commandHandler, packageregistry.CurrentPackageRegistry{}, &action, extensionEventManager)
-	assert.NoError(t, err)
+	err, _ = actionPlan.executeHelper(packageRegistry, commandHandler, packageregistry.CurrentPackageRegistry{}, &action, extensionEventManager)
+	assert.NoError(t, err.Err)
 	assert.EqualValues(t, 1, mhgCommunicator.DownloadPackageCount, "download package count should be 1")
 	assert.EqualValues(t, 1, mhgCommunicator.DownloadConfigCount, "download config count should be 1")
 
 	assert.EqualValues(t, vmAppPackageCurrent.InstallCommand, commandHandler.Result[0].command, "1st command should be install")
 	assert.EqualValues(t, vmAppPackageCurrent.RemoveCommand, commandHandler.Result[1].command, "2nd command should be remove")
 	assert.Equal(t, 2, len(commandHandler.Result), "only 2 commands should be executed")
-	_, err = os.Stat(vmAppPackageCurrent.DownloadDir)
+	_, err.Err = os.Stat(vmAppPackageCurrent.DownloadDir)
 	assert.Error(t, err, "downloadDir should be deleted")
-	_, ok := err.(*os.PathError)
+	_, ok := err.Err.(*os.PathError)
 	assert.True(t, ok, "downloadDir should be deleted")
 }
 
@@ -174,7 +174,7 @@ func TestDeletedApp(t *testing.T) {
 	initTest(t)
 	defer cleanTest()
 	action := action{vmAppPackageDeleted, false, packageregistry.Install}
-	err := actionPlan.executeHelper(packageRegistry, commandHandler, packageregistry.CurrentPackageRegistry{}, &action, extensionEventManager)
+	err, _ := actionPlan.executeHelper(packageRegistry, commandHandler, packageregistry.CurrentPackageRegistry{}, &action, extensionEventManager)
 	assert.Error(t, err, "The application test app, version 1.0.0 has been removed from the repository and cannot be installed. Please install a newer version of the application.")
 }
 

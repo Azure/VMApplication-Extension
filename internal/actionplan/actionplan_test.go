@@ -13,11 +13,13 @@ import (
 
 	"github.com/Azure/VMApplication-Extension/internal/hostgacommunicator"
 	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
+	"github.com/Azure/VMApplication-Extension/pkg/utils"
 	"github.com/Azure/azure-extension-platform/pkg/commandhandler"
 	"github.com/Azure/azure-extension-platform/pkg/constants"
 	"github.com/Azure/azure-extension-platform/pkg/extensionevents"
 	"github.com/Azure/azure-extension-platform/pkg/handlerenv"
 	"github.com/Azure/azure-extension-platform/pkg/logging"
+	vmextensionhelper "github.com/Azure/azure-extension-platform/vmextension"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 )
@@ -767,5 +769,338 @@ func validateApplicationAfterReboot(t *testing.T, applicationName string, numReb
 	} else {
 		assert.Equal(t, packageregistry.Install, app.OngoingOperation, "operation should have been preserved during reboot")
 		assert.Contains(t, app.Result, "Reboot detected during 'Install' operation")
+	}
+}
+
+func TestExecuteError_Update(t *testing.T) {
+	tests := []struct {
+		name                     string
+		initialExecuteError      *ExecuteError
+		action                   *action
+		singleExecutionError     error
+		errorWithClarification   []vmextensionhelper.ErrorWithClarification
+		expectedFailedDeployment bool
+		expectedErrorCount       int
+		expectedErrorCode        int
+	}{
+		{
+			name: "Update with no error and no clarification",
+			initialExecuteError: &ExecuteError{
+				failedDeploymentErr:    nil,
+				combinedExecuteErrors:  nil,
+				errorWithClarification: vmextensionhelper.ErrorWithClarification{},
+			},
+			action: &action{
+				vmAppPackage:                    getVmAppPackageCurrent("testapp", "1.0"),
+				treatFailureAsDeploymentFailure: false,
+				actionToPerform:                 packageregistry.Install,
+			},
+			singleExecutionError:     nil,
+			errorWithClarification:   []vmextensionhelper.ErrorWithClarification{},
+			expectedFailedDeployment: false,
+			expectedErrorCount:       0,
+			expectedErrorCode:        0,
+		},
+		{
+			name: "Update with install action error and treatFailureAsDeploymentFailure true",
+			initialExecuteError: &ExecuteError{
+				failedDeploymentErr:    nil,
+				combinedExecuteErrors:  nil,
+				errorWithClarification: vmextensionhelper.ErrorWithClarification{},
+			},
+			action: &action{
+				vmAppPackage:                    getVmAppPackageCurrent("testapp", "1.0"),
+				treatFailureAsDeploymentFailure: true,
+				actionToPerform:                 packageregistry.Install,
+			},
+			singleExecutionError:     errors.New("install failed"),
+			errorWithClarification:   []vmextensionhelper.ErrorWithClarification{},
+			expectedFailedDeployment: true,
+			expectedErrorCount:       1,
+			expectedErrorCode:        0,
+		},
+		{
+			name: "Update with update action error and treatFailureAsDeploymentFailure true",
+			initialExecuteError: &ExecuteError{
+				failedDeploymentErr:    nil,
+				combinedExecuteErrors:  nil,
+				errorWithClarification: vmextensionhelper.ErrorWithClarification{},
+			},
+			action: &action{
+				vmAppPackage:                    getVmAppPackageCurrent("testapp", "1.0"),
+				treatFailureAsDeploymentFailure: true,
+				actionToPerform:                 packageregistry.Update,
+			},
+			singleExecutionError:     errors.New("update failed"),
+			errorWithClarification:   []vmextensionhelper.ErrorWithClarification{},
+			expectedFailedDeployment: true,
+			expectedErrorCount:       1,
+			expectedErrorCode:        0,
+		},
+		{
+			name: "Update with remove action error and treatFailureAsDeploymentFailure true - should not fail deployment",
+			initialExecuteError: &ExecuteError{
+				failedDeploymentErr:    nil,
+				combinedExecuteErrors:  nil,
+				errorWithClarification: vmextensionhelper.ErrorWithClarification{},
+			},
+			action: &action{
+				vmAppPackage:                    getVmAppPackageCurrent("testapp", "1.0"),
+				treatFailureAsDeploymentFailure: true,
+				actionToPerform:                 packageregistry.Remove,
+			},
+			singleExecutionError:     errors.New("remove failed"),
+			errorWithClarification:   []vmextensionhelper.ErrorWithClarification{},
+			expectedFailedDeployment: false,
+			expectedErrorCount:       1,
+			expectedErrorCode:        0,
+		},
+		{
+			name: "Update with error clarification",
+			initialExecuteError: &ExecuteError{
+				failedDeploymentErr:    nil,
+				combinedExecuteErrors:  nil,
+				errorWithClarification: vmextensionhelper.ErrorWithClarification{},
+			},
+			action: &action{
+				vmAppPackage:                    getVmAppPackageCurrent("testapp", "1.0"),
+				treatFailureAsDeploymentFailure: false,
+				actionToPerform:                 packageregistry.Install,
+			},
+			singleExecutionError: errors.New("execution failed"),
+			errorWithClarification: []vmextensionhelper.ErrorWithClarification{
+				vmextensionhelper.NewErrorWithClarification(utils.CommandExecutionError, errors.New("command execution error")),
+			},
+			expectedFailedDeployment: false,
+			expectedErrorCount:       1,
+			expectedErrorCode:        utils.CommandExecutionError,
+		},
+		{
+			name: "Update multiple errors with existing failed deployment",
+			initialExecuteError: &ExecuteError{
+				failedDeploymentErr: &failedDeploymentError{
+					appsWithTreatFailureAsDeploymentFailure: []string{"existingapp"},
+					additionalErrorForContext:               nil,
+				},
+				combinedExecuteErrors:  errors.New("existing error"),
+				errorWithClarification: vmextensionhelper.ErrorWithClarification{},
+			},
+			action: &action{
+				vmAppPackage:                    getVmAppPackageCurrent("newapp", "2.0"),
+				treatFailureAsDeploymentFailure: true,
+				actionToPerform:                 packageregistry.Install,
+			},
+			singleExecutionError:     errors.New("new install failed"),
+			errorWithClarification:   []vmextensionhelper.ErrorWithClarification{},
+			expectedFailedDeployment: true,
+			expectedErrorCount:       2,
+			expectedErrorCode:        0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Perform the update
+			tt.initialExecuteError.update(tt.action, tt.singleExecutionError, tt.errorWithClarification...)
+
+			// Check failed deployment error
+			deploymentError := tt.initialExecuteError.GetErrorIfDeploymentFailed()
+			if tt.expectedFailedDeployment {
+				assert.NotNil(t, deploymentError, "Expected deployment failure error")
+				assert.Contains(t, deploymentError.Error(), tt.action.vmAppPackage.ApplicationName, "Error should contain app name")
+			} else {
+				assert.Nil(t, deploymentError, "Expected no deployment failure error")
+			}
+
+			// Check combined errors
+			if tt.expectedErrorCount > 0 {
+				assert.NotNil(t, tt.initialExecuteError.combinedExecuteErrors, "Expected combined errors")
+			} else {
+				assert.Nil(t, tt.initialExecuteError.combinedExecuteErrors, "Expected no combined errors")
+			}
+
+			// Check error clarification
+			if tt.expectedErrorCode != 0 {
+				errorWithClarification := tt.initialExecuteError.GetErrorWithClarification()
+				assert.Equal(t, tt.expectedErrorCode, errorWithClarification.ErrorCode, "Error code should match")
+			}
+		})
+	}
+}
+
+func TestExecuteError_UpdateFailDeploymentError(t *testing.T) {
+	tests := []struct {
+		name                       string
+		initialFailedDeploymentErr *failedDeploymentError
+		action                     *action
+		singleExecutionError       error
+		expectedAppCount           int
+		expectedToReturnError      bool
+	}{
+		{
+			name:                       "No initial error, install with failure, treatFailureAsDeploymentFailure true",
+			initialFailedDeploymentErr: nil,
+			action: &action{
+				vmAppPackage:                    getVmAppPackageCurrent("app1", "1.0"),
+				treatFailureAsDeploymentFailure: true,
+				actionToPerform:                 packageregistry.Install,
+			},
+			singleExecutionError:  errors.New("install failed"),
+			expectedAppCount:      1,
+			expectedToReturnError: true,
+		},
+		{
+			name:                       "No initial error, update with failure, treatFailureAsDeploymentFailure true",
+			initialFailedDeploymentErr: nil,
+			action: &action{
+				vmAppPackage:                    getVmAppPackageCurrent("app1", "1.0"),
+				treatFailureAsDeploymentFailure: true,
+				actionToPerform:                 packageregistry.Update,
+			},
+			singleExecutionError:  errors.New("update failed"),
+			expectedAppCount:      1,
+			expectedToReturnError: true,
+		},
+		{
+			name:                       "No initial error, remove with failure, treatFailureAsDeploymentFailure true",
+			initialFailedDeploymentErr: nil,
+			action: &action{
+				vmAppPackage:                    getVmAppPackageCurrent("app1", "1.0"),
+				treatFailureAsDeploymentFailure: true,
+				actionToPerform:                 packageregistry.Remove,
+			},
+			singleExecutionError:  errors.New("remove failed"),
+			expectedAppCount:      0,
+			expectedToReturnError: false,
+		},
+		{
+			name:                       "No initial error, install with failure, treatFailureAsDeploymentFailure false",
+			initialFailedDeploymentErr: nil,
+			action: &action{
+				vmAppPackage:                    getVmAppPackageCurrent("app1", "1.0"),
+				treatFailureAsDeploymentFailure: false,
+				actionToPerform:                 packageregistry.Install,
+			},
+			singleExecutionError:  errors.New("install failed"),
+			expectedAppCount:      0,
+			expectedToReturnError: false,
+		},
+		{
+			name: "Existing error, add another app failure",
+			initialFailedDeploymentErr: &failedDeploymentError{
+				appsWithTreatFailureAsDeploymentFailure: []string{"existingapp"},
+				additionalErrorForContext:               nil,
+			},
+			action: &action{
+				vmAppPackage:                    getVmAppPackageCurrent("app2", "1.0"),
+				treatFailureAsDeploymentFailure: true,
+				actionToPerform:                 packageregistry.Install,
+			},
+			singleExecutionError:  errors.New("install failed"),
+			expectedAppCount:      2,
+			expectedToReturnError: true,
+		},
+		{
+			name:                       "No error occurred",
+			initialFailedDeploymentErr: nil,
+			action: &action{
+				vmAppPackage:                    getVmAppPackageCurrent("app1", "1.0"),
+				treatFailureAsDeploymentFailure: true,
+				actionToPerform:                 packageregistry.Install,
+			},
+			singleExecutionError:  nil,
+			expectedAppCount:      0,
+			expectedToReturnError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := updateFailDeploymentError(tt.initialFailedDeploymentErr, tt.action, tt.singleExecutionError)
+
+			if tt.expectedToReturnError {
+				assert.NotNil(t, result, "Expected failed deployment error to be returned")
+				assert.Equal(t, tt.expectedAppCount, len(result.appsWithTreatFailureAsDeploymentFailure), "Expected app count should match")
+				if tt.expectedAppCount > 0 {
+					assert.Contains(t, result.appsWithTreatFailureAsDeploymentFailure, tt.action.vmAppPackage.ApplicationName, "Should contain the failed app name")
+				}
+			} else {
+				if tt.expectedAppCount == 0 {
+					assert.Nil(t, result, "Expected no failed deployment error")
+				} else {
+					assert.NotNil(t, result, "Expected existing failed deployment error to be preserved")
+					assert.Equal(t, tt.expectedAppCount, len(result.appsWithTreatFailureAsDeploymentFailure), "Expected app count should match")
+				}
+			}
+		})
+	}
+}
+
+func TestExecuteError_GetErrorIfDeploymentFailed(t *testing.T) {
+	tests := []struct {
+		name                             string
+		failedDeploymentErr              *failedDeploymentError
+		combinedExecuteErrors            error
+		expectNil                        bool
+		expectedToContainAppName         string
+		expectedToContainAdditionalError bool
+	}{
+		{
+			name:                  "No failed deployment error",
+			failedDeploymentErr:   nil,
+			combinedExecuteErrors: errors.New("some error"),
+			expectNil:             true,
+		},
+		{
+			name: "Failed deployment error without additional context",
+			failedDeploymentErr: &failedDeploymentError{
+				appsWithTreatFailureAsDeploymentFailure: []string{"app1"},
+				additionalErrorForContext:               nil,
+			},
+			combinedExecuteErrors:            nil,
+			expectNil:                        false,
+			expectedToContainAppName:         "app1",
+			expectedToContainAdditionalError: false,
+		},
+		{
+			name: "Failed deployment error with additional context",
+			failedDeploymentErr: &failedDeploymentError{
+				appsWithTreatFailureAsDeploymentFailure: []string{"app1", "app2"},
+				additionalErrorForContext:               nil,
+			},
+			combinedExecuteErrors:            errors.New("additional error context"),
+			expectNil:                        false,
+			expectedToContainAppName:         "app1",
+			expectedToContainAdditionalError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			executeError := &ExecuteError{
+				failedDeploymentErr:   tt.failedDeploymentErr,
+				combinedExecuteErrors: tt.combinedExecuteErrors,
+			}
+
+			result := executeError.GetErrorIfDeploymentFailed()
+
+			if tt.expectNil {
+				assert.Nil(t, result, "Expected nil error")
+			} else {
+				assert.NotNil(t, result, "Expected non-nil error")
+				errorMessage := result.Error()
+
+				if tt.expectedToContainAppName != "" {
+					assert.Contains(t, errorMessage, tt.expectedToContainAppName, "Error message should contain app name")
+				}
+
+				if tt.expectedToContainAdditionalError {
+					assert.Contains(t, errorMessage, "Additional errors:", "Error message should contain additional error context")
+					assert.Contains(t, errorMessage, tt.combinedExecuteErrors.Error(), "Error message should contain the combined error text")
+					// Verify that the additional error context was set
+					assert.Equal(t, tt.combinedExecuteErrors, tt.failedDeploymentErr.additionalErrorForContext, "Additional error context should be set")
+				}
+			}
+		})
 	}
 }

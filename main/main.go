@@ -236,7 +236,20 @@ func customEnable(ext *vmextensionhelper.VMExtension, hostgaCommunicator hostgac
 		} else {
 			statusResult = status.StatusError
 		}
-		err := utils.ReportStatus(ext.HandlerEnv, requestedSequenceNumber, statusResult, vmextensionhelper.EnableOperation.ToStatusName(), statusMessage)
+
+		var err error
+		switch statusResult {
+		case status.StatusError:
+			ewc := executeError.GetErrorWithClarification()
+			if ewc != (vmextensionhelper.ErrorWithClarification{}) {
+				err = utils.ReportStatusWithError(ext.HandlerEnv, requestedSequenceNumber, vmextensionhelper.EnableOperation.ToStatusName(), ewc)
+			} else {
+				err = utils.ReportStatus(ext.HandlerEnv, requestedSequenceNumber, statusResult, vmextensionhelper.EnableOperation.ToStatusName(), statusMessage)
+			}
+
+		default:
+			err = utils.ReportStatus(ext.HandlerEnv, requestedSequenceNumber, statusResult, vmextensionhelper.EnableOperation.ToStatusName(), statusMessage)
+		}
 		if err != nil {
 			errorMessage := fmt.Sprintf("Failed to save status file: %s", err.Error())
 			ext.ExtensionLogger.Error(errorMessage)

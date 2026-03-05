@@ -15,11 +15,13 @@ import (
 	"time"
 
 	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
+	"github.com/Azure/VMApplication-Extension/pkg/utils"
 	"github.com/Azure/azure-extension-platform/pkg/commandhandler"
 	"github.com/Azure/azure-extension-platform/pkg/constants"
 	"github.com/Azure/azure-extension-platform/pkg/exithelper"
 	"github.com/Azure/azure-extension-platform/pkg/extensionerrors"
 	"github.com/Azure/azure-extension-platform/pkg/extensionevents"
+	vmextensionhelper "github.com/Azure/azure-extension-platform/vmextension"
 	"github.com/pkg/errors"
 )
 
@@ -27,10 +29,11 @@ const MaxReboots = 3
 
 func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPackageRegistry,
 	commandHandler commandhandler.ICommandHandler, registry packageregistry.CurrentPackageRegistry,
-	act *action, eem *extensionevents.ExtensionEventManager) (errorMessageToReturn error) {
+	act *action, eem *extensionevents.ExtensionEventManager) (errorWithClarification vmextensionhelper.ErrorWithClarification, errorMessageToReturn error) {
 	errorMessageToReturn = nil
 	appName := act.vmAppPackage.ApplicationName
 	version := act.vmAppPackage.Version
+	ewc := vmextensionhelper.ErrorWithClarification{}
 	// record new operation in the packageRegistry
 	vmAppPackageCurrent := act.vmAppPackage
 	registry[appName] = &vmAppPackageCurrent
@@ -43,11 +46,14 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 	// return early for Cleanup operation
 	if vmAppPackageCurrent.OngoingOperation == packageregistry.Cleanup {
 		delete(registry, appName)
-		return registryHandler.WriteToDisk(registry)
+		err := registryHandler.WriteToDisk(registry)
+		ewc = vmextensionhelper.NewErrorWithClarification(utils.WriteToDiskError, err)
+		return ewc, err
 	}
 	err := registryHandler.WriteToDisk(registry)
 	if err != nil {
-		return err
+		ewc = vmextensionhelper.NewErrorWithClarification(utils.WriteToDiskError, err)
+		return ewc, err
 	}
 
 	var commandToExecute string
@@ -64,6 +70,7 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 		commandToExecute = vmAppPackageCurrent.UpdateCommand
 	default:
 		errorMessageToReturn = errors.Errorf("Unexpected Action to perform encountered %v", act.actionToPerform)
+		ewc = vmextensionhelper.NewErrorWithClarification(utils.UnexpectedActionError, errorMessageToReturn)
 	}
 
 	if vmAppPackageCurrent.NumRebootsOccurred == MaxReboots {
@@ -87,6 +94,7 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 				errorMessageToReturn = errors.Errorf(
 					"The application %v, version %v has been removed from the repository and cannot be installed. Please install a newer version of the application.",
 					appName, version)
+				ewc = vmextensionhelper.NewErrorWithClarification(utils.DeletedAppVersionError, errorMessageToReturn)
 			} else {
 				// application is not marked as deleted
 				downloadPath := vmAppPackageCurrent.GetWorkingDirectory(actionPlan.environment)
@@ -94,6 +102,7 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 
 				if err := os.MkdirAll(downloadPath, constants.FilePermissions_UserOnly_ReadWriteExecute); err != nil {
 					errorMessageToReturn = extensionerrors.CombineErrors(errorMessageToReturn, errors.Wrapf(err, "failed to create download directory %s", downloadPath))
+					ewc = vmextensionhelper.NewErrorWithClarification(utils.FailedToCreateDirectoryError, errorMessageToReturn)
 				}
 				// proceed only if there was no error in the previous operation
 				if err == nil {
@@ -102,6 +111,7 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 					if err := actionPlan.hostGaCommunicator.DownloadPackage(actionPlan.logger, vmAppPackageCurrent.ApplicationName, downloadPackageFileName); err != nil {
 						actionPlan.logger.Error("Failed to download package for application %v, version %v. Error: %v", appName, version, err.Error())
 						errorMessageToReturn = extensionerrors.CombineErrors(errorMessageToReturn, errors.Wrapf(err, "failed to download package file %s", downloadPackageFileName))
+						ewc = vmextensionhelper.NewErrorWithClarification(utils.FailedToDownloadPackageError, errorMessageToReturn)
 					}
 					if err == nil {
 						if packageFileChecksum, err := getMD5CheckSum(downloadPackageFileName); err == nil {
@@ -117,6 +127,7 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 						if err := actionPlan.hostGaCommunicator.DownloadConfig(actionPlan.logger, vmAppPackageCurrent.ApplicationName, downloadConfigFileName); err != nil {
 							actionPlan.logger.Error("Failed to download config for application %v, version %v. Error: %v", appName, version, err.Error())
 							errorMessageToReturn = extensionerrors.CombineErrors(errorMessageToReturn, errors.Wrapf(err, "failed to download config file %s", downloadConfigFileName))
+							ewc = vmextensionhelper.NewErrorWithClarification(utils.FailedToDownloadConfigError, errorMessageToReturn)
 						}
 						if err == nil {
 							if configFileChecksum, err := getMD5CheckSum(downloadConfigFileName); err == nil {
@@ -183,8 +194,11 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 		case compSignal := <-completionSignal:
 			if compSignal.err != nil {
 				errorMessageToReturn = extensionerrors.CombineErrors(errorMessageToReturn, errors.Wrapf(compSignal.err, "Error executing command '%v'", commandToExecute))
+				ewc = vmextensionhelper.NewErrorWithClarification(utils.CommandExecutionError, errorMessageToReturn)
 			} else if compSignal.retCode != 0 {
 				errorMessageToReturn = extensionerrors.CombineErrors(errorMessageToReturn, errors.Errorf("Command '%v' exited with non-zero error code", commandToExecute))
+				ewc = vmextensionhelper.NewErrorWithClarification(utils.NonZeroExitCodeError, errorMessageToReturn)
+
 			}
 			// Reset count if command successfully completed
 			vmAppPackageCurrent.NumRebootsOccurred = 0
@@ -226,6 +240,9 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 		// also cleanup directory
 		deleteErr := os.RemoveAll(vmAppPackageCurrent.DownloadDir)
 		errorMessageToReturn = extensionerrors.CombineErrors(errorMessageToReturn, deleteErr)
+		if deleteErr != nil {
+			ewc = vmextensionhelper.NewErrorWithClarification(utils.DeleteOperationError, deleteErr)
+		}
 	}
 
 	if errorMessageToReturn != nil {
@@ -238,7 +255,7 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 
 	err = registryHandler.WriteToDisk(registry)
 	if err != nil {
-		return markCommandFailed(act.actionToPerform, commandToExecute, appName, version, err, eem)
+		return ewc, markCommandFailed(act.actionToPerform, commandToExecute, appName, version, err, eem)
 	}
 
 	if errorMessageToReturn == nil {
@@ -248,7 +265,7 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 		return
 	}
 
-	return markCommandFailed(act.actionToPerform, commandToExecute, appName, version, errorMessageToReturn, eem)
+	return ewc, markCommandFailed(act.actionToPerform, commandToExecute, appName, version, errorMessageToReturn, eem)
 }
 
 func markCommandFailed(actionPerformed packageregistry.ActionEnum, commandToExecute string, appName string, version string, err error, eem *extensionevents.ExtensionEventManager) error {
