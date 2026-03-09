@@ -219,13 +219,6 @@ func customEnable(ext *vmextensionhelper.VMExtension, hostgaCommunicator hostgac
 	// Transitioning even if there's no VM App actions to do. The only time update isn't
 	// needed is when VM is rebooted and there are no changes to the desired packages,
 	// and no VM App re-run after rebooting.
-	//
-	// This matters even if the extension already has a non-transitioning status file
-	// for the requested sequence number because an app might have failed earlier
-	// but become successful in the current run or vice versa. When an app reaches MaxReboot
-	// or when it runs successfully, the number of reboot is reset to 0, allowing it to
-	// run again if the VM is rebooted by any other process, which is why its new run
-	// status needs to be reflected in the status file.
 	if shouldReportStatus(ext, requestedSequenceNumber, vmAppResults) {
 		var statusResult status.StatusType
 		statusMessage := getStatusMessage(currentPackageRegistry.GetPackageCollection(), executeError, result)
