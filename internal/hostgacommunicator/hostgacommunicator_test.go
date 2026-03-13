@@ -60,7 +60,7 @@ func TestGetVmAppInfo_RequestFailed(t *testing.T) {
 	hgc := &HostGaCommunicator{}
 	_, err := hgc.GetVMAppInfo(nopLog(), myAppName)
 	require.NotNil(t, err, "did not fail")
-	require.Contains(t, err.Error(), "Metadata request failed with retries.", "Wrong message for failed request")
+	require.Contains(t, err.Error(), "Metadata request failed after retries:", "Wrong message for failed request")
 }
 
 func TestGetVmAppInfo_CouldNotDecodeResponse(t *testing.T) {
@@ -75,7 +75,7 @@ func TestGetVmAppInfo_CouldNotDecodeResponse(t *testing.T) {
 	hgc := &HostGaCommunicator{}
 	_, err := hgc.GetVMAppInfo(nopLog(), myAppName)
 	require.NotNil(t, err, "did not fail")
-	require.Contains(t, err.Error(), "failed to decode response body", "Wrong message for invalid response")
+	require.Contains(t, err.Error(), "Failed to decode response body:", "Wrong message for invalid response")
 }
 
 func TestGetVmAppInfo_MissingProperties(t *testing.T) {

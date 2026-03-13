@@ -18,6 +18,37 @@ import (
 const hostGaPluginPort = "32526"
 const WireProtocolAddress = "AZURE_GUEST_AGENT_WIRE_PROTOCOL_ADDRESS"
 const wireServerFallbackAddress = "http://168.63.129.16:32526"
+const HostGaMetadataErrorPrefix = "HostGaCommunicator GetVMAppInfo error"
+
+type HostGaCommunicatorError int
+
+const (
+	InitializationError HostGaCommunicatorError = iota
+	MetadataRequestFailedWithRetries
+	MetadataRequestFailedInvalidResponseBody
+)
+
+func (hostGaCommunicatorError HostGaCommunicatorError) ToString() string {
+	switch hostGaCommunicatorError {
+	case InitializationError:
+		return "InitializationError"
+	case MetadataRequestFailedWithRetries:
+		return "MetadataRequestFailedWithRetries"
+	case MetadataRequestFailedInvalidResponseBody:
+		return "MetadataRequestFailedInvalidResponseBody"
+	default:
+		return "UnknownError"
+	}
+}
+
+type HostGaCommunicatorGetVMAppInfoError struct {
+	errorMessage string
+	errorType    HostGaCommunicatorError
+}
+
+func (e *HostGaCommunicatorGetVMAppInfoError) Error() string {
+	return fmt.Sprintf("%s: %s, error type: %s", HostGaMetadataErrorPrefix, e.errorMessage, e.errorType.ToString())
+}
 
 type IHostGaCommunicator interface {
 	DownloadPackage(el *logging.ExtensionLogger, appName string, dst string) error
@@ -33,7 +64,10 @@ type HostGaCommunicator struct{}
 func (*HostGaCommunicator) GetVMAppInfo(el *logging.ExtensionLogger, appName string) (*VMAppMetadata, error) {
 	requestManager, isArc, err := getMetadataRequestManager(el, appName)
 	if err != nil {
-		return nil, errors.Wrapf(err, "Could not create the request manager")
+		return nil, &HostGaCommunicatorGetVMAppInfoError{
+			errorMessage: fmt.Sprintf("Could not create the request manager: %v", err),
+			errorType:    InitializationError,
+		}
 	}
 
 	var resp *http.Response
@@ -47,7 +81,10 @@ func (*HostGaCommunicator) GetVMAppInfo(el *logging.ExtensionLogger, appName str
 	}
 
 	if err != nil {
-		return nil, errors.Wrapf(err, "Metadata request failed with retries.")
+		return nil, &HostGaCommunicatorGetVMAppInfoError{
+			errorMessage: fmt.Sprintf("Metadata request failed after retries: %v", err),
+			errorType:    MetadataRequestFailedWithRetries,
+		}
 	}
 
 	body := resp.Body
@@ -56,7 +93,10 @@ func (*HostGaCommunicator) GetVMAppInfo(el *logging.ExtensionLogger, appName str
 	var target VMAppMetadataReceiver
 	err = json.NewDecoder(body).Decode(&target)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to decode response body")
+		return nil, &HostGaCommunicatorGetVMAppInfoError{
+			errorMessage: fmt.Sprintf("Failed to decode response body: %v", err),
+			errorType:    MetadataRequestFailedInvalidResponseBody,
+		}
 	}
 
 	return target.MapToVMAppMetadata(), nil
