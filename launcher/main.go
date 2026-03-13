@@ -85,7 +85,7 @@ func main() {
 
 	if requestedSequenceNumber >= currentSequenceNumber {
 		// attempt to write a transitioning status file if it doesn't exist
-		_, getStatusError := utils.GetStatusType(handlerEnv, requestedSequenceNumber)
+		_, getStatusError := utils.GetStatus(handlerEnv, requestedSequenceNumber)
 		if getStatusError != nil {
 			// either no transitioning status file was found, or the status file was malformed
 			// either way create a new transitioning status file

@@ -4,7 +4,9 @@
 package utils
 
 import (
+	"os"
 	"path"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -15,7 +17,40 @@ import (
 
 func TestStatusParsing(t *testing.T) {
 	handlerEnv := handlerenv.HandlerEnvironment{StatusFolder: path.Join(".", "testFiles")}
-	statusType, err := GetStatusType(&handlerEnv, 1)
+	statusObj, err := GetStatus(&handlerEnv, 1)
 	require.NoError(t, err)
-	require.True(t, strings.EqualFold(string(statusType), string(platformstatus.StatusTransitioning)))
+	require.NotNil(t, statusObj)
+	require.True(t, strings.EqualFold(string(statusObj.Status), string(platformstatus.StatusTransitioning)))
+}
+
+func TestBackupStatusFile(t *testing.T) {
+	t.Run("successful backup when status file exists", func(t *testing.T) {
+		// Create temp directory
+		tmpDir := t.TempDir()
+		statusFile := filepath.Join(tmpDir, "1.status")
+		backupFile := filepath.Join(tmpDir, "1"+BackupStatusFileSuffix)
+
+		// Create a status file
+		err := os.WriteFile(statusFile, []byte(`[{"status":{"status":"success"}}]`), 0644)
+		require.NoError(t, err)
+
+		// Backup the status file
+		err = BackupStatusFile(tmpDir, 1)
+		require.NoError(t, err)
+
+		// Verify original file no longer exists
+		_, err = os.Stat(statusFile)
+		require.True(t, os.IsNotExist(err))
+
+		// Verify backup file exists
+		_, err = os.Stat(backupFile)
+		require.NoError(t, err)
+	})
+
+	t.Run("successful backup when status file does not exist", func(t *testing.T) {
+		tmpDir := t.TempDir()
+
+		err := BackupStatusFile(tmpDir, 999)
+		require.NoError(t, err)
+	})
 }

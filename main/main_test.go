@@ -442,9 +442,10 @@ func Test_main_nothingToProcess_noStatusUpdate(t *testing.T) {
 	err = customEnable(ext, &hostGaCommunicator, requestedSequenceNumber)
 	require.NoError(t, err)
 	// ensure stautus file is not overwritten
-	statusType, err := utils.GetStatusType(ext.HandlerEnv, requestedSequenceNumber)
+	statusObj, err := utils.GetStatus(ext.HandlerEnv, requestedSequenceNumber)
 	require.NoError(t, err)
-	require.Equal(t, status.StatusError, statusType)
+	require.NotNil(t, statusObj)
+	require.Equal(t, status.StatusError, statusObj.Status)
 	require.Equal(t, requestedSequenceNumber, currentSequenceNumber)
 }
 
@@ -460,9 +461,10 @@ func Test_main_transitioningStatusIsUpdated(t *testing.T) {
 	err = customEnable(ext, &hostGaCommunicator, requestedSequenceNumber)
 	require.NoError(t, err)
 	// ensure error stautus file is not overwritten
-	statusType, err := utils.GetStatusType(ext.HandlerEnv, requestedSequenceNumber)
+	statusObj, err := utils.GetStatus(ext.HandlerEnv, requestedSequenceNumber)
 	require.NoError(t, err)
-	require.Equal(t, status.StatusSuccess, statusType)
+	require.NotNil(t, statusObj)
+	require.Equal(t, status.StatusSuccess, statusObj.Status)
 	require.Equal(t, requestedSequenceNumber, currentSequenceNumber)
 }
 
@@ -481,50 +483,6 @@ func Test_main_nothingToProcess_withStatus(t *testing.T) {
 	require.Contains(t, fileString, vmextension.EnableOperation.ToStatusName())
 	require.Contains(t, fileString, status.StatusSuccess)
 	require.Equal(t, requestedSequenceNumber, currentSequenceNumber)
-}
-
-// Test that shouldReportStatus returns true when vmAppResults has elements,
-// even if there's an existing error status file
-func Test_shouldReportStatus_withVmAppResults_existingErrorStatus(t *testing.T) {
-	setupTest(t)
-	vmApplications := []extdeserialization.VmAppSetting{}
-	ext := createTestVMExtension(t, vmApplications)
-	requestedSequenceNumber := *ext.CurrentSequenceNumber
-
-	// Pre-create a status file with error status
-	err := utils.ReportStatus(ext.HandlerEnv, requestedSequenceNumber, status.StatusError, vmextension.EnableOperation.ToStatusName(), "previous failure")
-	require.NoError(t, err)
-
-	// Create vmAppResults with one result (simulating an app was executed)
-	vmAppResults := &actionplan.PackageOperationResults{
-		{PackageName: "testapp", Operation: "install", Result: actionplan.Success},
-	}
-
-	// shouldReportStatus should return true because vmAppResults has elements
-	result := shouldReportStatus(ext, requestedSequenceNumber, vmAppResults)
-	require.True(t, result, "shouldReportStatus should return true when vmAppResults has elements")
-}
-
-// Test that shouldReportStatus returns true when vmAppResults has elements,
-// even if there's an existing success status file
-func Test_shouldReportStatus_withVmAppResults_existingSuccessStatus(t *testing.T) {
-	setupTest(t)
-	vmApplications := []extdeserialization.VmAppSetting{}
-	ext := createTestVMExtension(t, vmApplications)
-	requestedSequenceNumber := *ext.CurrentSequenceNumber
-
-	// Pre-create a status file with success status
-	err := utils.ReportStatus(ext.HandlerEnv, requestedSequenceNumber, status.StatusSuccess, vmextension.EnableOperation.ToStatusName(), "previous success")
-	require.NoError(t, err)
-
-	// Create vmAppResults with one result (simulating an app was executed)
-	vmAppResults := &actionplan.PackageOperationResults{
-		{PackageName: "testapp", Operation: "install", Result: "Error: command failed"},
-	}
-
-	// shouldReportStatus should return true because vmAppResults has elements
-	result := shouldReportStatus(ext, requestedSequenceNumber, vmAppResults)
-	require.True(t, result, "shouldReportStatus should return true when vmAppResults has elements")
 }
 
 func Test_uninstall_cannotCreatePackageRegistry(t *testing.T) {
@@ -671,4 +629,171 @@ func createTestVMExtension(t *testing.T, settings interface{}) *vmextension.VMEx
 		ExtensionLogger: el,
 		ExtensionEvents: eem,
 	}
+}
+
+// Test computeStatus when vmAppResults has items and no deployment failure
+func Test_computeStatus_WithVMAppResults_Success(t *testing.T) {
+	setupTest(t)
+	ext := createTestVMExtension(t, nil)
+
+	vmAppResults := actionplan.PackageOperationResults{
+		actionplan.PackageOperationResult{
+			PackageName: "testApp",
+			AppVersion:  "1.0.0",
+			Operation:   "install",
+			Result:      "0",
+		},
+	}
+	executeError := &actionplan.ExecuteError{}
+	currentPkgReg := packageregistry.CurrentPackageRegistry{}
+
+	updated, statusType, _ := computeStatus(ext, 1, &currentPkgReg, executeError, &vmAppResults, &vmAppResults)
+
+	assert.True(t, updated)
+	assert.Equal(t, status.StatusSuccess, statusType)
+}
+
+// Test computeStatus when no vmAppResults and status file doesn't exist
+func Test_computeStatus_NoVMAppResults_NoStatusFile(t *testing.T) {
+	setupTest(t)
+	ext := createTestVMExtension(t, nil)
+
+	executeError := &actionplan.ExecuteError{}
+	currentPkgReg := packageregistry.CurrentPackageRegistry{}
+	emptyResults := actionplan.PackageOperationResults{}
+
+	updated, statusType, _ := computeStatus(ext, 1, &currentPkgReg, executeError, &emptyResults, nil)
+
+	assert.True(t, updated)
+	assert.Equal(t, status.StatusSuccess, statusType)
+}
+
+// Test computeStatus when no vmAppResults and current status has HostGA error prefix but no last stable
+func Test_computeStatus_NoVMAppResults_HostGAError_NoLastStable(t *testing.T) {
+	setupTest(t)
+	ext := createTestVMExtension(t, nil)
+
+	// Write a status file with HostGA error prefix
+	// ReportStatus adds "Enable failed: " prefix, but Contains still finds the HostGaMetadataErrorPrefix
+	err := utils.ReportStatus(ext.HandlerEnv, 1, status.StatusError, "Enable", hostgacommunicator.HostGaMetadataErrorPrefix+" some error")
+	require.NoError(t, err)
+
+	seqNo := uint(1)
+	ext.CurrentSequenceNumber = &seqNo
+
+	executeError := &actionplan.ExecuteError{}
+	currentPkgReg := packageregistry.CurrentPackageRegistry{}
+	emptyResults := actionplan.PackageOperationResults{}
+
+	updated, statusType, _ := computeStatus(ext, 1, &currentPkgReg, executeError, &emptyResults, nil)
+
+	// HostGA error detected, no last stable status exists, so update to success
+	assert.True(t, updated)
+	assert.Equal(t, status.StatusSuccess, statusType)
+}
+
+// Test computeStatus when no vmAppResults and current status has HostGA error with last stable status
+func Test_computeStatus_NoVMAppResults_HostGAError_WithLastStable(t *testing.T) {
+	setupTest(t)
+	ext := createTestVMExtension(t, nil)
+
+	// First write a stable (lastgood) status file
+	err := utils.ReportStatus(ext.HandlerEnv, 1, status.StatusSuccess, "Enable", "last good message")
+	require.NoError(t, err)
+	err = utils.BackupStatusFile(ext.HandlerEnv.StatusFolder, 1)
+	require.NoError(t, err)
+
+	// Now write a status file with HostGA error prefix
+	// ReportStatus adds "Enable failed: " prefix, but Contains still finds the HostGaMetadataErrorPrefix
+	err = utils.ReportStatus(ext.HandlerEnv, 1, status.StatusError, "Enable", hostgacommunicator.HostGaMetadataErrorPrefix+" some error")
+	require.NoError(t, err)
+
+	seqNo := uint(1)
+	ext.CurrentSequenceNumber = &seqNo
+
+	executeError := &actionplan.ExecuteError{}
+	currentPkgReg := packageregistry.CurrentPackageRegistry{}
+	emptyResults := actionplan.PackageOperationResults{}
+
+	updated, statusType, msg := computeStatus(ext, 1, &currentPkgReg, executeError, &emptyResults, nil)
+
+	// HostGA error detected, last stable status restored
+	assert.True(t, updated)
+	assert.Equal(t, status.StatusSuccess, statusType)
+	assert.Contains(t, msg, "last good message")
+}
+
+// Test computeStatus when status is Transitioning and CurrentSequenceNumber is nil (first Enable)
+func Test_computeStatus_StatusTransitioning_FirstEnable(t *testing.T) {
+	setupTest(t)
+	ext := createTestVMExtension(t, nil)
+
+	// Write a transitioning status file
+	err := utils.ReportStatus(ext.HandlerEnv, 1, status.StatusTransitioning, "Enable", "transitioning")
+	require.NoError(t, err)
+
+	// Set CurrentSequenceNumber to nil (first time Enable)
+	ext.CurrentSequenceNumber = nil
+
+	executeError := &actionplan.ExecuteError{}
+	currentPkgReg := packageregistry.CurrentPackageRegistry{}
+	emptyResults := actionplan.PackageOperationResults{}
+
+	updated, statusType, msg := computeStatus(ext, 1, &currentPkgReg, executeError, &emptyResults, nil)
+
+	assert.True(t, updated)
+	assert.Equal(t, status.StatusSuccess, statusType)
+	assert.Contains(t, msg, "No VM App operations to perform, but current status is Transitioning")
+}
+
+// Test computeStatus when status is Transitioning with previous sequence having a status file
+func Test_computeStatus_StatusTransitioning_WithPreviousStatus(t *testing.T) {
+	setupTest(t)
+	ext := createTestVMExtension(t, nil)
+
+	// Write a success status for previous sequence number (1)
+	err := utils.ReportStatus(ext.HandlerEnv, 1, status.StatusError, "Enable", "previous sequence failed message")
+	require.NoError(t, err)
+
+	// Write a transitioning status for new sequence number (2)
+	err = utils.ReportStatus(ext.HandlerEnv, 2, status.StatusTransitioning, "Enable", "transitioning")
+	require.NoError(t, err)
+
+	// Set CurrentSequenceNumber to 1 (previous)
+	seqNo := uint(1)
+	ext.CurrentSequenceNumber = &seqNo
+
+	executeError := &actionplan.ExecuteError{}
+	currentPkgReg := packageregistry.CurrentPackageRegistry{}
+	emptyResults := actionplan.PackageOperationResults{}
+
+	updated, statusType, msg := computeStatus(ext, 2, &currentPkgReg, executeError, &emptyResults, nil)
+
+	assert.True(t, updated)
+	assert.Equal(t, status.StatusError, statusType)
+	// The code returns the message from the previous sequence's status
+	assert.Contains(t, msg, "previous sequence failed message")
+}
+
+// Test computeStatus when status is Transitioning but previous sequence status file is missing
+func Test_computeStatus_StatusTransitioning_NoPreviousStatus(t *testing.T) {
+	setupTest(t)
+	ext := createTestVMExtension(t, nil)
+
+	// Write a transitioning status for new sequence number (2) only
+	err := utils.ReportStatus(ext.HandlerEnv, 2, status.StatusTransitioning, "Enable", "transitioning")
+	require.NoError(t, err)
+
+	// Set CurrentSequenceNumber to 1 (previous) - but no status file exists for it
+	seqNo := uint(1)
+	ext.CurrentSequenceNumber = &seqNo
+
+	executeError := &actionplan.ExecuteError{}
+	currentPkgReg := packageregistry.CurrentPackageRegistry{}
+	emptyResults := actionplan.PackageOperationResults{}
+
+	updated, statusType, _ := computeStatus(ext, 2, &currentPkgReg, executeError, &emptyResults, nil)
+
+	assert.True(t, updated)
+	assert.Equal(t, status.StatusSuccess, statusType)
 }

@@ -27,7 +27,6 @@ import (
 var (
 	ExtensionName         string     // assign at compile time
 	ExtensionVersion      = "1.0.10" // should be assigned at compile time, do not edit in code
-	reportStatusFunc      = utils.ReportStatus
 	getVMExtensionFunc    = getVMExtension
 	customEnableFunc      = customEnable
 	setSequenceNumberFunc = seqno.SetSequenceNumber
@@ -95,15 +94,24 @@ func getExtensionAndRun(arguments []string) error {
 				ext.ExtensionLogger.Error(errorMessage)
 				ext.ExtensionEvents.LogErrorEvent("Enable Failed", errorMessage)
 			default:
+				if _, ok := enableError.(*hostgacommunicator.HostGaCommunicatorGetVMAppInfoError); ok {
+					// Preserve the last good status file if it exists and isn't already a
+					// HostGA network error
+					if statusObj, err := utils.GetStatus(ext.HandlerEnv, requestedSequenceNumber); err == nil {
+						msg := statusObj.FormattedMessage.Message
+						if !strings.HasPrefix(msg, hostgacommunicator.HostGaMetadataErrorPrefix) {
+							if err := utils.BackupStatusFile(ext.HandlerEnv.StatusFolder, requestedSequenceNumber); err != nil {
+								ext.ExtensionLogger.Warn("Failed to back up status file for sequence %d: %v", requestedSequenceNumber, err)
+							}
+						}
+					}
+				}
 				ext.ExtensionLogger.Error(enableError.Error())
 				ext.ExtensionEvents.LogErrorEvent("Enable Failed", enableError.Error())
 				// try to save status file
 				statusMessage := enableError.Error()
-				err := reportStatusFunc(ext.HandlerEnv, requestedSequenceNumber, status.StatusError, vmextensionhelper.EnableOperation.ToStatusName(), statusMessage)
+				err := reportStatusFunc(ext, requestedSequenceNumber, status.StatusError, vmextensionhelper.EnableOperation.ToStatusName(), statusMessage)
 				if err != nil {
-					errorMessage := fmt.Sprintf("Failed to save status file: %s", err.Error())
-					ext.ExtensionLogger.Error(errorMessage)
-					ext.ExtensionEvents.LogErrorEvent("Save Status", errorMessage)
 					return err
 				}
 			}
@@ -214,28 +222,18 @@ func customEnable(ext *vmextensionhelper.VMExtension, hostgaCommunicator hostgac
 		return errors.Wrapf(err, "Could not get package registry")
 	}
 
-	// The status file needs to be updated whenever there is some VM App actions because
-	// all VM Apps are always processed. It also needed to be updated if the status is
-	// Transitioning even if there's no VM App actions to do. The only time update isn't
-	// needed is when VM is rebooted and there are no changes to the desired packages,
-	// and no VM App re-run after rebooting.
-	if shouldReportStatus(ext, requestedSequenceNumber, vmAppResults) {
-		var statusResult status.StatusType
-		statusMessage := getStatusMessage(currentPackageRegistry.GetPackageCollection(), executeError, result)
-		if executeError.GetErrorIfDeploymentFailed() == nil { // treatFailureAsDeploymentFailure
-			statusResult = status.StatusSuccess
-		} else {
-			statusResult = status.StatusError
-		}
-		err := utils.ReportStatus(ext.HandlerEnv, requestedSequenceNumber, statusResult, vmextensionhelper.EnableOperation.ToStatusName(), statusMessage)
+	statusUpdated, statusResult, statusMessage := computeStatus(ext, requestedSequenceNumber, &currentPackageRegistry, executeError, result, vmAppResults)
+
+	if statusUpdated {
+		err := reportStatusFunc(ext, requestedSequenceNumber, statusResult, vmextensionhelper.EnableOperation.ToStatusName(), statusMessage)
 		if err != nil {
-			errorMessage := fmt.Sprintf("Failed to save status file: %s", err.Error())
-			ext.ExtensionLogger.Error(errorMessage)
-			ext.ExtensionEvents.LogErrorEvent("Save Status", errorMessage)
 			return err
 		}
+
 		// update the sequence number that has been executed
-		if err := setSequenceNumberFunc(ExtensionName, ExtensionVersion, requestedSequenceNumber); err != nil {
+		err = setSequenceNumberFunc(ExtensionName, ExtensionVersion, requestedSequenceNumber)
+		if err != nil {
+			// log but not return the error
 			errorMessage := fmt.Sprintf("Failed to update sequence number to %d: %s", requestedSequenceNumber, err.Error())
 			ext.ExtensionLogger.Error(errorMessage)
 			ext.ExtensionEvents.LogErrorEvent("Update Sequence Number", errorMessage)
@@ -249,18 +247,92 @@ func customEnable(ext *vmextensionhelper.VMExtension, hostgaCommunicator hostgac
 	return nil
 }
 
-func shouldReportStatus(ext *vmextensionhelper.VMExtension, requestedSequenceNumber uint, vmAppResults *actionplan.PackageOperationResults) bool {
-	// Report status if any VM App operations were executed
+func computeStatus(
+	ext *vmextensionhelper.VMExtension,
+	requestedSequenceNumber uint,
+	currentPackageRegistry *packageregistry.CurrentPackageRegistry,
+	executeError *actionplan.ExecuteError,
+	customActionResult actionplan.IResult,
+	vmAppResults *actionplan.PackageOperationResults,
+) (bool, status.StatusType, string) {
+	statusUpdated := false
+	var statusResult status.StatusType
+	var statusMessage string
+
 	if vmAppResults != nil && len(*vmAppResults) > 0 {
-		return true
+		// executeError is only meaningful if there are VM App operations, otherwise
+		// it is the equivalent of no error (i.e success).
+		statusMessage = getStatusMessage(currentPackageRegistry.GetPackageCollection(), executeError, customActionResult)
+		if executeError.GetErrorIfDeploymentFailed() == nil { // treatFailureAsDeploymentFailure
+			statusResult = status.StatusSuccess
+		} else {
+			statusResult = status.StatusError
+		}
+		statusUpdated = true
+	} else {
+		// These next cases are dependent on the existing status
+		statusObj, err := utils.GetStatus(ext.HandlerEnv, requestedSequenceNumber)
+		if err != nil {
+			// Existing status file maybe corrupted or missing. The existing behavior is
+			// to write a success status.
+			statusMessage = fmt.Sprintf("Failed to read existing status file: %v. Writing success status.", err)
+			statusResult = status.StatusSuccess
+			statusUpdated = true
+		} else if strings.EqualFold(string(statusObj.Status), string(status.StatusTransitioning)) {
+			// If the status is Transitioning whenever there's a new requested sequence number,
+			// as the Transitioning status is saved by launcher program.
+			if ext.CurrentSequenceNumber == nil || requestedSequenceNumber == *ext.CurrentSequenceNumber {
+				// If this the very first time this extension is Enabled, or we're processing
+				// the same sequence number, and there is no VM App to process, save the status as Success
+				// It is also possible that a VM App cause a reboot but is not re-run again leading to
+				// no VM App operations. We should also set the status to success in this case.
+				statusMessage = "No VM App operations to perform, but current status is Transitioning. Updating status to Success."
+				statusResult = status.StatusSuccess
+			} else {
+				// If this is a new sequence number with no VM App operations, then report
+				// the same status as the last sequence number.
+				// This case can happen if the user changes the ordering inside applicationProfile
+				// without changing any app or their installation order.
+				prevStatusObj, prevStatusErr := utils.GetStatus(ext.HandlerEnv, *ext.CurrentSequenceNumber)
+				if prevStatusErr != nil {
+					// No existing status save, should record as success since there are no VM App operations
+					statusMessage = fmt.Sprintf("No existing status file found for sequence %d, and no VM App operations. Writing success status.", *ext.CurrentSequenceNumber)
+					statusResult = status.StatusSuccess
+				} else {
+					statusMessage = prevStatusObj.FormattedMessage.Message
+					statusResult = prevStatusObj.Status
+				}
+			}
+			statusUpdated = true
+		} else if strings.Contains(statusObj.FormattedMessage.Message, hostgacommunicator.HostGaMetadataErrorPrefix) {
+			// If there is no VM App operations, but the current status is a transient host GA
+			// communication error, the status should be the same as the last stable status
+			prevStatusObj, prevStatusErr := utils.GetLastStableStatus(ext.HandlerEnv, *ext.CurrentSequenceNumber)
+			if prevStatusErr != nil {
+				// No last stable status save, should record as success since the hostGA issue
+				// is gone
+				statusResult = status.StatusSuccess
+				statusMessage = "No last stable status found, and no VM App operations."
+			} else {
+				statusResult = prevStatusObj.Status
+				statusMessage = prevStatusObj.FormattedMessage.Message
+			}
+			statusUpdated = true
+		}
 	}
-	// Also report status if the current status is Transitioning (to update it to Success/Error)
-	// or if there is something wrong with the status file
-	statusType, err := utils.GetStatusType(ext.HandlerEnv, requestedSequenceNumber)
-	if err != nil || strings.EqualFold(string(statusType), string(status.StatusTransitioning)) {
-		return true
+
+	return statusUpdated, statusResult, statusMessage
+}
+
+// A wrapper for utils.ReportStatus to log any errors occurring in that function
+func reportStatusFunc(ext *vmextensionhelper.VMExtension, requestedSequenceNumber uint, statusType status.StatusType, operationName string, message string) error {
+	err := utils.ReportStatus(ext.HandlerEnv, requestedSequenceNumber, statusType, operationName, message)
+	if err != nil {
+		errorMessage := fmt.Sprintf("Failed to save status file: %s", err.Error())
+		ext.ExtensionLogger.Error(errorMessage)
+		ext.ExtensionEvents.LogErrorEvent("Save Status", errorMessage)
 	}
-	return false
+	return err
 }
 
 func vmAppUninstallCallback(ext *vmextensionhelper.VMExtension) error {
