@@ -275,7 +275,7 @@ func computeStatus(
 		if err != nil {
 			// Existing status file maybe corrupted or missing. The existing behavior is
 			// to write a success status.
-			statusMessage = fmt.Sprintf("Failed to read existing status file: %v. Writing success status.", err)
+			statusMessage = getStatusMessage(currentPackageRegistry.GetPackageCollection(), executeError, customActionResult)
 			statusResult = status.StatusSuccess
 			statusUpdated = true
 		} else if strings.EqualFold(string(statusObj.Status), string(status.StatusTransitioning)) {
@@ -286,7 +286,7 @@ func computeStatus(
 				// the same sequence number, and there is no VM App to process, save the status as Success
 				// It is also possible that a VM App cause a reboot but is not re-run again leading to
 				// no VM App operations. We should also set the status to success in this case.
-				statusMessage = "No VM App operations to perform, but current status is Transitioning. Updating status to Success."
+				statusMessage = getStatusMessage(currentPackageRegistry.GetPackageCollection(), executeError, customActionResult)
 				statusResult = status.StatusSuccess
 			} else {
 				// If this is a new sequence number with no VM App operations, then report
@@ -296,7 +296,7 @@ func computeStatus(
 				prevStatusObj, prevStatusErr := utils.GetStatus(ext.HandlerEnv, *ext.CurrentSequenceNumber)
 				if prevStatusErr != nil {
 					// No existing status save, should record as success since there are no VM App operations
-					statusMessage = fmt.Sprintf("No existing status file found for sequence %d, and no VM App operations. Writing success status.", *ext.CurrentSequenceNumber)
+					statusMessage = getStatusMessage(currentPackageRegistry.GetPackageCollection(), executeError, customActionResult)
 					statusResult = status.StatusSuccess
 				} else {
 					statusMessage = prevStatusObj.FormattedMessage.Message
@@ -312,7 +312,7 @@ func computeStatus(
 				// No last stable status save, should record as success since the hostGA issue
 				// is gone
 				statusResult = status.StatusSuccess
-				statusMessage = "No last stable status found, and no VM App operations."
+				statusMessage = getStatusMessage(currentPackageRegistry.GetPackageCollection(), executeError, customActionResult)
 			} else {
 				statusResult = prevStatusObj.Status
 				statusMessage = prevStatusObj.FormattedMessage.Message
