@@ -110,7 +110,7 @@ func getExtensionAndRun(arguments []string) error {
 				ext.ExtensionEvents.LogErrorEvent("Enable Failed", enableError.Error())
 				// try to save status file
 				statusMessage := enableError.Error()
-				err := reportStatusFunc(ext, requestedSequenceNumber, status.StatusError, vmextensionhelper.EnableOperation.ToStatusName(), statusMessage)
+				err := reportStatusWrapper(ext, requestedSequenceNumber, status.StatusError, vmextensionhelper.EnableOperation.ToStatusName(), statusMessage)
 				if err != nil {
 					return err
 				}
@@ -225,7 +225,7 @@ func customEnable(ext *vmextensionhelper.VMExtension, hostgaCommunicator hostgac
 	statusUpdated, statusResult, statusMessage := computeStatus(ext, requestedSequenceNumber, &currentPackageRegistry, executeError, result, vmAppResults)
 
 	if statusUpdated {
-		err := reportStatusFunc(ext, requestedSequenceNumber, statusResult, vmextensionhelper.EnableOperation.ToStatusName(), statusMessage)
+		err := reportStatusWrapper(ext, requestedSequenceNumber, statusResult, vmextensionhelper.EnableOperation.ToStatusName(), statusMessage)
 		if err != nil {
 			return err
 		}
@@ -325,7 +325,7 @@ func computeStatus(
 }
 
 // A wrapper for utils.ReportStatus to log any errors occurring in that function
-func reportStatusFunc(ext *vmextensionhelper.VMExtension, requestedSequenceNumber uint, statusType status.StatusType, operationName string, message string) error {
+func reportStatusWrapper(ext *vmextensionhelper.VMExtension, requestedSequenceNumber uint, statusType status.StatusType, operationName string, message string) error {
 	err := utils.ReportStatus(ext.HandlerEnv, requestedSequenceNumber, statusType, operationName, message)
 	if err != nil {
 		errorMessage := fmt.Sprintf("Failed to save status file: %s", err.Error())
