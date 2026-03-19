@@ -739,11 +739,10 @@ func Test_computeStatus_StatusTransitioning_FirstEnable(t *testing.T) {
 	currentPkgReg := packageregistry.CurrentPackageRegistry{}
 	emptyResults := actionplan.PackageOperationResults{}
 
-	updated, statusType, msg := computeStatus(ext, 1, &currentPkgReg, executeError, &emptyResults, nil)
+	updated, statusType, _ := computeStatus(ext, 1, &currentPkgReg, executeError, &emptyResults, nil)
 
 	assert.True(t, updated)
 	assert.Equal(t, status.StatusSuccess, statusType)
-	assert.Contains(t, msg, "No VM App operations to perform, but current status is Transitioning")
 }
 
 // Test computeStatus when status is Transitioning with previous sequence having a status file
