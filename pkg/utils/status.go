@@ -66,11 +66,15 @@ func ReportStatus(handlerEnv *handlerenv.HandlerEnvironment, requestedSequenceNu
 func BackupStatusFile(statusFolder string, sequenceNumber uint) error {
 	current := filepath.Join(statusFolder, fmt.Sprintf("%d.status", sequenceNumber))
 	backup := filepath.Join(statusFolder, fmt.Sprintf("%d%s", sequenceNumber, BackupStatusFileSuffix))
-	if _, err := os.Stat(current); err != nil {
+	info, err := os.Stat(current)
+	if err != nil {
 		if os.IsNotExist(err) {
 			return nil
 		}
 		return err
+	}
+	if info.IsDir() {
+		return fmt.Errorf("expected a file but found a directory: %s", current)
 	}
 	return os.Rename(current, backup)
 }

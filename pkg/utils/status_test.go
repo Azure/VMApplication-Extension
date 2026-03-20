@@ -53,4 +53,17 @@ func TestBackupStatusFile(t *testing.T) {
 		err := BackupStatusFile(tmpDir, 999)
 		require.NoError(t, err)
 	})
+
+	t.Run("error when the status file path is a directory", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		statusFileAsDir := filepath.Join(tmpDir, "1.status")
+
+		// Create a directory with the same name as the status file
+		err := os.Mkdir(statusFileAsDir, 0755)
+		require.NoError(t, err)
+
+		// Backup should fail because the path is a directory, not a file
+		err = BackupStatusFile(tmpDir, 1)
+		require.Error(t, err)
+	})
 }
