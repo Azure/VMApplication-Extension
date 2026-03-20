@@ -28,6 +28,8 @@ const (
 	MetadataRequestFailedInvalidResponseBody
 	DownloadPackageRequestFactoryError
 	DownloadPackageFileError
+	DownloadConfigRequestFactoryError
+	DownloadConfigFileError
 )
 
 func (hostGaCommunicatorError HostGaCommunicatorError) ToString() string {
@@ -42,6 +44,10 @@ func (hostGaCommunicatorError HostGaCommunicatorError) ToString() string {
 		return "DownloadPackageRequestFactoryError"
 	case DownloadPackageFileError:
 		return "DownloadPackageFileError"
+	case DownloadConfigRequestFactoryError:
+		return "DownloadConfigRequestFactoryError"
+	case DownloadConfigFileError:
+		return "DownloadConfigFileError"
 	default:
 		return "UnknownError"
 	}
@@ -63,6 +69,15 @@ type DownloadPackageError struct {
 
 func (e *DownloadPackageError) Error() string {
 	return fmt.Sprintf("DownloadPackage error: %s, error type: %s", e.errorMessage, e.errorType.ToString())
+}
+
+type DownloadConfigError struct {
+	errorMessage string
+	errorType    HostGaCommunicatorError
+}
+
+func (e *DownloadConfigError) Error() string {
+	return fmt.Sprintf("DownloadConfig error: %s, error type: %s", e.errorMessage, e.errorType.ToString())
 }
 
 type IHostGaCommunicator interface {
@@ -145,11 +160,20 @@ func (*HostGaCommunicator) DownloadPackage(el *logging.ExtensionLogger, appName 
 func (*HostGaCommunicator) DownloadConfig(el *logging.ExtensionLogger, appName string, dst string) error {
 	requestFactory, err := newConfigDownloadRequestFactory(el, appName)
 	if err != nil {
-		return errors.Wrapf(err, "Could not create the request factory")
+		return &DownloadConfigError{
+			errorMessage: fmt.Sprintf("Could not create the request factory: %v", err),
+			errorType:    DownloadConfigRequestFactoryError,
+		}
 	}
 
 	err = requestFactory.downloadFile(el, dst)
-	return err
+	if err != nil {
+		return &DownloadConfigError{
+			errorMessage: fmt.Sprintf("Failed to download file: %v", err),
+			errorType:    DownloadConfigFileError,
+		}
+	}
+	return nil
 }
 
 func getOperationURI(el *logging.ExtensionLogger, appName string, operation string) (string, error) {

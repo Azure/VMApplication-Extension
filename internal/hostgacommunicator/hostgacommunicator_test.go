@@ -319,6 +319,34 @@ func TestDownloadPackage_MultipleCallDownload(t *testing.T) {
 	verifyFileContents(t, filePath, expected)
 }
 
+func TestDownloadConfig_InvalidUri(t *testing.T) {
+	os.Setenv(WireProtocolAddress, "htt!p:notgoingtohappen!")
+	hgc := &HostGaCommunicator{}
+	err := hgc.DownloadConfig(nopLog(), myAppName, "somepath")
+	require.NotNil(t, err, "did not fail")
+	_, ok := err.(*DownloadConfigError)
+	require.True(t, ok, "expected error to be of type *DownloadConfigError")
+	require.Contains(t, err.Error(), DownloadConfigRequestFactoryError.ToString(), "Wrong error code")
+}
+
+func TestDownloadConfig_InvalidPath(t *testing.T) {
+	filePath := string(make([]byte, 5)) // null characters in file names are invalid in both windows and linux
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	os.Setenv(WireProtocolAddress, srv.URL)
+	hgc := &HostGaCommunicator{}
+	err := hgc.DownloadConfig(nopLog(), myAppName, filePath)
+	require.NotNil(t, err, "did not fail")
+	_, ok := err.(*DownloadConfigError)
+	require.True(t, ok, "expected error to be of type *DownloadConfigError")
+	require.Contains(t, err.Error(), DownloadConfigFileError.ToString(), "Wrong error code")
+	require.Contains(t, err.Error(), "Cannot retrieve file information", "Wrong message for invalid file path")
+}
+
 func TestDownloadConfig_SingeCallDownload(t *testing.T) {
 	expected := "file contents don't matter"
 	createTestDir(t)
