@@ -47,6 +47,9 @@ func TestGetVmAppInfo_InvalidUri(t *testing.T) {
 	hgc := &HostGaCommunicator{}
 	_, err := hgc.GetVMAppInfo(nopLog(), myAppName)
 	require.NotNil(t, err, "did not fail")
+	_, ok := err.(*HostGaCommunicatorGetVMAppInfoError)
+	require.True(t, ok, "expected error to be of type *HostGaCommunicatorGetVMAppInfoError")
+	require.Contains(t, err.Error(), InitializationError.ToString(), "Wrong error code")
 	require.Contains(t, err.Error(), "Could not parse the HostGA URI", "Wrong message for invalid uri")
 }
 
@@ -60,6 +63,9 @@ func TestGetVmAppInfo_RequestFailed(t *testing.T) {
 	hgc := &HostGaCommunicator{}
 	_, err := hgc.GetVMAppInfo(nopLog(), myAppName)
 	require.NotNil(t, err, "did not fail")
+	_, ok := err.(*HostGaCommunicatorGetVMAppInfoError)
+	require.True(t, ok, "expected error to be of type *HostGaCommunicatorGetVMAppInfoError")
+	require.Contains(t, err.Error(), MetadataRequestFailedWithRetries.ToString(), "Wrong error code")
 	require.Contains(t, err.Error(), "Metadata request failed after retries:", "Wrong message for failed request")
 }
 
@@ -75,6 +81,9 @@ func TestGetVmAppInfo_CouldNotDecodeResponse(t *testing.T) {
 	hgc := &HostGaCommunicator{}
 	_, err := hgc.GetVMAppInfo(nopLog(), myAppName)
 	require.NotNil(t, err, "did not fail")
+	_, ok := err.(*HostGaCommunicatorGetVMAppInfoError)
+	require.True(t, ok, "expected error to be of type *HostGaCommunicatorGetVMAppInfoError")
+	require.Contains(t, err.Error(), MetadataRequestFailedInvalidResponseBody.ToString(), "Wrong error code")
 	require.Contains(t, err.Error(), "Failed to decode response body:", "Wrong message for invalid response")
 }
 
