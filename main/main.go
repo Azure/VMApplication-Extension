@@ -279,30 +279,10 @@ func computeStatus(
 			statusResult = status.StatusSuccess
 			statusUpdated = true
 		} else if strings.EqualFold(string(statusObj.Status), string(status.StatusTransitioning)) {
-			// If the status is Transitioning whenever there's a new requested sequence number,
-			// as the Transitioning status is saved by launcher program.
-			if ext.CurrentSequenceNumber == nil || requestedSequenceNumber == *ext.CurrentSequenceNumber {
-				// If this the very first time this extension is Enabled, or we're processing
-				// the same sequence number, and there is no VM App to process, save the status as Success
-				// It is also possible that a VM App cause a reboot but is not re-run again leading to
-				// no VM App operations. We should also set the status to success in this case.
-				statusMessage = getStatusMessage(currentPackageRegistry.GetPackageCollection(), executeError, customActionResult)
-				statusResult = status.StatusSuccess
-			} else {
-				// If this is a new sequence number with no VM App operations, then report
-				// the same status as the last sequence number.
-				// This case can happen if the user changes the ordering inside applicationProfile
-				// without changing any app or their installation order.
-				prevStatusObj, prevStatusErr := utils.GetStatus(ext.HandlerEnv, *ext.CurrentSequenceNumber)
-				if prevStatusErr != nil {
-					// No existing status save, should record as success since there are no VM App operations
-					statusMessage = getStatusMessage(currentPackageRegistry.GetPackageCollection(), executeError, customActionResult)
-					statusResult = status.StatusSuccess
-				} else {
-					statusMessage = prevStatusObj.FormattedMessage.Message
-					statusResult = prevStatusObj.Status
-				}
-			}
+			// If status is Transitioning and there's no VM App operations,
+			// then record a succes status.
+			statusMessage = getStatusMessage(currentPackageRegistry.GetPackageCollection(), executeError, customActionResult)
+			statusResult = status.StatusSuccess
 			statusUpdated = true
 		} else if strings.Contains(statusObj.FormattedMessage.Message, hostgacommunicator.HostGaMetadataErrorPrefix) {
 			// If there is no VM App operations, but the current status is a transient host GA
