@@ -285,9 +285,10 @@ func computeStatus(
 			statusResult = status.StatusSuccess
 			statusUpdated = true
 		} else if strings.Contains(statusObj.FormattedMessage.Message, hostgacommunicator.HostGaMetadataErrorPrefix) {
-			// If there is no VM App operations, but the current status is a transient host GA
-			// communication error, the status should be the same as the last stable status
-			prevStatusObj, prevStatusErr := utils.GetLastStableStatus(ext.HandlerEnv, *ext.CurrentSequenceNumber)
+			// If there is no VM App operations, but the requested sequence's status is
+			// a transient host GA communication error, the status should be the same as
+			// its last stable status.
+			prevStatusObj, prevStatusErr := utils.GetLastStableStatus(ext.HandlerEnv, requestedSequenceNumber)
 			if prevStatusErr != nil {
 				// No last stable status save, should record as success since the hostGA issue
 				// is gone
