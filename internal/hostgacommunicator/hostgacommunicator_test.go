@@ -164,7 +164,20 @@ func TestDownloadPackage_CannotRemoveExistingFile(t *testing.T) {
 	hgc := &HostGaCommunicator{}
 	err = hgc.DownloadPackage(nopLog(), myAppName, filePath)
 	require.NotNil(t, err, "did not fail")
+	_, ok := err.(*DownloadPackageError)
+	require.True(t, ok, "expected error to be of type *DownloadPackageError")
+	require.Contains(t, err.Error(), "DownloadPackageFileError", "Wrong error code")
 	require.Contains(t, err.Error(), "Could not remove the existing file", "Wrong message for failing to remove locked file")
+}
+
+func TestDownloadPackage_InvalidUri(t *testing.T) {
+	os.Setenv(WireProtocolAddress, "htt!p:notgoingtohappen!")
+	hgc := &HostGaCommunicator{}
+	err := hgc.DownloadPackage(nopLog(), myAppName, "somepath")
+	require.NotNil(t, err, "did not fail")
+	_, ok := err.(*DownloadPackageError)
+	require.True(t, ok, "expected error to be of type *DownloadPackageError")
+	require.Contains(t, err.Error(), DownloadPackageRequestFactoryError.ToString(), "Wrong error type")
 }
 
 func TestDownloadPackage_InvalidPath(t *testing.T) {
@@ -179,6 +192,9 @@ func TestDownloadPackage_InvalidPath(t *testing.T) {
 	hgc := &HostGaCommunicator{}
 	err := hgc.DownloadPackage(nopLog(), myAppName, filePath)
 	require.NotNil(t, err, "did not fail")
+	_, ok := err.(*DownloadPackageError)
+	require.True(t, ok, "expected error to be of type *DownloadPackageError")
+	require.Contains(t, err.Error(), "DownloadPackageFileError", "Wrong error code")
 	require.Contains(t, err.Error(), "Cannot retrieve file information", "Wrong message for invalid file path")
 }
 
@@ -229,6 +245,9 @@ func TestDownloadPackage_TooManyTries(t *testing.T) {
 	hgc := &HostGaCommunicator{}
 	err := hgc.DownloadPackage(nopLog(), myAppName, filePath)
 	require.NotNil(t, err, "did not fail")
+	_, ok := err.(*DownloadPackageError)
+	require.True(t, ok, "expected error to be of type *DownloadPackageError")
+	require.Contains(t, err.Error(), "DownloadPackageFileError", "Wrong error code")
 	require.Contains(t, err.Error(), "Failed to completely download the file", "Wrong message for incomplete file")
 }
 
@@ -258,6 +277,9 @@ func TestDownloadPackage_IntermediateCallFails(t *testing.T) {
 	hgc := &HostGaCommunicator{}
 	err := hgc.DownloadPackage(nopLog(), myAppName, filePath)
 	require.NotNil(t, err, "did not fail")
+	_, ok := err.(*DownloadPackageError)
+	require.True(t, ok, "expected error to be of type *DownloadPackageError")
+	require.Contains(t, err.Error(), "DownloadPackageFileError", "Wrong error code")
 	require.Contains(t, err.Error(), "Unrecoverable error while downloading the file", "Wrong message for failure mid-retries")
 }
 

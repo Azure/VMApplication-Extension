@@ -26,6 +26,8 @@ const (
 	InitializationError HostGaCommunicatorError = iota
 	MetadataRequestFailedWithRetries
 	MetadataRequestFailedInvalidResponseBody
+	DownloadPackageRequestFactoryError
+	DownloadPackageFileError
 )
 
 func (hostGaCommunicatorError HostGaCommunicatorError) ToString() string {
@@ -36,6 +38,10 @@ func (hostGaCommunicatorError HostGaCommunicatorError) ToString() string {
 		return "MetadataRequestFailedWithRetries"
 	case MetadataRequestFailedInvalidResponseBody:
 		return "MetadataRequestFailedInvalidResponseBody"
+	case DownloadPackageRequestFactoryError:
+		return "DownloadPackageRequestFactoryError"
+	case DownloadPackageFileError:
+		return "DownloadPackageFileError"
 	default:
 		return "UnknownError"
 	}
@@ -48,6 +54,15 @@ type HostGaCommunicatorGetVMAppInfoError struct {
 
 func (e *HostGaCommunicatorGetVMAppInfoError) Error() string {
 	return fmt.Sprintf("%s: %s, error type: %s", HostGaMetadataErrorPrefix, e.errorMessage, e.errorType.ToString())
+}
+
+type DownloadPackageError struct {
+	errorMessage string
+	errorType    HostGaCommunicatorError
+}
+
+func (e *DownloadPackageError) Error() string {
+	return fmt.Sprintf("DownloadPackage error: %s, error type: %s", e.errorMessage, e.errorType.ToString())
 }
 
 type IHostGaCommunicator interface {
@@ -108,11 +123,20 @@ func (*HostGaCommunicator) GetVMAppInfo(el *logging.ExtensionLogger, appName str
 func (*HostGaCommunicator) DownloadPackage(el *logging.ExtensionLogger, appName string, dst string) error {
 	requestFactory, err := newPackageDownloadRequestFactory(el, appName)
 	if err != nil {
-		return errors.Wrapf(err, "Could not create the request factory")
+		return &DownloadPackageError{
+			errorMessage: fmt.Sprintf("Could not create the request factory: %v", err),
+			errorType:    DownloadPackageRequestFactoryError,
+		}
 	}
 
 	err = requestFactory.downloadFile(el, dst)
-	return err
+	if err != nil {
+		return &DownloadPackageError{
+			errorMessage: fmt.Sprintf("Failed to download file: %v", err),
+			errorType:    DownloadPackageFileError,
+		}
+	}
+	return nil
 }
 
 // DownloadConfig downloads the application config through HostGaPlugin to the specified
