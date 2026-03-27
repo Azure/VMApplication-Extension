@@ -38,9 +38,9 @@ func TestBackupStatusFile(t *testing.T) {
 		err = BackupStatusFile(tmpDir, 1)
 		require.NoError(t, err)
 
-		// Verify original file no longer exists
+		// Verify original file is still there (to be overwritten later)
 		_, err = os.Stat(statusFile)
-		require.True(t, os.IsNotExist(err))
+		require.NoError(t, err)
 
 		// Verify backup file exists
 		_, err = os.Stat(backupFile)

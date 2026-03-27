@@ -6,6 +6,7 @@ package utils
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -60,6 +61,43 @@ func ReportStatus(handlerEnv *handlerenv.HandlerEnvironment, requestedSequenceNu
 	return nil
 }
 
+// copyFile copies a file from src to dst. If dst already exists, it will be overwritten.
+// The file permissions of the destination file will be the same as the source file.
+func copyFile(src, dst string) error {
+	// Open the source file
+	sourceFile, err := os.Open(src)
+	if err != nil {
+		return fmt.Errorf("failed to open source file: %w", err)
+	}
+	defer sourceFile.Close() // Get source file info
+
+	sourceInfo, err := sourceFile.Stat()
+	if err != nil {
+		return fmt.Errorf("failed to stat source file: %w", err)
+	}
+
+	// Create the destination file with same mode
+	destinationFile, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, sourceInfo.Mode())
+	if err != nil {
+		return fmt.Errorf("failed to create destination file: %w", err)
+	}
+	defer destinationFile.Close()
+
+	// Copy the content
+	_, err = io.Copy(destinationFile, sourceFile)
+	if err != nil {
+		return fmt.Errorf("failed to copy file: %w", err)
+	}
+
+	// Flush file metadata to disk
+	err = destinationFile.Sync()
+	if err != nil {
+		return fmt.Errorf("failed to sync destination file: %w", err)
+	}
+
+	return nil
+}
+
 // BackupStatusFile renames the current status file so it can be restored later.
 // If there is no existing status file, this function returns without error because
 // there's nothing to back up.
@@ -76,5 +114,5 @@ func BackupStatusFile(statusFolder string, sequenceNumber uint) error {
 	if info.IsDir() {
 		return fmt.Errorf("expected a file but found a directory: %s", current)
 	}
-	return os.Rename(current, backup)
+	return copyFile(current, backup)
 }
