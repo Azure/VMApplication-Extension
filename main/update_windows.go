@@ -6,6 +6,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
 	"sort"
@@ -75,6 +76,20 @@ func getMostRecentlyUpdatedPackageRegistryFile(dirContainingAllVersions string, 
 	return sortableRegistryFileInfo.FileInfoArray[len(sortableRegistryFileInfo.FileInfoArray)-1].filePath, nil
 }
 
+// findVersionDir walks up from configFolder to find a directory whose name is a version string.
+// Returns the parent directory (containing all versions) and the relative path from the version dir down to configFolder.
+func findVersionDir(configFolder string) (string, string, error) {
+	relativePathToConfigFolder := ""
+	for currentFolderPath := configFolder; currentFolderPath != filepath.Dir(currentFolderPath); currentFolderPath = filepath.Dir(currentFolderPath) {
+		currentFolderName := filepath.Base(currentFolderPath)
+		if utils.IsValidVersionString(currentFolderName) {
+			return filepath.Dir(currentFolderPath), relativePathToConfigFolder, nil
+		}
+		relativePathToConfigFolder = path.Join(currentFolderName, relativePathToConfigFolder)
+	}
+	return "", "", errorExtensionVersionDirNotFound
+}
+
 func vmAppUpdateCallback(ext *vmextensionhelper.VMExtension) error {
 	// for extension update on windows, we retrieve the applicationRegistry.active file from a previous version of the extension
 
@@ -85,21 +100,9 @@ func vmAppUpdateCallback(ext *vmextensionhelper.VMExtension) error {
 		return nil
 	}
 
-	// Walk up the directory tree to find the directory whose name contains ExtensionVersion,
-	// tracking the relative path below it in pathToFile.
-	folderPathThatContainsAllTheVersions := ""
-	relativePathToConfigFolder := ""
-	for currentFolderPath := ext.HandlerEnv.ConfigFolder; currentFolderPath != filepath.Dir(currentFolderPath); currentFolderPath = filepath.Dir(currentFolderPath) {
-		currentFolderName := filepath.Base(currentFolderPath)
-
-		if utils.IsValidVersionString(currentFolderName) {
-			folderPathThatContainsAllTheVersions = filepath.Dir(currentFolderPath) // if the leaf folder is a version number, then the parent folder should be the one that contains all the versions
-			break
-		}
-		relativePathToConfigFolder = path.Join(currentFolderName, relativePathToConfigFolder) // build it from leaf to root since we are walking up the directory tree
-	}
-	if folderPathThatContainsAllTheVersions == "" {
-		return errorExtensionVersionDirNotFound
+	folderPathThatContainsAllTheVersions, relativePathToConfigFolder, err := findVersionDir(ext.HandlerEnv.ConfigFolder)
+	if err != nil {
+		return err
 	}
 
 	previousPackageRegistryFilePath, err := getMostRecentlyUpdatedPackageRegistryFile(folderPathThatContainsAllTheVersions, relativePathToConfigFolder)
@@ -121,11 +124,104 @@ func vmAppUpdateCallback(ext *vmextensionhelper.VMExtension) error {
 	// Overwrite the package registry for older version to be an empty list of applications
 	err = os.WriteFile(previousPackageRegistryFilePath, emptyPackageRegistryContent, 0666)
 
-	// TODO: Copy the download dir from the older version into a path more appropriate for the new version,
-	// but this is not urgent since the download dir is only a cache and will be repopulated as needed.
+	err = moveDownloadDirToCurrentVersion(ext)
 
-	// TODO: Update the references in package registry file to point to the new download dir if we do copy the download dir,
-	// but again this is not urgent since the download dir will be repopulated as needed.
+	if err != nil {
+		return err
+	}
+
+	return updateDonwnloadDirInPackageRegistryFile(ext)
+}
+
+func updateDonwnloadDirInPackageRegistryFile(ext *vmextensionhelper.VMExtension) error {
+	packageRegistry, err := packageregistry.New(ext.ExtensionLogger, ext.HandlerEnv, filelockTimeoutDuration)
+	if err != nil {
+		return err
+	}
+	defer packageRegistry.Close()
+	existingPackages, err := packageRegistry.GetExistingPackages()
+	if err != nil {
+		return err
+	}
+
+	for packageName, packageInfo := range existingPackages {
+		pathBeforeVersion, pathAfterVersion, err := findVersionDir(packageInfo.DownloadDir)
+		if err == nil {
+			packageInfo.DownloadDir = path.Join(pathBeforeVersion, ExtensionVersion, pathAfterVersion)
+		} else {
+			ext.ExtensionLogger.Warn("Could not update downloadDir for package '%s', error '%v'", packageName, err)
+			ext.ExtensionEvents.LogWarningEvent("vm-application-manager-update", fmt.Sprintf("Could not update downloadDir for package '%s', error '%v'", packageName, err))
+		}
+	}
+
+	return packageRegistry.WriteToDisk(existingPackages)
+}
+
+// move the download directory from old version to new version
+func moveDownloadDirToCurrentVersion(ext *vmextensionhelper.VMExtension) error {
+	packageRegistry, err := packageregistry.New(ext.ExtensionLogger, ext.HandlerEnv, filelockTimeoutDuration)
+	if err != nil {
+		return err
+	}
+	defer packageRegistry.Close()
+
+	rootOfAllVersions, relativePathAfterVersion, err := findVersionDir(ext.HandlerEnv.DataFolder)
+	if err != nil {
+		return err
+	}
+
+	entries, err := os.ReadDir(rootOfAllVersions)
+	if err != nil {
+		return err
+	}
+	var downloadDirectoryForAllVersions []string
+	for _, entry := range entries {
+		if entry.IsDir() && utils.IsValidVersionString(entry.Name()) {
+			dirName := filepath.Join(rootOfAllVersions, entry.Name(), relativePathAfterVersion)
+			downloadDir, err := os.Stat(dirName)
+			if err != nil {
+				ext.ExtensionLogger.Warn("Skipping directory %s when looking for download directories to move, with error: %v", dirName, err)
+				ext.ExtensionEvents.LogWarningEvent("vm-application-manager-update", fmt.Sprintf("Skipping directory %s when looking for download directories to move, with error: %v", dirName, err))
+				continue
+			}
+			if !downloadDir.IsDir() || entry.Name() == ExtensionVersion {
+				//if the config folder is not a directory, or if the version folder is the same as the current version, then skip it
+				continue
+			}
+			downloadDirectoryForAllVersions = append(downloadDirectoryForAllVersions, dirName)
+		}
+	}
+
+	for _, downloadDir := range downloadDirectoryForAllVersions {
+		directoryContents, err := os.ReadDir(downloadDir)
+		if err != nil {
+			ext.ExtensionLogger.Warn("Failed to read directory %s with error: %v", downloadDir, err)
+			ext.ExtensionEvents.LogWarningEvent("vm-application-manager-update", fmt.Sprintf("Failed to read directory %s with error: %v", downloadDir, err))
+			continue
+		}
+		for _, entry := range directoryContents {
+			if entry.IsDir() {
+				sourceDirFullPath := filepath.Join(downloadDir, entry.Name())
+				destDirFullPath := filepath.Join(ext.HandlerEnv.DataFolder, entry.Name())
+				err = copySubdirectoryUsingRobocopy(sourceDirFullPath, destDirFullPath)
+				// copy the directory from current entry to ext.HandlerEnv.DataFolder
+				if err != nil {
+					ext.ExtensionLogger.Warn("Failed to copy directory from %s to %s with error: %s", sourceDirFullPath, destDirFullPath, err.Error())
+					ext.ExtensionEvents.LogWarningEvent("vm-application-manager-update", fmt.Sprintf("Failed to copy directory from %s to %s with error: %s", sourceDirFullPath, destDirFullPath, err.Error()))
+				}
+			}
+		}
+	}
 
 	return nil
+}
+
+func copySubdirectoryUsingRobocopy(src, dst string) error {
+	cmd := exec.Command("robocopy", src, dst, "/E", "/sl", "/NFL", "/NDL", "/NJH", "/NJS")
+	err := cmd.Run()
+	// robocopy exit codes 0-7 are success/informational
+	if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() < 8 {
+		return nil
+	}
+	return err
 }
