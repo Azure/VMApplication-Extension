@@ -124,7 +124,7 @@ func getVMExtension() (*vmextensionhelper.VMExtension, error) {
 		return nil, err
 	}
 
-	ii.UninstallCallback = vmAppUninstallCallback
+	ii.UninstallCallback = nil // no need to do any special handling on uninstall, so we can set the callback to nil
 	ii.UpdateCallback = vmAppUpdateCallback
 	ii.LogFileNamePattern = "VmAppExt_%v.log"
 
@@ -254,45 +254,6 @@ func customEnable(ext *vmextensionhelper.VMExtension, hostgaCommunicator hostgac
 		ext.ExtensionLogger.Info(message)
 		ext.ExtensionEvents.LogInformationalEvent("Save Status", message)
 	}
-
-	return nil
-}
-
-// Callback indicating the extension is being removed
-func vmAppUninstallCallback(ext *vmextensionhelper.VMExtension) error {
-	ext.ExtensionEvents.LogInformationalEvent("Uninstalling", "VmApplications extension - removing all applications for uninstall")
-	hostGaCommunicator := hostgacommunicator.HostGaCommunicator{}
-	err := doVmAppUninstallCallback(ext, &hostGaCommunicator)
-	if err == nil {
-		ext.ExtensionEvents.LogInformationalEvent("Completed", "VmApplications extension uninstalled. Result=Success")
-	} else {
-		ext.ExtensionEvents.LogInformationalEvent(
-			"Completed",
-			fmt.Sprintf("VmApplications extension uninstall finished. Result=Failure;Reason=%v", err.Error()))
-	}
-	return err
-}
-
-func doVmAppUninstallCallback(ext *vmextensionhelper.VMExtension, hostGaCommunicator hostgacommunicator.IHostGaCommunicator) error {
-	packageRegistry, err := packageregistry.New(ext.ExtensionLogger, ext.HandlerEnv, filelockTimeoutDuration)
-	if err != nil {
-		return errors.Wrapf(err, "Could not create package registry")
-	}
-	defer packageRegistry.Close()
-
-	currentPackageRegistry, err := packageRegistry.GetExistingPackages()
-	if err != nil {
-		return errors.Wrapf(err, "Could not read current package registry")
-	}
-
-	// Create an empty incoming collection so we'll create an action plan to remove all applications
-	emptyIncomingCollection := make(packageregistry.VMAppPackageIncomingCollection, 0)
-
-	actionPlan := actionplan.New(currentPackageRegistry, emptyIncomingCollection, ext.HandlerEnv, hostGaCommunicator, ext.ExtensionLogger)
-	commandHandler := commandhandler.CommandHandler{}
-
-	// Removing applications is best effort, so even if there are errors here, we ignore them
-	_, _ = actionPlan.Execute(packageRegistry, ext.ExtensionEvents, &commandHandler)
 
 	return nil
 }

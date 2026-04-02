@@ -68,9 +68,8 @@ func Test_noInfiniteLoops(t *testing.T) {
 	}
 	ext := createTestVMExtension(t, vmApplications)
 
-	//set up test files
-	runtimeFolderName := "RuntimeSettings"                                                               //path to create test version folders
-	ext.HandlerEnv.ConfigFolder = filepath.Join(ext.HandlerEnv.ConfigFolder, "6.6.6", runtimeFolderName) //overwrite to match path pattern of config folder in VM
+	// this overwrite creates a path that does not contain a version folder, so the update function should return an error instead of infinitely looping
+	ext.HandlerEnv.ConfigFolder = filepath.Join(ext.HandlerEnv.ConfigFolder, "someRadomFolder", "random2", "random3", "RuntimeSettings")
 
 	//call update
 	err := vmAppUpdateCallback(ext)
