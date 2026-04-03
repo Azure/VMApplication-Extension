@@ -34,9 +34,6 @@ jobs:
     runs-on: windows-latest
     steps:
     - uses: actions/checkout@v2
-
-    - name: Install gsudo
-      run: choco install gsudo --version 2.5.0 -y
       
     - name: Set up Go
       uses: actions/setup-go@v2
@@ -53,4 +50,4 @@ jobs:
       run: go build -v ./...
       
     - name: Test
-      run: C:\tools\gsudo\Current\gsudo.exe go test -v ./...
+      run: go test -v ./...
