@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path"
 	"path/filepath"
+	"regexp"
 	"sort"
 
 	"github.com/Azure/VMApplication-Extension/pkg/utils"
@@ -62,7 +62,7 @@ func getMostRecentlyUpdatedPackageRegistryFile(dirContainingAllVersions string, 
 	}
 	for _, fileInfo := range fileInfo {
 		if fileInfo.IsDir() && fileInfo.Name() != ExtensionVersion && utils.IsValidVersionString(fileInfo.Name()) {
-			registryFilePath := path.Join(dirContainingAllVersions, fileInfo.Name(), intermediatePath, packageregistry.LocalApplicationRegistryFileName)
+			registryFilePath := filepath.Join(dirContainingAllVersions, fileInfo.Name(), intermediatePath, packageregistry.LocalApplicationRegistryFileName)
 			registryFileInfo, err := os.Stat(registryFilePath)
 			if err == nil {
 				sortableRegistryFileInfo.FileInfoArray = append(sortableRegistryFileInfo.FileInfoArray, FileInfoWithFilePath{registryFileInfo, registryFilePath})
@@ -85,7 +85,7 @@ func findVersionDir(configFolder string) (string, string, error) {
 		if utils.IsValidVersionString(currentFolderName) {
 			return filepath.Dir(currentFolderPath), relativePathToConfigFolder, nil
 		}
-		relativePathToConfigFolder = path.Join(currentFolderName, relativePathToConfigFolder)
+		relativePathToConfigFolder = filepath.Join(currentFolderName, relativePathToConfigFolder)
 	}
 	return "", "", errorExtensionVersionDirNotFound
 }
@@ -124,13 +124,17 @@ func vmAppUpdateCallback(ext *vmextensionhelper.VMExtension) error {
 	// Overwrite the package registry for older version to be an empty list of applications
 	err = os.WriteFile(previousPackageRegistryFilePath, emptyPackageRegistryContent, 0666)
 
+	// do the following operations in a best effort manner
 	err = moveDownloadDirToCurrentVersion(ext)
 
 	if err != nil {
-		return err
+		ext.ExtensionLogger.Warn("Failed to move download directory to current version with error: %v", err)
+		ext.ExtensionEvents.LogWarningEvent("vm-application-manager-update", fmt.Sprintf("Failed to move download directory to current version with error: %v", err))
+	} else if err = updateDonwnloadDirInPackageRegistryFile(ext); err != nil {
+		ext.ExtensionLogger.Warn("Failed to update download directory in package registry file with error: %v", err)
+		ext.ExtensionEvents.LogWarningEvent("vm-application-manager-update", fmt.Sprintf("Failed to update download directory in package registry file with error: %v", err))
 	}
-
-	return updateDonwnloadDirInPackageRegistryFile(ext)
+	return nil
 }
 
 func updateDonwnloadDirInPackageRegistryFile(ext *vmextensionhelper.VMExtension) error {
@@ -144,13 +148,30 @@ func updateDonwnloadDirInPackageRegistryFile(ext *vmextensionhelper.VMExtension)
 		return err
 	}
 
+	if len(existingPackages) == 0 {
+		return nil
+	}
+
+	downloadDirBeforeVersion, downloadDirAfterVersion, err := findVersionDir(ext.HandlerEnv.DataFolder)
+	if err != nil {
+		return err
+	}
+
+	// Build a regex that matches: <prefix>/<any_version>/<suffix> in DownloadDir paths
+	// Use forward slashes since DownloadDir is stored with filepath.ToSlash
+	escapedPrefix := regexp.QuoteMeta(filepath.ToSlash(downloadDirBeforeVersion))
+	escapedSuffix := regexp.QuoteMeta(filepath.ToSlash(downloadDirAfterVersion))
+	downloadDirVersionRegex := regexp.MustCompile(escapedPrefix + `/[^/]+/` + escapedSuffix)
+	replacement := filepath.ToSlash(downloadDirBeforeVersion) + "/" + ExtensionVersion + "/" + filepath.ToSlash(downloadDirAfterVersion)
+
 	for packageName, packageInfo := range existingPackages {
-		pathBeforeVersion, pathAfterVersion, err := findVersionDir(packageInfo.DownloadDir)
-		if err == nil {
-			packageInfo.DownloadDir = path.Join(pathBeforeVersion, ExtensionVersion, pathAfterVersion)
+		normalized := filepath.ToSlash(packageInfo.DownloadDir)
+		updated := downloadDirVersionRegex.ReplaceAllLiteralString(normalized, replacement)
+		if updated == normalized {
+			ext.ExtensionLogger.Warn("Could not update downloadDir for package '%s', no version segment matched", packageName)
+			ext.ExtensionEvents.LogWarningEvent("vm-application-manager-update", fmt.Sprintf("Could not update downloadDir for package '%s', no version segment matched", packageName))
 		} else {
-			ext.ExtensionLogger.Warn("Could not update downloadDir for package '%s', error '%v'", packageName, err)
-			ext.ExtensionEvents.LogWarningEvent("vm-application-manager-update", fmt.Sprintf("Could not update downloadDir for package '%s', error '%v'", packageName, err))
+			packageInfo.DownloadDir = filepath.FromSlash(updated)
 		}
 	}
 
