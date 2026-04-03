@@ -170,6 +170,9 @@ func TestOnlyOneInstanceofPackageRegistryCanExist(t *testing.T) {
 	require.True(t, ok, "Error type should be FileLockTimeoutError")
 	err = pkgHndlr1.Close()
 	require.NoError(t, err, "operation should not throw error")
+
+	// let things settle down before retrying
+	time.Sleep(2 * time.Second)
 	pkgHndlr2, err = New(nopLog(), &hndlEnv, time.Second)
 	require.NoError(t, err, "operation should not throw error")
 	err = pkgHndlr2.Close()
