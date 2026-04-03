@@ -13,7 +13,7 @@ import (
 	"github.com/Azure/azure-extension-platform/pkg/handlerenv"
 	"github.com/Azure/azure-extension-platform/pkg/lockedfile"
 	"github.com/Azure/azure-extension-platform/pkg/logging"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var hndlEnv = handlerenv.HandlerEnvironment{
@@ -57,19 +57,19 @@ func TestPackageRegistryReadWrite(t *testing.T) {
 	defer cleanupTest()
 	var pkgHndlr IPackageRegistry
 	pkgHndlr, err := New(nopLog(), &hndlEnv, time.Second)
-	assert.NoError(t, err, "operation should not throw error")
+	require.NoError(t, err, "operation should not throw error")
 	err = pkgHndlr.WriteToDisk(packageRegistry)
-	assert.NoError(t, err, "operation should not throw error")
+	require.NoError(t, err, "operation should not throw error")
 
 	result, err := pkgHndlr.GetExistingPackages()
-	assert.NoError(t, err, "operation should not throw error")
+	require.NoError(t, err, "operation should not throw error")
 
 	_, ok1 := result["package1"]
 	_, ok2 := result["package2"]
-	assert.True(t, ok1, "key should be present in dictionary")
-	assert.True(t, ok2, "key should be present in dictionary")
+	require.True(t, ok1, "key should be present in dictionary")
+	require.True(t, ok2, "key should be present in dictionary")
 
-	assert.True(t, reflect.DeepEqual(packageRegistry, result), "the maps should be equal")
+	require.True(t, reflect.DeepEqual(packageRegistry, result), "the maps should be equal")
 
 	// test overwrite
 	pkg := packageRegistry["package1"]
@@ -77,19 +77,19 @@ func TestPackageRegistryReadWrite(t *testing.T) {
 	packageRegistry["package1"] = pkg
 
 	err = pkgHndlr.WriteToDisk(packageRegistry)
-	assert.NoError(t, err, "operation should not throw error")
+	require.NoError(t, err, "operation should not throw error")
 
 	result, err = pkgHndlr.GetExistingPackages()
-	assert.NoError(t, err, "operation should not throw error")
+	require.NoError(t, err, "operation should not throw error")
 
 	_, ok1 = result["package1"]
 	_, ok2 = result["package2"]
-	assert.True(t, ok1, "key should be present in dictionary")
-	assert.True(t, ok2, "key should be present in dictionary")
+	require.True(t, ok1, "key should be present in dictionary")
+	require.True(t, ok2, "key should be present in dictionary")
 
-	assert.True(t, reflect.DeepEqual(packageRegistry, result), "the maps should be equal")
+	require.True(t, reflect.DeepEqual(packageRegistry, result), "the maps should be equal")
 	err = pkgHndlr.Close()
-	assert.NoError(t, err, "operation should not throw error")
+	require.NoError(t, err, "operation should not throw error")
 }
 
 func TestPackageRegistryDeserialization_NumRebootsOccurred_DefaultToZero(t *testing.T) {
@@ -98,7 +98,7 @@ func TestPackageRegistryDeserialization_NumRebootsOccurred_DefaultToZero(t *test
 
 	var pkgHndlr IPackageRegistry
 	pkgHndlr, err := New(nopLog(), &hndlEnv, time.Second)
-	assert.NoError(t, err, "operation should not throw error")
+	require.NoError(t, err, "operation should not throw error")
 
 	// Overwrite package2
 	pkg := packageRegistry["package2"]
@@ -106,19 +106,19 @@ func TestPackageRegistryDeserialization_NumRebootsOccurred_DefaultToZero(t *test
 	packageRegistry["package2"] = pkg
 
 	err = pkgHndlr.WriteToDisk(packageRegistry)
-	assert.NoError(t, err, "operation should not throw error")
+	require.NoError(t, err, "operation should not throw error")
 
 	result, err := pkgHndlr.GetExistingPackages()
-	assert.NoError(t, err, "operation should not throw error")
+	require.NoError(t, err, "operation should not throw error")
 
 	package1 := result["package1"]
 	package2 := result["package2"]
 
-	assert.Equal(t, 0, package1.NumRebootsOccurred, "deserializing package from registry with no reboots property should default to 0")
-	assert.Equal(t, 1, package2.NumRebootsOccurred, "num reboots occurred for package2 should be 1")
+	require.Equal(t, 0, package1.NumRebootsOccurred, "deserializing package from registry with no reboots property should default to 0")
+	require.Equal(t, 1, package2.NumRebootsOccurred, "num reboots occurred for package2 should be 1")
 
 	err = pkgHndlr.Close()
-	assert.NoError(t, err, "operation should not throw error")
+	require.NoError(t, err, "operation should not throw error")
 }
 
 func TestValuesAreProperlySaved(t *testing.T) {
@@ -127,34 +127,34 @@ func TestValuesAreProperlySaved(t *testing.T) {
 	reg1 := CurrentPackageRegistry{"p1": &VMAppPackageCurrent{ApplicationName: "p1", Version: "1.1"}}
 	var pkgHndlr IPackageRegistry
 	pkgHndlr, err := New(nopLog(), &hndlEnv, time.Second)
-	assert.NoError(t, err, "operation should not throw error")
+	require.NoError(t, err, "operation should not throw error")
 	err = pkgHndlr.WriteToDisk(reg1)
-	assert.NoError(t, err, "operation should not throw error")
+	require.NoError(t, err, "operation should not throw error")
 	err = pkgHndlr.Close()
-	assert.NoError(t, err, "operation should not throw error")
+	require.NoError(t, err, "operation should not throw error")
 
 	pkgHndlr, err = New(nopLog(), &hndlEnv, time.Second)
-	assert.NoError(t, err, "operation should not throw error")
+	require.NoError(t, err, "operation should not throw error")
 	result, err := pkgHndlr.GetExistingPackages()
-	assert.True(t, reflect.DeepEqual(reg1, result), "the maps should be equal")
+	require.True(t, reflect.DeepEqual(reg1, result), "the maps should be equal")
 	err = pkgHndlr.Close()
-	assert.NoError(t, err, "operation should not throw error")
+	require.NoError(t, err, "operation should not throw error")
 
 	// write different data again, test if it is consistent
 	reg2 := CurrentPackageRegistry{"p2": &VMAppPackageCurrent{ApplicationName: "p2", Version: "2.1"}}
 	pkgHndlr, err = New(nopLog(), &hndlEnv, time.Second)
-	assert.NoError(t, err, "operation should not throw error")
+	require.NoError(t, err, "operation should not throw error")
 	err = pkgHndlr.WriteToDisk(reg2)
-	assert.NoError(t, err, "operation should not throw error")
+	require.NoError(t, err, "operation should not throw error")
 	err = pkgHndlr.Close()
-	assert.NoError(t, err, "operation should not throw error")
+	require.NoError(t, err, "operation should not throw error")
 
 	pkgHndlr, err = New(nopLog(), &hndlEnv, time.Second)
-	assert.NoError(t, err, "operation should not throw error")
+	require.NoError(t, err, "operation should not throw error")
 	result, err = pkgHndlr.GetExistingPackages()
-	assert.True(t, reflect.DeepEqual(reg2, result), "the maps should be equal")
+	require.True(t, reflect.DeepEqual(reg2, result), "the maps should be equal")
 	err = pkgHndlr.Close()
-	assert.NoError(t, err, "operation should not throw error")
+	require.NoError(t, err, "operation should not throw error")
 
 }
 
@@ -162,16 +162,16 @@ func TestOnlyOneInstanceofPackageRegistryCanExist(t *testing.T) {
 	initializeTest(t)
 	defer cleanupTest()
 	pkgHndlr1, err := New(nopLog(), &hndlEnv, 60*time.Second)
-	assert.NoError(t, err, "operation should not throw error")
+	require.NoError(t, err, "operation should not throw error")
 	pkgHndlr2, err := New(nopLog(), &hndlEnv, time.Second)
-	assert.Error(t, err, "operation should throw error")
-	assert.Nil(t, pkgHndlr2, "package handler instance should be nil")
+	require.Error(t, err, "operation should throw error")
+	require.Nil(t, pkgHndlr2, "package handler instance should be nil")
 	_, ok := err.(*lockedfile.FileLockTimeoutError)
-	assert.True(t, ok, "Error type should be FileLockTimeoutError")
+	require.True(t, ok, "Error type should be FileLockTimeoutError")
 	err = pkgHndlr1.Close()
-	assert.NoError(t, err, "operation should not throw error")
+	require.NoError(t, err, "operation should not throw error")
 	pkgHndlr2, err = New(nopLog(), &hndlEnv, time.Second)
-	assert.NoError(t, err, "operation should not throw error")
+	require.NoError(t, err, "operation should not throw error")
 	err = pkgHndlr2.Close()
-	assert.NoError(t, err, "operation should not throw error")
+	require.NoError(t, err, "operation should not throw error")
 }
