@@ -161,14 +161,14 @@ func vmAppUpdateCallback(ext *vmextensionhelper.VMExtension) error {
 	if err != nil {
 		ext.ExtensionLogger.Warn("Failed to move download directory to current version with error: %v", err)
 		ext.ExtensionEvents.LogWarningEvent("vm-application-manager-update", fmt.Sprintf("Failed to move download directory to current version with error: %v", err))
-	} else if err = updateDonwnloadDirInPackageRegistryFile(ext); err != nil {
+	} else if err = updateDownloadDirInPackageRegistryFile(ext); err != nil {
 		ext.ExtensionLogger.Warn("Failed to update download directory in package registry file with error: %v", err)
 		ext.ExtensionEvents.LogWarningEvent("vm-application-manager-update", fmt.Sprintf("Failed to update download directory in package registry file with error: %v", err))
 	}
 	return nil
 }
 
-func updateDonwnloadDirInPackageRegistryFile(ext *vmextensionhelper.VMExtension) error {
+func updateDownloadDirInPackageRegistryFile(ext *vmextensionhelper.VMExtension) error {
 	packageRegistry, err := packageregistry.New(ext.ExtensionLogger, ext.HandlerEnv, filelockTimeoutDuration)
 	if err != nil {
 		return err

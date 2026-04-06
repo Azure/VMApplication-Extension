@@ -397,7 +397,7 @@ func Test_moveAndUpdateDownloadDir_updatesRegistryPaths(t *testing.T) {
 	err = moveDownloadDirToCurrentVersion(ext)
 	require.NoError(t, err)
 
-	err = updateDonwnloadDirInPackageRegistryFile(ext)
+	err = updateDownloadDirInPackageRegistryFile(ext)
 	require.NoError(t, err)
 
 	// Read back the registry and verify DownloadDir was updated to the current version
@@ -426,7 +426,7 @@ func Test_updateDownloadDirInPackageRegistryFile_noPackages(t *testing.T) {
 	err = os.WriteFile(registryFilePath, []byte("[]"), 0666)
 	require.NoError(t, err)
 
-	err = updateDonwnloadDirInPackageRegistryFile(ext)
+	err = updateDownloadDirInPackageRegistryFile(ext)
 	require.NoError(t, err)
 }
 
@@ -448,7 +448,7 @@ func Test_updateDownloadDirInPackageRegistryFile_packageWithNoVersionInPath(t *t
 	err = os.WriteFile(registryFilePath, []byte(registryContent), 0666)
 	require.NoError(t, err)
 
-	err = updateDonwnloadDirInPackageRegistryFile(ext)
+	err = updateDownloadDirInPackageRegistryFile(ext)
 	require.NoError(t, err)
 
 	// Verify the DownloadDir is unchanged since no version dir was found
