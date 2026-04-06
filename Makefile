@@ -2,7 +2,6 @@ BUNDLEDIR=bundle/linux/prod
 BUNDLEDIR_TEST=bundle/linux/test
 BINDIR=$(BUNDLEDIR)/bin
 BINDIR_TEST=$(BUNDLEDIR_TEST)/bin
-EXTENSIONVERSION=1.0.18
 ALLOWED_EXT1=Microsoft.CPlat.Core.VMApplicationManagerLinux
 ALLOWED_EXT2=Microsoft.CPlat.Core.EDP.VMApplicationManagerLinux
 
@@ -20,20 +19,20 @@ clean:
 	-rm -Rf $(BUNDLEDIR_TEST)
 	-rm -Rf licenses
 
-extension-launcher: validate-extension-name
+extension-launcher: validate-extension-name validate-extension-version
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o extension-launcher -ldflags="-X 'main.ExtensionName=$(EXTENSIONNAME)' -X 'main.ExtensionVersion=$(EXTENSIONVERSION)' -X 'main.ExecutableName=vm-application-manager'" ./launcher
 
-extension-launcher-arm64: validate-extension-name
+extension-launcher-arm64: validate-extension-name validate-extension-version
 	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o extension-launcher-arm64 -ldflags="-X 'main.ExtensionName=$(EXTENSIONNAME)' -X 'main.ExtensionVersion=$(EXTENSIONVERSION)' -X 'main.ExecutableName=vm-application-manager'" ./launcher # For ARM64 machines, install command will rename vm-application-manager-arm64 to vm-application-manager
 
-vm-application-manager: validate-extension-name
+vm-application-manager: validate-extension-name validate-extension-version
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o  vm-application-manager -ldflags="-X 'main.ExtensionName=$(EXTENSIONNAME)' -X 'main.ExtensionVersion=$(EXTENSIONVERSION)'" ./main
 
-vm-application-manager-arm64: validate-extension-name
+vm-application-manager-arm64: validate-extension-name validate-extension-version
 	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o vm-application-manager-arm64 -ldflags="-X 'main.ExtensionName=$(EXTENSIONNAME)' -X 'main.ExtensionVersion=$(EXTENSIONVERSION)'"  ./main
 
 
-.PHONY: validate-extension-name
+.PHONY: validate-extension-name validate-extension-version
 validate-extension-name:
 	@case "$(EXTENSIONNAME)" in \
 	  "$(ALLOWED_EXT1)"|"$(ALLOWED_EXT2)" ) ;; \
@@ -43,6 +42,14 @@ validate-extension-name:
 	       echo "          make EXTENSIONNAME=\"$(ALLOWED_EXT2)\""; \
 	       exit 1 ;; \
 	esac
+
+validate-extension-version:
+	@if [ -z "$(EXTENSIONVERSION)" ]; then \
+		echo "Error: EXTENSIONVERSION parameter is required"; \
+		echo "Usage: make EXTENSIONVERSION=<version>"; \
+		exit 1; \
+	fi
+	@echo "Using EXTENSIONVERSION: $(EXTENSIONVERSION)"
 
 collect-licenses:
 	@echo "Collecting open source licenses..."
@@ -70,7 +77,7 @@ bundle-prod: extension-launcher extension-launcher-arm64 vm-application-manager 
 
 bundle-test:
 	@echo "Building and packaging TEST bundle into $(BUNDLEDIR_TEST) with EXTENSIONNAME=$(ALLOWED_EXT2)"
-	$(MAKE) EXTENSIONNAME=$(ALLOWED_EXT2) extension-launcher extension-launcher-arm64 vm-application-manager vm-application-manager-arm64
+	$(MAKE) EXTENSIONNAME=$(ALLOWED_EXT2) EXTENSIONVERSION=$(EXTENSIONVERSION) extension-launcher extension-launcher-arm64 vm-application-manager vm-application-manager-arm64
 	mkdir -p $(BINDIR_TEST)
 	mv extension-launcher "$(BINDIR_TEST)/"
 	mv extension-launcher-arm64 "$(BINDIR_TEST)/"
