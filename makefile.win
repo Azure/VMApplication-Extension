@@ -32,6 +32,7 @@ validate-extensionversion:
     @echo Usage: nmake -f makefile.win EXTENSIONVERSION=^<version^>
     @exit 1
 !ENDIF
+    @echo $(EXTENSIONVERSION)| findstr /R "^[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*$$" >nul 2>&1 || ( echo Error: EXTENSIONVERSION $(EXTENSIONVERSION) does not match required pattern n.n.n & exit /b 1 )
     @echo Using EXTENSIONVERSION: $(EXTENSIONVERSION)
 
 clean:

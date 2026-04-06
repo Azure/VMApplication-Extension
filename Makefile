@@ -49,6 +49,10 @@ validate-extension-version:
 		echo "Usage: make EXTENSIONVERSION=<version>"; \
 		exit 1; \
 	fi
+	@echo "$(EXTENSIONVERSION)" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$$' || { \
+		echo "Error: EXTENSIONVERSION '$(EXTENSIONVERSION)' does not match required pattern n.n.n (e.g., 1.0.18)"; \
+		exit 1; \
+	}
 	@echo "Using EXTENSIONVERSION: $(EXTENSIONVERSION)"
 
 collect-licenses:
