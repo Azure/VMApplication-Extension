@@ -34,10 +34,7 @@ var (
 )
 
 const (
-	vmPackagesSetting       = "vmPackages"
-	operationInstall        = "install"
-	operationUpdate         = "update"
-	operationRemove         = "remove"
+	argVersion              = "version"
 	filelockTimeoutDuration = 45 * time.Minute
 )
 
@@ -49,6 +46,11 @@ func main() {
 }
 
 func getExtensionAndRun(arguments []string) error {
+	if len(arguments) == 2 && strings.EqualFold(arguments[1], argVersion) {
+		fmt.Println("Extension version is", ExtensionVersion)
+		return nil
+	}
+
 	// require SeqNoChange is set to false because we want the extension to ensure that the packages are in sync with the desired packages
 	ext, err := getVMExtensionFunc()
 	if err != nil {
