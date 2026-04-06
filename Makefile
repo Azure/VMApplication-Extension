@@ -62,8 +62,8 @@ collect-licenses:
 		go install github.com/google/go-licenses@latest; \
 	fi
 	mkdir -p licenses/reports
-	$$(go env GOPATH)/bin/go-licenses save ./main --save_path=licenses/texts
-	$$(go env GOPATH)/bin/go-licenses csv ./main > licenses/reports/THIRD_PARTY_LICENSES.csv
+	-$$(go env GOPATH)/bin/go-licenses save ./main --save_path=licenses/texts --ignore=std --ignore=golang.org/x/sys
+	-$$(go env GOPATH)/bin/go-licenses csv ./main --ignore=std --ignore=golang.org/x/sys > licenses/reports/THIRD_PARTY_LICENSES.csv
 	@echo "License collection complete!"
 
 bundle-prod: extension-launcher extension-launcher-arm64 vm-application-manager vm-application-manager-arm64
