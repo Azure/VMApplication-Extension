@@ -77,6 +77,90 @@ func Test_noInfiniteLoops(t *testing.T) {
 	require.ErrorIs(t, err, errorExtensionVersionDirNotFound)
 }
 
+func Test_findVersionDir_fallsBackThroughComparisonFunctions(t *testing.T) {
+	// Create a directory structure: <root>/1.0.10/RuntimeSettings
+	root := t.TempDir()
+	extensionVersionOriginalValue := ExtensionVersion
+	versionDir := filepath.Join(root, extensionVersionOriginalValue, "RuntimeSettings")
+	err := os.MkdirAll(versionDir, os.ModeDir)
+	require.NoError(t, err)
+
+	defer func() {
+		// revert it to what the other tests might expect after this test is run
+		ExtensionVersion = "1.0.10"
+	}()
+
+	// Subtest 1: env vars not set — falls back to ExtensionVersion match
+	t.Run("no_env_vars_uses_pattern_match", func(t *testing.T) {
+		os.Unsetenv(string(vmextension.GuestAgentEnvVarExtensionVersion))
+		os.Unsetenv(string(vmextension.GuestAgentEnvVarUpdateToVersion))
+
+		parent, relPath, err := findVersionDir(versionDir)
+		require.NoError(t, err)
+		require.Equal(t, root, parent)
+		require.Equal(t, "RuntimeSettings", relPath)
+	})
+
+	// Subtest 2: AZURE_GUEST_AGENT_EXTENSION_VERSION matches — uses first checker
+	t.Run("extension_version_env_var_matches", func(t *testing.T) {
+		t.Setenv(string(vmextension.GuestAgentEnvVarExtensionVersion), extensionVersionOriginalValue)
+		os.Unsetenv(string(vmextension.GuestAgentEnvVarUpdateToVersion))
+
+		parent, relPath, err := findVersionDir(versionDir)
+		require.NoError(t, err)
+		require.Equal(t, root, parent)
+		require.Equal(t, "RuntimeSettings", relPath)
+	})
+
+	// Subtest 3: VERSION env var matches — uses second checker
+	t.Run("update_to_version_env_var_matches", func(t *testing.T) {
+		os.Unsetenv(string(vmextension.GuestAgentEnvVarExtensionVersion))
+		t.Setenv(string(vmextension.GuestAgentEnvVarUpdateToVersion), extensionVersionOriginalValue)
+
+		parent, relPath, err := findVersionDir(versionDir)
+		require.NoError(t, err)
+		require.Equal(t, root, parent)
+		require.Equal(t, "RuntimeSettings", relPath)
+	})
+
+	// Subtest 4: env vars set to wrong values — falls back to ExtensionVersion match
+	t.Run("env_vars_wrong_falls_back_to_ExtensionVersion", func(t *testing.T) {
+		t.Setenv(string(vmextension.GuestAgentEnvVarExtensionVersion), "9.9.9")
+		t.Setenv(string(vmextension.GuestAgentEnvVarUpdateToVersion), "8.8.8")
+
+		parent, relPath, err := findVersionDir(versionDir)
+		require.NoError(t, err)
+		require.Equal(t, root, parent)
+		require.Equal(t, "RuntimeSettings", relPath)
+	})
+
+	// Subtest 5: env vars set to wrong values, ExtensionVersion doesn't match — falls back to pattern match
+	t.Run("env_vars_wrong_falls_back_to_pattern", func(t *testing.T) {
+		t.Setenv(string(vmextension.GuestAgentEnvVarExtensionVersion), "9.9.9")
+		t.Setenv(string(vmextension.GuestAgentEnvVarUpdateToVersion), "8.8.8")
+
+		ExtensionVersion = "1.0.0" // the directory was created with extension version 1.0.10, this should fail to match
+
+		parent, relPath, err := findVersionDir(versionDir)
+		require.NoError(t, err)
+		require.Equal(t, root, parent)
+		require.Equal(t, "RuntimeSettings", relPath)
+	})
+
+	// Subtest 6: no version dir in path and no env vars — should return error
+	t.Run("no_version_dir_returns_error", func(t *testing.T) {
+		os.Unsetenv(string(vmextension.GuestAgentEnvVarExtensionVersion))
+		os.Unsetenv(string(vmextension.GuestAgentEnvVarUpdateToVersion))
+
+		noVersionPath := filepath.Join(t.TempDir(), "noVersion", "data")
+		err := os.MkdirAll(noVersionPath, os.ModeDir)
+		require.NoError(t, err)
+
+		_, _, err = findVersionDir(noVersionPath)
+		require.ErrorIs(t, err, errorExtensionVersionDirNotFound)
+	})
+}
+
 func Test_cannotFindPackageConfigFile(t *testing.T) {
 	order := 1
 	vmApplications := []extdeserialization.VmAppSetting{

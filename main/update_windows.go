@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strings"
 
 	"github.com/Azure/VMApplication-Extension/pkg/utils"
 
@@ -79,15 +80,45 @@ func getMostRecentlyUpdatedPackageRegistryFile(dirContainingAllVersions string, 
 // findVersionDir walks up from configFolder to find a directory whose name is a version string.
 // Returns the parent directory (containing all versions) and the relative path from the version dir down to configFolder.
 func findVersionDir(configFolder string) (string, string, error) {
-	relativePathToConfigFolder := ""
-	for currentFolderPath := configFolder; currentFolderPath != filepath.Dir(currentFolderPath); currentFolderPath = filepath.Dir(currentFolderPath) {
-		currentFolderName := filepath.Base(currentFolderPath)
-		if utils.IsValidVersionString(currentFolderName) {
-			return filepath.Dir(currentFolderPath), relativePathToConfigFolder, nil
+	// contains an array of comparison functions that will be run to determine the version dir
+	// to have robustness, if the first way of comparison fails, use the next one
+	var dirNameIsVersionFuncs []func(currentFolderName string) bool
+
+	currentExtensionVersion, err := vmextensionhelper.GetGuestAgentEnvironmetVariable(vmextensionhelper.GuestAgentEnvVarExtensionVersion)
+	if err == nil {
+		// checks against 'current extension version' populated by Guest Agent
+		dirNameIsVersionFuncs = append(dirNameIsVersionFuncs, getStringEqualityChecker(currentExtensionVersion))
+	}
+
+	updateExtensionVersion, err := vmextensionhelper.GetGuestAgentEnvironmetVariable(vmextensionhelper.GuestAgentEnvVarUpdateToVersion)
+	if err == nil {
+		// checks against 'extension version to update' populated by Guest Agent
+		dirNameIsVersionFuncs = append(dirNameIsVersionFuncs, getStringEqualityChecker(updateExtensionVersion))
+	}
+
+	// check against extension version variable
+	dirNameIsVersionFuncs = append(dirNameIsVersionFuncs, getStringEqualityChecker(ExtensionVersion))
+
+	// check against extension version pattern
+	dirNameIsVersionFuncs = append(dirNameIsVersionFuncs, utils.IsValidVersionString)
+
+	for _, dirNameIsVersion := range dirNameIsVersionFuncs {
+		relativePathToConfigFolder := ""
+		for currentFolderPath := configFolder; currentFolderPath != filepath.Dir(currentFolderPath); currentFolderPath = filepath.Dir(currentFolderPath) {
+			currentFolderName := filepath.Base(currentFolderPath)
+			if dirNameIsVersion(currentFolderName) {
+				return filepath.Dir(currentFolderPath), relativePathToConfigFolder, nil
+			}
+			relativePathToConfigFolder = filepath.Join(currentFolderName, relativePathToConfigFolder)
 		}
-		relativePathToConfigFolder = filepath.Join(currentFolderName, relativePathToConfigFolder)
 	}
 	return "", "", errorExtensionVersionDirNotFound
+}
+
+func getStringEqualityChecker(knownString string) func(currentString string) bool {
+	return func(currentString string) bool {
+		return strings.EqualFold(knownString, currentString)
+	}
 }
 
 func vmAppUpdateCallback(ext *vmextensionhelper.VMExtension) error {

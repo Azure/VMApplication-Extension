@@ -1,5 +1,5 @@
-github.com/Azure/azure-extension-platform v0.0.0-20250107200156-aa20f765d49f h1:ddsUz/suc9txCMz/xWOslqNMvzhbWFMTflUrbcMNoSw=
-github.com/Azure/azure-extension-platform v0.0.0-20250107200156-aa20f765d49f/go.mod h1:0458BvQsi5ch6kn+KZtI5m88Z3L9UFXdoY1+6nKdivY=
+github.com/Azure/azure-extension-platform v0.0.0-20260406194436-44ca1f420dd8 h1:MwcGMMMhzVioChv9aIe5pbl85WiQuWaR9t+sdZpK3/U=
+github.com/Azure/azure-extension-platform v0.0.0-20260406194436-44ca1f420dd8/go.mod h1:0458BvQsi5ch6kn+KZtI5m88Z3L9UFXdoY1+6nKdivY=
 github.com/ahmetalpbalkan/go-httpbin v0.0.0-20200921172446-862fbad56b77 h1:QLWeOzO9GTjP14jyM0g7IHhYbnWWR3Wi4kipv3iDOJY=
 github.com/ahmetalpbalkan/go-httpbin v0.0.0-20200921172446-862fbad56b77/go.mod h1:Rg55S63lgqSBCawY/oTm7jdFSySp6jwIqgHMB2IeHK8=
 github.com/ahmetb/go-httpbin v0.0.0-20200921172446-862fbad56b77 h1:tLnVshegsavDh3VnYwLVgYe7i5/O61LrhKGU+cTR95E=

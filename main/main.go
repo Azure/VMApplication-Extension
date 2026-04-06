@@ -26,7 +26,7 @@ import (
 
 var (
 	ExtensionName         string     // assign at compile time
-	ExtensionVersion      = "1.0.10" // should be assigned at compile time, do not edit in code
+	ExtensionVersion      = "1.0.10" // should be assigned at compile time, do not edit in code outside of unit tests
 	reportStatusFunc      = utils.ReportStatus
 	getVMExtensionFunc    = getVMExtension
 	customEnableFunc      = customEnable
@@ -55,12 +55,31 @@ func getExtensionAndRun(arguments []string) error {
 		return err
 	}
 
+	// validate ExtensionVersion against the version reported by Guest Agent
+	if extVersionInEnvVariable, err := vmextensionhelper.GetGuestAgentEnvironmetVariable(vmextensionhelper.GuestAgentEnvVarExtensionVersion); err == nil {
+		if extVersionInEnvVariable != ExtensionVersion {
+			msg := fmt.Sprintf("ExtensionVersion mismatch: compile-time ExtensionVersion value '%s' does not match value '%s' in environment variable '%s'", ExtensionVersion, extVersionInEnvVariable, vmextensionhelper.GuestAgentEnvVarExtensionVersion)
+			ext.ExtensionLogger.Warn(msg)
+			ext.ExtensionEvents.LogWarningEvent("ExtensionVersion", msg)
+		}
+	}
+
 	if len(arguments) != 2 {
 		ext.ExtensionLogger.Error("ExtensionError", "vm-application-manager requires an argument")
 		ext.ExtensionEvents.LogCriticalEvent("ExtensionError", "vm-application-manager requires an argument")
 		return errors.Errorf("vm-application-manager requires an argument")
 	}
 	command := arguments[1]
+
+	if command == vmextensionhelper.UpdateOperation.ToString() {
+		if updateToVersion, err := vmextensionhelper.GetGuestAgentEnvironmetVariable(vmextensionhelper.GuestAgentEnvVarUpdateToVersion); err == nil {
+			if updateToVersion != ExtensionVersion {
+				msg := fmt.Sprintf("ExtensionVersion mismatch: compile-time ExtensionVersion value '%s' does not match value '%s' in environment variable '%s'", ExtensionVersion, updateToVersion, vmextensionhelper.GuestAgentEnvVarUpdateToVersion)
+				ext.ExtensionLogger.Warn(msg)
+				ext.ExtensionEvents.LogWarningEvent("ExtensionVersion", msg)
+			}
+		}
+	}
 
 	pid := os.Getpid()
 	ext.ExtensionEvents.LogInformationalEvent("vm-application-manager-process", fmt.Sprintf("VmApplications extension starting, PID: %d, Command: %s", pid, command))
