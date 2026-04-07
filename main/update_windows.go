@@ -77,9 +77,9 @@ func getMostRecentlyUpdatedPackageRegistryFile(dirContainingAllVersions string, 
 	return sortableRegistryFileInfo.FileInfoArray[len(sortableRegistryFileInfo.FileInfoArray)-1].filePath, nil
 }
 
-// findVersionDir walks up from configFolder to find a directory whose name is a version string.
-// Returns the parent directory (containing all versions) and the relative path from the version dir down to configFolder.
-func findVersionDir(configFolder string) (string, string, error) {
+// findVersionDir walks up from dirpath to find a directory whose name is a version string.
+// Returns the parent directory (containing all versions) and the relative path from the version dir down to dirpath.
+func findVersionDir(dirpath string) (head string, tail string, errorToReturn error) {
 	// contains an array of comparison functions that will be run to determine the version dir
 	// to have robustness, if the first way of comparison fails, use the next one
 	var dirNameIsVersionFuncs []func(currentFolderName string) bool
@@ -104,15 +104,21 @@ func findVersionDir(configFolder string) (string, string, error) {
 
 	for _, dirNameIsVersion := range dirNameIsVersionFuncs {
 		relativePathToConfigFolder := ""
-		for currentFolderPath := configFolder; currentFolderPath != filepath.Dir(currentFolderPath); currentFolderPath = filepath.Dir(currentFolderPath) {
+		for currentFolderPath := dirpath; currentFolderPath != filepath.Dir(currentFolderPath); currentFolderPath = filepath.Dir(currentFolderPath) {
 			currentFolderName := filepath.Base(currentFolderPath)
 			if dirNameIsVersion(currentFolderName) {
-				return filepath.Dir(currentFolderPath), relativePathToConfigFolder, nil
+				head = filepath.Dir(currentFolderPath)
+				tail = relativePathToConfigFolder
+				errorToReturn = nil
+				return
 			}
 			relativePathToConfigFolder = filepath.Join(currentFolderName, relativePathToConfigFolder)
 		}
 	}
-	return "", "", errorExtensionVersionDirNotFound
+	head = ""
+	tail = ""
+	errorToReturn = errorExtensionVersionDirNotFound
+	return
 }
 
 func getStringEqualityChecker(knownString string) func(currentString string) bool {
