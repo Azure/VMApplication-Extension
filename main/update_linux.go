@@ -28,10 +28,17 @@ func vmAppUpdateCallback(ext *vmextensionhelper.VMExtension) error {
 		return nil
 	}
 
-	head, _, tail, err := findVersionDirLinux(ext.HandlerEnv.ConfigFolder)
+	head, versionedDirName, tail, err := findVersionDirLinux(ext.HandlerEnv.ConfigFolder)
 	if err != nil {
 		return err
 	}
+	dirnameChecker := getDirNameCheckerWithKnownExtensionVersion(ExtensionVersion)
+	if !dirnameChecker(versionedDirName) {
+		msg := fmt.Sprintf("ExtensionVersion '%s' is not part of the ext.HandlerEnv.ConfigFolder path '%s'", ExtensionVersion, ext.HandlerEnv.ConfigFolder)
+		ext.ExtensionLogger.Warn(msg)
+		ext.ExtensionEvents.LogWarningEvent("ExtensionUpdate", msg)
+	}
+
 	previousPackageRegistryFilePath, err := getMostRecentlyUpdatedPackageRegistryFile(head, tail, getDirNameCheckerWithExtensionVersionPattern())
 	if err != nil {
 		return err

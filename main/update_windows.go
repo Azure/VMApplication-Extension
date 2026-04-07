@@ -26,17 +26,17 @@ func findVersionDirWindows(dirpath string) (head, versionedDirName, tail string,
 	currentExtensionVersion, err := vmextensionhelper.GetGuestAgentEnvironmetVariable(vmextensionhelper.GuestAgentEnvVarExtensionVersion)
 	if err == nil {
 		// checks against 'current extension version' populated by Guest Agent
-		dirNameIsVersionFuncs = append(dirNameIsVersionFuncs, getStringEqualityChecker(currentExtensionVersion))
+		dirNameIsVersionFuncs = append(dirNameIsVersionFuncs, getCaseInsensitiveStringEqualityChecker(currentExtensionVersion))
 	}
 
 	updateExtensionVersion, err := vmextensionhelper.GetGuestAgentEnvironmetVariable(vmextensionhelper.GuestAgentEnvVarUpdateToVersion)
 	if err == nil {
 		// checks against 'extension version to update' populated by Guest Agent
-		dirNameIsVersionFuncs = append(dirNameIsVersionFuncs, getStringEqualityChecker(updateExtensionVersion))
+		dirNameIsVersionFuncs = append(dirNameIsVersionFuncs, getCaseInsensitiveStringEqualityChecker(updateExtensionVersion))
 	}
 
 	// check against extension version variable
-	dirNameIsVersionFuncs = append(dirNameIsVersionFuncs, getStringEqualityChecker(ExtensionVersion))
+	dirNameIsVersionFuncs = append(dirNameIsVersionFuncs, getCaseInsensitiveStringEqualityChecker(ExtensionVersion))
 
 	// check against extension version pattern
 	dirNameIsVersionFuncs = append(dirNameIsVersionFuncs, utils.IsValidVersionString)
@@ -44,7 +44,7 @@ func findVersionDirWindows(dirpath string) (head, versionedDirName, tail string,
 	return findVersionDir(dirpath, dirNameIsVersionFuncs)
 }
 
-func getStringEqualityChecker(knownString string) func(currentString string) bool {
+func getCaseInsensitiveStringEqualityChecker(knownString string) func(currentString string) bool {
 	return func(currentString string) bool {
 		return strings.EqualFold(knownString, currentString)
 	}
@@ -62,9 +62,15 @@ func vmAppUpdateCallback(ext *vmextensionhelper.VMExtension) error {
 		return nil
 	}
 
-	folderPathThatContainsAllTheVersions, _, relativePathToConfigFolder, err := findVersionDirWindows(ext.HandlerEnv.ConfigFolder)
+	folderPathThatContainsAllTheVersions, versionedDirName, relativePathToConfigFolder, err := findVersionDirWindows(ext.HandlerEnv.ConfigFolder)
 	if err != nil {
 		return err
+	}
+	dirnameChecker := getCaseInsensitiveStringEqualityChecker(ExtensionVersion)
+	if !dirnameChecker(versionedDirName) {
+		msg := fmt.Sprintf("ExtensionVersion '%s' is not part of the ext.HandlerEnv.ConfigFolder path '%s'", ExtensionVersion, ext.HandlerEnv.ConfigFolder)
+		ext.ExtensionLogger.Warn(msg)
+		ext.ExtensionEvents.LogWarningEvent("ExtensionUpdate", msg)
 	}
 
 	previousPackageRegistryFilePath, err := getMostRecentlyUpdatedPackageRegistryFile(folderPathThatContainsAllTheVersions, relativePathToConfigFolder, utils.IsValidVersionString)
