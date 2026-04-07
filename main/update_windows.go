@@ -9,77 +9,16 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strings"
 
-	"github.com/Azure/VMApplication-Extension/pkg/utils"
-
 	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
+	"github.com/Azure/VMApplication-Extension/pkg/utils"
 	vmextensionhelper "github.com/Azure/azure-extension-platform/vmextension"
-	"github.com/pkg/errors"
 )
-
-var (
-	errorExtensionVersionDirNotFound     = errors.New("could not find the directory that contains all the extension versions")
-	errorNoOlderPakcageRegistryFileFound = errors.New(fmt.Sprintf("could not find an older '%s' file", packageregistry.LocalApplicationRegistryFileName))
-	emptyPackageRegistryContent          = []byte("[]")
-)
-
-type FileInfoWithFilePath struct {
-	fileInfo os.FileInfo
-	filePath string
-}
-
-type SortableFileInfoImpl struct {
-	FileInfoArray []FileInfoWithFilePath
-}
-type SortableFileInfo interface {
-	Len() int
-	Less(i, j int) bool
-	Swap(i, j int)
-}
-
-func (sortableFileInfo SortableFileInfoImpl) Len() int {
-	return len(sortableFileInfo.FileInfoArray)
-}
-
-func (sortableFileInfo SortableFileInfoImpl) Less(i, j int) bool {
-	return sortableFileInfo.FileInfoArray[i].fileInfo.ModTime().Before(sortableFileInfo.FileInfoArray[j].fileInfo.ModTime())
-}
-
-func (sortableFileInfo SortableFileInfoImpl) Swap(i, j int) {
-	swapVar := sortableFileInfo.FileInfoArray[i]
-	sortableFileInfo.FileInfoArray[i] = sortableFileInfo.FileInfoArray[j]
-	sortableFileInfo.FileInfoArray[j] = swapVar
-}
-
-func getMostRecentlyUpdatedPackageRegistryFile(dirContainingAllVersions string, intermediatePath string) (string, error) {
-	fileInfo, err := os.ReadDir(dirContainingAllVersions) //reads directory and returns content in sorted order
-	if err != nil {
-		return "", err
-	}
-	sortableRegistryFileInfo := SortableFileInfoImpl{
-		FileInfoArray: []FileInfoWithFilePath{},
-	}
-	for _, fileInfo := range fileInfo {
-		if fileInfo.IsDir() && fileInfo.Name() != ExtensionVersion && utils.IsValidVersionString(fileInfo.Name()) {
-			registryFilePath := filepath.Join(dirContainingAllVersions, fileInfo.Name(), intermediatePath, packageregistry.LocalApplicationRegistryFileName)
-			registryFileInfo, err := os.Stat(registryFilePath)
-			if err == nil {
-				sortableRegistryFileInfo.FileInfoArray = append(sortableRegistryFileInfo.FileInfoArray, FileInfoWithFilePath{registryFileInfo, registryFilePath})
-			}
-		}
-	}
-	if sortableRegistryFileInfo.Len() < 1 {
-		return "", errorNoOlderPakcageRegistryFileFound
-	}
-	sort.Sort(sortableRegistryFileInfo)
-	return sortableRegistryFileInfo.FileInfoArray[len(sortableRegistryFileInfo.FileInfoArray)-1].filePath, nil
-}
 
 // findVersionDir walks up from dirpath to find a directory whose name is a version string.
 // Returns the parent directory (containing all versions) and the relative path from the version dir down to dirpath.
-func findVersionDir(dirpath string) (head string, tail string, errorToReturn error) {
+func findVersionDirWindows(dirpath string) (head, versionedDirName, tail string, errorToReturn error) {
 	// contains an array of comparison functions that will be run to determine the version dir
 	// to have robustness, if the first way of comparison fails, use the next one
 	var dirNameIsVersionFuncs []func(currentFolderName string) bool
@@ -102,23 +41,7 @@ func findVersionDir(dirpath string) (head string, tail string, errorToReturn err
 	// check against extension version pattern
 	dirNameIsVersionFuncs = append(dirNameIsVersionFuncs, utils.IsValidVersionString)
 
-	for _, dirNameIsVersion := range dirNameIsVersionFuncs {
-		relativePathToConfigFolder := ""
-		for currentFolderPath := dirpath; currentFolderPath != filepath.Dir(currentFolderPath); currentFolderPath = filepath.Dir(currentFolderPath) {
-			currentFolderName := filepath.Base(currentFolderPath)
-			if dirNameIsVersion(currentFolderName) {
-				head = filepath.Dir(currentFolderPath)
-				tail = relativePathToConfigFolder
-				errorToReturn = nil
-				return
-			}
-			relativePathToConfigFolder = filepath.Join(currentFolderName, relativePathToConfigFolder)
-		}
-	}
-	head = ""
-	tail = ""
-	errorToReturn = errorExtensionVersionDirNotFound
-	return
+	return findVersionDir(dirpath, dirNameIsVersionFuncs)
 }
 
 func getStringEqualityChecker(knownString string) func(currentString string) bool {
@@ -133,16 +56,18 @@ func vmAppUpdateCallback(ext *vmextensionhelper.VMExtension) error {
 	packageRegistryFilePathForCurrentVersion := filepath.Join(ext.HandlerEnv.ConfigFolder, packageregistry.LocalApplicationRegistryFileName)
 	_, err := os.Stat(packageRegistryFilePathForCurrentVersion)
 	if !os.IsNotExist(err) {
-		// a package registry file already exists for current version, nothing to do
+		msg := fmt.Sprintf("package registry file '%s' already exists for current version, no need to copy from older version, update operation completed.", packageRegistryFilePathForCurrentVersion)
+		ext.ExtensionLogger.Info(msg)
+		ext.ExtensionEvents.LogInformationalEvent("ExtensionUpdate", msg)
 		return nil
 	}
 
-	folderPathThatContainsAllTheVersions, relativePathToConfigFolder, err := findVersionDir(ext.HandlerEnv.ConfigFolder)
+	folderPathThatContainsAllTheVersions, _, relativePathToConfigFolder, err := findVersionDirWindows(ext.HandlerEnv.ConfigFolder)
 	if err != nil {
 		return err
 	}
 
-	previousPackageRegistryFilePath, err := getMostRecentlyUpdatedPackageRegistryFile(folderPathThatContainsAllTheVersions, relativePathToConfigFolder)
+	previousPackageRegistryFilePath, err := getMostRecentlyUpdatedPackageRegistryFile(folderPathThatContainsAllTheVersions, relativePathToConfigFolder, utils.IsValidVersionString)
 	if err != nil {
 		return err
 	}
@@ -157,19 +82,36 @@ func vmAppUpdateCallback(ext *vmextensionhelper.VMExtension) error {
 	if err != nil {
 		return err
 	}
+	msg := fmt.Sprintf("successfully copied package registry file from '%s' to '%s'", previousPackageRegistryFilePath, packageRegistryFilePathForCurrentVersion)
+	ext.ExtensionLogger.Info(msg)
+	ext.ExtensionEvents.LogInformationalEvent("ExtensionUpdate", msg)
 
 	// Overwrite the package registry for older version to be an empty list of applications
 	err = os.WriteFile(previousPackageRegistryFilePath, emptyPackageRegistryContent, 0666)
+	if err == nil {
+		msg = fmt.Sprintf("successfully cleared package registry file for older version at '%s'", previousPackageRegistryFilePath)
+		ext.ExtensionLogger.Info(msg)
+		ext.ExtensionEvents.LogInformationalEvent("ExtensionUpdate", msg)
+	}
 
 	// do the following operations in a best effort manner
 	err = moveDownloadDirToCurrentVersion(ext)
-
 	if err != nil {
 		ext.ExtensionLogger.Warn("Failed to move download directory to current version with error: %v", err)
 		ext.ExtensionEvents.LogWarningEvent("vm-application-manager-update", fmt.Sprintf("Failed to move download directory to current version with error: %v", err))
-	} else if err = updateDownloadDirInPackageRegistryFile(ext); err != nil {
-		ext.ExtensionLogger.Warn("Failed to update download directory in package registry file with error: %v", err)
-		ext.ExtensionEvents.LogWarningEvent("vm-application-manager-update", fmt.Sprintf("Failed to update download directory in package registry file with error: %v", err))
+	} else {
+		msg = "successfully moved download directory to current version"
+		ext.ExtensionLogger.Info(msg)
+		ext.ExtensionEvents.LogInformationalEvent("ExtensionUpdate", msg)
+
+		if err = updateDownloadDirInPackageRegistryFile(ext); err != nil {
+			ext.ExtensionLogger.Warn("Failed to update download directory in package registry file with error: %v", err)
+			ext.ExtensionEvents.LogWarningEvent("vm-application-manager-update", fmt.Sprintf("Failed to update download directory in package registry file with error: %v", err))
+		} else {
+			msg = "successfully updated download directory paths in package registry file"
+			ext.ExtensionLogger.Info(msg)
+			ext.ExtensionEvents.LogInformationalEvent("ExtensionUpdate", msg)
+		}
 	}
 	return nil
 }
@@ -189,7 +131,7 @@ func updateDownloadDirInPackageRegistryFile(ext *vmextensionhelper.VMExtension) 
 		return nil
 	}
 
-	downloadDirBeforeVersion, downloadDirAfterVersion, err := findVersionDir(ext.HandlerEnv.DataFolder)
+	downloadDirBeforeVersion, _, downloadDirAfterVersion, err := findVersionDirWindows(ext.HandlerEnv.DataFolder)
 	if err != nil {
 		return err
 	}
@@ -223,9 +165,15 @@ func moveDownloadDirToCurrentVersion(ext *vmextensionhelper.VMExtension) error {
 	}
 	defer packageRegistry.Close()
 
-	rootOfAllVersions, relativePathAfterVersion, err := findVersionDir(ext.HandlerEnv.DataFolder)
+	rootOfAllVersions, versionedDirName, relativePathAfterVersion, err := findVersionDirWindows(ext.HandlerEnv.DataFolder)
 	if err != nil {
 		return err
+	}
+
+	if !strings.EqualFold(versionedDirName, ExtensionVersion) {
+		msg := fmt.Sprintf("ExtensionVersion mismatch: ext.HandlerEnv.DataFolder path '%s' does contain versionedDirName '%s'", ext.HandlerEnv.DataFolder, versionedDirName)
+		ext.ExtensionLogger.Warn(msg)
+		ext.ExtensionEvents.LogWarningEvent("ExtensionVersion", msg)
 	}
 
 	entries, err := os.ReadDir(rootOfAllVersions)

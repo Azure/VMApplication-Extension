@@ -5,7 +5,6 @@ package main
 
 import (
 	"bytes"
-	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
@@ -95,10 +94,11 @@ func Test_findVersionDir_fallsBackThroughComparisonFunctions(t *testing.T) {
 		os.Unsetenv(string(vmextension.GuestAgentEnvVarExtensionVersion))
 		os.Unsetenv(string(vmextension.GuestAgentEnvVarUpdateToVersion))
 
-		parent, relPath, err := findVersionDir(versionDir)
+		parent, dirWithVersion, relPath, err := findVersionDirWindows(versionDir)
 		require.NoError(t, err)
 		require.Equal(t, root, parent)
 		require.Equal(t, "RuntimeSettings", relPath)
+		require.Equal(t, extensionVersionOriginalValue, dirWithVersion)
 	})
 
 	// Subtest 2: AZURE_GUEST_AGENT_EXTENSION_VERSION matches — uses first checker
@@ -106,10 +106,13 @@ func Test_findVersionDir_fallsBackThroughComparisonFunctions(t *testing.T) {
 		t.Setenv(string(vmextension.GuestAgentEnvVarExtensionVersion), extensionVersionOriginalValue)
 		os.Unsetenv(string(vmextension.GuestAgentEnvVarUpdateToVersion))
 
-		parent, relPath, err := findVersionDir(versionDir)
+		parent, dirWithVersion, relPath, err := findVersionDirWindows(versionDir)
 		require.NoError(t, err)
 		require.Equal(t, root, parent)
 		require.Equal(t, "RuntimeSettings", relPath)
+		extensionVersionfromEnv, err := vmextension.GetGuestAgentEnvironmetVariable(vmextension.GuestAgentEnvVarExtensionVersion)
+		require.NoError(t, err)
+		require.Equal(t, extensionVersionfromEnv, dirWithVersion)
 	})
 
 	// Subtest 3: VERSION env var matches — uses second checker
@@ -117,10 +120,13 @@ func Test_findVersionDir_fallsBackThroughComparisonFunctions(t *testing.T) {
 		os.Unsetenv(string(vmextension.GuestAgentEnvVarExtensionVersion))
 		t.Setenv(string(vmextension.GuestAgentEnvVarUpdateToVersion), extensionVersionOriginalValue)
 
-		parent, relPath, err := findVersionDir(versionDir)
+		parent, dirWithVersion, relPath, err := findVersionDirWindows(versionDir)
 		require.NoError(t, err)
 		require.Equal(t, root, parent)
 		require.Equal(t, "RuntimeSettings", relPath)
+		updateToVersionFromEnv, err := vmextension.GetGuestAgentEnvironmetVariable(vmextension.GuestAgentEnvVarUpdateToVersion)
+		require.NoError(t, err)
+		require.Equal(t, updateToVersionFromEnv, dirWithVersion)
 	})
 
 	// Subtest 4: env vars set to wrong values — falls back to ExtensionVersion match
@@ -128,10 +134,11 @@ func Test_findVersionDir_fallsBackThroughComparisonFunctions(t *testing.T) {
 		t.Setenv(string(vmextension.GuestAgentEnvVarExtensionVersion), "9.9.9")
 		t.Setenv(string(vmextension.GuestAgentEnvVarUpdateToVersion), "8.8.8")
 
-		parent, relPath, err := findVersionDir(versionDir)
+		parent, dirWithVersion, relPath, err := findVersionDirWindows(versionDir)
 		require.NoError(t, err)
 		require.Equal(t, root, parent)
 		require.Equal(t, "RuntimeSettings", relPath)
+		require.Equal(t, extensionVersionOriginalValue, dirWithVersion)
 	})
 
 	// Subtest 5: env vars set to wrong values, ExtensionVersion doesn't match — falls back to pattern match
@@ -141,10 +148,11 @@ func Test_findVersionDir_fallsBackThroughComparisonFunctions(t *testing.T) {
 
 		ExtensionVersion = "1.0.0" // the directory was created with extension version 1.0.10, this should fail to match
 
-		parent, relPath, err := findVersionDir(versionDir)
+		parent, dirWithVersion, relPath, err := findVersionDirWindows(versionDir)
 		require.NoError(t, err)
 		require.Equal(t, root, parent)
 		require.Equal(t, "RuntimeSettings", relPath)
+		require.Equal(t, ExtensionVersion, dirWithVersion) // should still find the version dir based on pattern match even though env vars and ExtensionVersion value don't match
 	})
 
 	// Subtest 6: no version dir in path and no env vars — should return error
@@ -156,7 +164,7 @@ func Test_findVersionDir_fallsBackThroughComparisonFunctions(t *testing.T) {
 		err := os.MkdirAll(noVersionPath, os.ModeDir)
 		require.NoError(t, err)
 
-		_, _, err = findVersionDir(noVersionPath)
+		_, _, _, err = findVersionDirWindows(noVersionPath)
 		require.ErrorIs(t, err, errorExtensionVersionDirNotFound)
 	})
 }
@@ -196,12 +204,12 @@ func Test_existingPackageRegistryFileIsNotOverwritten(t *testing.T) {
 
 	fileBytes := []byte("special message")
 	packageRegistryFilePath := path.Join(ext.HandlerEnv.ConfigFolder, packageregistry.LocalApplicationRegistryFileName)
-	err = ioutil.WriteFile(packageRegistryFilePath, fileBytes, 0777)
+	err = os.WriteFile(packageRegistryFilePath, fileBytes, 0777)
 	require.NoError(t, err)
 	err = vmAppUpdateCallback(ext)
 	require.NoError(t, err)
 	// verify file was not overwritten
-	readBytes, err := ioutil.ReadFile(packageRegistryFilePath)
+	readBytes, err := os.ReadFile(packageRegistryFilePath)
 	require.NoError(t, err)
 	require.True(t, bytes.Equal(fileBytes, readBytes))
 }
