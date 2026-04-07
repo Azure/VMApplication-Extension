@@ -62,6 +62,8 @@ func vmAppUpdateCallback(ext *vmextensionhelper.VMExtension) error {
 	return nil
 }
 
+// findVersionDirLinux walks up from dirpath to find a directory whose name matches ExtensionName-<version> (e.g. "Microsoft.CPlat.Core.VMApplicationManagerLinux-1.0.10").
+// Returns the parent directory (containing all versions), the matched directory name, and the relative path below it.
 func findVersionDirLinux(dirpath string) (head, versionedDirName, tail string, errorToReturn error) {
 	// contains an array of comparison functions that will be run to determine the version dir
 	// to have robustness, if the first way of comparison fails, use the next one

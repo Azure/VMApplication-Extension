@@ -44,6 +44,8 @@ func (sortableFileInfo SortableFileInfoImpl) Swap(i, j int) {
 	sortableFileInfo.FileInfoArray[j] = swapVar
 }
 
+// findVersionDir walks up from dirpath to find a directory whose name matches one of the version-checking functions.
+// Returns the parent directory (containing all versions), the matched directory name, and the relative path below it.
 func findVersionDir(dirpath string,
 	dirNameIsVersionFuncs []func(currentFolderName string) bool) (
 	head,

@@ -16,8 +16,8 @@ import (
 	vmextensionhelper "github.com/Azure/azure-extension-platform/vmextension"
 )
 
-// findVersionDir walks up from dirpath to find a directory whose name is a version string.
-// Returns the parent directory (containing all versions) and the relative path from the version dir down to dirpath.
+// findVersionDirWindows walks up from dirpath to find a directory whose name is a bare version string (e.g. "1.0.10").
+// Returns the parent directory (containing all versions), the matched version directory name, and the relative path below it.
 func findVersionDirWindows(dirpath string) (head, versionedDirName, tail string, errorToReturn error) {
 	// contains an array of comparison functions that will be run to determine the version dir
 	// to have robustness, if the first way of comparison fails, use the next one
