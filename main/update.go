@@ -44,10 +44,10 @@ func (sortableFileInfo SortableFileInfoImpl) Swap(i, j int) {
 	sortableFileInfo.FileInfoArray[j] = swapVar
 }
 
-// findVersionDir walks up from dirpath to find a directory whose name matches one of the version-checking functions.
-// Returns the parent directory (containing all versions), the matched directory name, and the relative path below it.
-func findVersionDir(dirpath string,
-	dirNameIsVersionFuncs []func(currentFolderName string) bool) (
+// splitPathAroundVersionedDir splits dirpath into (head, versionedDirName, tail) by walking up to find an ancestor
+// directory whose name matches one of the version-checking functions.
+func splitPathAroundVersionedDir(dirpath string,
+	dirnameCheckers []func(currentFolderName string) bool) (
 	head,
 	versionedDirName,
 	tail string,
@@ -55,11 +55,11 @@ func findVersionDir(dirpath string,
 	// contains an array of comparison functions that will be run to determine the version dir
 	// to have robustness, if the first way of comparison fails, use the next one
 
-	for _, dirNameIsVersion := range dirNameIsVersionFuncs {
+	for _, checkDirName := range dirnameCheckers {
 		relativePathToConfigFolder := ""
 		for currentFolderPath := dirpath; currentFolderPath != filepath.Dir(currentFolderPath); currentFolderPath = filepath.Dir(currentFolderPath) {
 			currentFolderName := filepath.Base(currentFolderPath)
-			if dirNameIsVersion(currentFolderName) {
+			if checkDirName(currentFolderName) {
 				head = filepath.Dir(currentFolderPath)
 				versionedDirName = currentFolderName
 				tail = relativePathToConfigFolder

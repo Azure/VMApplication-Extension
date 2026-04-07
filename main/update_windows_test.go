@@ -94,7 +94,7 @@ func Test_findVersionDir_fallsBackThroughComparisonFunctions(t *testing.T) {
 		os.Unsetenv(string(vmextension.GuestAgentEnvVarExtensionVersion))
 		os.Unsetenv(string(vmextension.GuestAgentEnvVarUpdateToVersion))
 
-		parent, dirWithVersion, relPath, err := findVersionDirWindows(versionDir)
+		parent, dirWithVersion, relPath, err := splitPathAroundVersionedDirWindows(versionDir)
 		require.NoError(t, err)
 		require.Equal(t, root, parent)
 		require.Equal(t, "RuntimeSettings", relPath)
@@ -106,7 +106,7 @@ func Test_findVersionDir_fallsBackThroughComparisonFunctions(t *testing.T) {
 		t.Setenv(string(vmextension.GuestAgentEnvVarExtensionVersion), extensionVersionOriginalValue)
 		os.Unsetenv(string(vmextension.GuestAgentEnvVarUpdateToVersion))
 
-		parent, dirWithVersion, relPath, err := findVersionDirWindows(versionDir)
+		parent, dirWithVersion, relPath, err := splitPathAroundVersionedDirWindows(versionDir)
 		require.NoError(t, err)
 		require.Equal(t, root, parent)
 		require.Equal(t, "RuntimeSettings", relPath)
@@ -120,7 +120,7 @@ func Test_findVersionDir_fallsBackThroughComparisonFunctions(t *testing.T) {
 		os.Unsetenv(string(vmextension.GuestAgentEnvVarExtensionVersion))
 		t.Setenv(string(vmextension.GuestAgentEnvVarUpdateToVersion), extensionVersionOriginalValue)
 
-		parent, dirWithVersion, relPath, err := findVersionDirWindows(versionDir)
+		parent, dirWithVersion, relPath, err := splitPathAroundVersionedDirWindows(versionDir)
 		require.NoError(t, err)
 		require.Equal(t, root, parent)
 		require.Equal(t, "RuntimeSettings", relPath)
@@ -134,7 +134,7 @@ func Test_findVersionDir_fallsBackThroughComparisonFunctions(t *testing.T) {
 		t.Setenv(string(vmextension.GuestAgentEnvVarExtensionVersion), "9.9.9")
 		t.Setenv(string(vmextension.GuestAgentEnvVarUpdateToVersion), "8.8.8")
 
-		parent, dirWithVersion, relPath, err := findVersionDirWindows(versionDir)
+		parent, dirWithVersion, relPath, err := splitPathAroundVersionedDirWindows(versionDir)
 		require.NoError(t, err)
 		require.Equal(t, root, parent)
 		require.Equal(t, "RuntimeSettings", relPath)
@@ -148,7 +148,7 @@ func Test_findVersionDir_fallsBackThroughComparisonFunctions(t *testing.T) {
 
 		ExtensionVersion = "1.0.0" // the directory was created with extension version 1.0.10, this should fail to match
 
-		parent, dirWithVersion, relPath, err := findVersionDirWindows(versionDir)
+		parent, dirWithVersion, relPath, err := splitPathAroundVersionedDirWindows(versionDir)
 		require.NoError(t, err)
 		require.Equal(t, root, parent)
 		require.Equal(t, "RuntimeSettings", relPath)
@@ -164,7 +164,7 @@ func Test_findVersionDir_fallsBackThroughComparisonFunctions(t *testing.T) {
 		err := os.MkdirAll(noVersionPath, os.ModeDir)
 		require.NoError(t, err)
 
-		_, _, _, err = findVersionDirWindows(noVersionPath)
+		_, _, _, err = splitPathAroundVersionedDirWindows(noVersionPath)
 		require.ErrorIs(t, err, errorExtensionVersionDirNotFound)
 	})
 }

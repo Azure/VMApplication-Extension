@@ -16,32 +16,32 @@ import (
 	vmextensionhelper "github.com/Azure/azure-extension-platform/vmextension"
 )
 
-// findVersionDirWindows walks up from dirpath to find a directory whose name is a bare version string (e.g. "1.0.10").
-// Returns the parent directory (containing all versions), the matched version directory name, and the relative path below it.
-func findVersionDirWindows(dirpath string) (head, versionedDirName, tail string, errorToReturn error) {
+// splitPathAroundVersionedDirWindows splits dirpath into (head, versionedDirName, tail) by walking up to find an ancestor
+// directory whose name is a bare version string (e.g. "1.0.10").
+func splitPathAroundVersionedDirWindows(dirpath string) (head, versionedDirName, tail string, errorToReturn error) {
 	// contains an array of comparison functions that will be run to determine the version dir
 	// to have robustness, if the first way of comparison fails, use the next one
-	var dirNameIsVersionFuncs []func(currentFolderName string) bool
+	var dirnameCheckers []func(currentFolderName string) bool
 
 	currentExtensionVersion, err := vmextensionhelper.GetGuestAgentEnvironmetVariable(vmextensionhelper.GuestAgentEnvVarExtensionVersion)
 	if err == nil {
 		// checks against 'current extension version' populated by Guest Agent
-		dirNameIsVersionFuncs = append(dirNameIsVersionFuncs, getCaseInsensitiveStringEqualityChecker(currentExtensionVersion))
+		dirnameCheckers = append(dirnameCheckers, getCaseInsensitiveStringEqualityChecker(currentExtensionVersion))
 	}
 
 	updateExtensionVersion, err := vmextensionhelper.GetGuestAgentEnvironmetVariable(vmextensionhelper.GuestAgentEnvVarUpdateToVersion)
 	if err == nil {
 		// checks against 'extension version to update' populated by Guest Agent
-		dirNameIsVersionFuncs = append(dirNameIsVersionFuncs, getCaseInsensitiveStringEqualityChecker(updateExtensionVersion))
+		dirnameCheckers = append(dirnameCheckers, getCaseInsensitiveStringEqualityChecker(updateExtensionVersion))
 	}
 
 	// check against extension version variable
-	dirNameIsVersionFuncs = append(dirNameIsVersionFuncs, getCaseInsensitiveStringEqualityChecker(ExtensionVersion))
+	dirnameCheckers = append(dirnameCheckers, getCaseInsensitiveStringEqualityChecker(ExtensionVersion))
 
 	// check against extension version pattern
-	dirNameIsVersionFuncs = append(dirNameIsVersionFuncs, utils.IsValidVersionString)
+	dirnameCheckers = append(dirnameCheckers, utils.IsValidVersionString)
 
-	return findVersionDir(dirpath, dirNameIsVersionFuncs)
+	return splitPathAroundVersionedDir(dirpath, dirnameCheckers)
 }
 
 func getCaseInsensitiveStringEqualityChecker(knownString string) func(currentString string) bool {
@@ -62,7 +62,7 @@ func vmAppUpdateCallback(ext *vmextensionhelper.VMExtension) error {
 		return nil
 	}
 
-	folderPathThatContainsAllTheVersions, versionedDirName, relativePathToConfigFolder, err := findVersionDirWindows(ext.HandlerEnv.ConfigFolder)
+	folderPathThatContainsAllTheVersions, versionedDirName, relativePathToConfigFolder, err := splitPathAroundVersionedDirWindows(ext.HandlerEnv.ConfigFolder)
 	if err != nil {
 		return err
 	}
@@ -137,7 +137,7 @@ func updateDownloadDirInPackageRegistryFile(ext *vmextensionhelper.VMExtension) 
 		return nil
 	}
 
-	downloadDirBeforeVersion, _, downloadDirAfterVersion, err := findVersionDirWindows(ext.HandlerEnv.DataFolder)
+	downloadDirBeforeVersion, _, downloadDirAfterVersion, err := splitPathAroundVersionedDirWindows(ext.HandlerEnv.DataFolder)
 	if err != nil {
 		return err
 	}
@@ -171,7 +171,7 @@ func moveDownloadDirToCurrentVersion(ext *vmextensionhelper.VMExtension) error {
 	}
 	defer packageRegistry.Close()
 
-	rootOfAllVersions, versionedDirName, relativePathAfterVersion, err := findVersionDirWindows(ext.HandlerEnv.DataFolder)
+	rootOfAllVersions, versionedDirName, relativePathAfterVersion, err := splitPathAroundVersionedDirWindows(ext.HandlerEnv.DataFolder)
 	if err != nil {
 		return err
 	}

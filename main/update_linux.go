@@ -28,7 +28,7 @@ func vmAppUpdateCallback(ext *vmextensionhelper.VMExtension) error {
 		return nil
 	}
 
-	head, versionedDirName, tail, err := findVersionDirLinux(ext.HandlerEnv.ConfigFolder)
+	head, versionedDirName, tail, err := splitPathAroundVersionedDirLinux(ext.HandlerEnv.ConfigFolder)
 	if err != nil {
 		return err
 	}
@@ -69,32 +69,32 @@ func vmAppUpdateCallback(ext *vmextensionhelper.VMExtension) error {
 	return nil
 }
 
-// findVersionDirLinux walks up from dirpath to find a directory whose name matches ExtensionName-<version> (e.g. "Microsoft.CPlat.Core.VMApplicationManagerLinux-1.0.10").
-// Returns the parent directory (containing all versions), the matched directory name, and the relative path below it.
-func findVersionDirLinux(dirpath string) (head, versionedDirName, tail string, errorToReturn error) {
+// splitPathAroundVersionedDirLinux splits dirpath into (head, versionedDirName, tail) by walking up to find an ancestor
+// directory whose name matches ExtensionName-<version> (e.g. "Microsoft.CPlat.Core.VMApplicationManagerLinux-1.0.10").
+func splitPathAroundVersionedDirLinux(dirpath string) (head, versionedDirName, tail string, errorToReturn error) {
 	// contains an array of comparison functions that will be run to determine the version dir
 	// to have robustness, if the first way of comparison fails, use the next one
-	var dirNameIsVersionFuncs []func(currentFolderName string) bool
+	var dirnameCheckers []func(currentFolderName string) bool
 
 	currentExtensionVersion, err := vmextensionhelper.GetGuestAgentEnvironmetVariable(vmextensionhelper.GuestAgentEnvVarExtensionVersion)
 	if err == nil {
 		// checks against 'current extension version' populated by Guest Agent
-		dirNameIsVersionFuncs = append(dirNameIsVersionFuncs, getDirNameCheckerWithKnownExtensionVersion(currentExtensionVersion))
+		dirnameCheckers = append(dirnameCheckers, getDirNameCheckerWithKnownExtensionVersion(currentExtensionVersion))
 	}
 
 	updateExtensionVersion, err := vmextensionhelper.GetGuestAgentEnvironmetVariable(vmextensionhelper.GuestAgentEnvVarUpdateToVersion)
 	if err == nil {
 		// checks against 'extension version to update' populated by Guest Agent
-		dirNameIsVersionFuncs = append(dirNameIsVersionFuncs, getDirNameCheckerWithKnownExtensionVersion(updateExtensionVersion))
+		dirnameCheckers = append(dirnameCheckers, getDirNameCheckerWithKnownExtensionVersion(updateExtensionVersion))
 	}
 
 	// check against extension version variable
-	dirNameIsVersionFuncs = append(dirNameIsVersionFuncs, getDirNameCheckerWithKnownExtensionVersion(ExtensionVersion))
+	dirnameCheckers = append(dirnameCheckers, getDirNameCheckerWithKnownExtensionVersion(ExtensionVersion))
 
 	// check against extension version pattern
-	dirNameIsVersionFuncs = append(dirNameIsVersionFuncs, getDirNameCheckerWithExtensionVersionPattern())
+	dirnameCheckers = append(dirnameCheckers, getDirNameCheckerWithExtensionVersionPattern())
 
-	return findVersionDir(dirpath, dirNameIsVersionFuncs)
+	return splitPathAroundVersionedDir(dirpath, dirnameCheckers)
 }
 
 func getDirNameCheckerWithKnownExtensionVersion(extensionVersion string) func(currentDirName string) bool {
