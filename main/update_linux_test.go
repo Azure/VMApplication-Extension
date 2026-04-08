@@ -187,7 +187,7 @@ func Test_cannotFindPackageConfigFile(t *testing.T) {
 
 	//call update
 	err := vmAppUpdateCallback(ext)
-	require.ErrorIs(t, err, errorNoOlderPakcageRegistryFileFound)
+	require.ErrorIs(t, err, errorNoOlderPackageRegistryFileFound)
 }
 
 func Test_existingPackageRegistryFileIsNotOverwritten(t *testing.T) {
