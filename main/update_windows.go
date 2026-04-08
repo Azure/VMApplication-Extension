@@ -196,7 +196,7 @@ func moveDownloadDirToCurrentVersion(ext *vmextensionhelper.VMExtension) error {
 				ext.ExtensionEvents.LogWarningEvent("vm-application-manager-update", fmt.Sprintf("Skipping directory %s when looking for download directories to move, with error: %v", dirName, err))
 				continue
 			}
-			if !downloadDir.IsDir() || entry.Name() == ExtensionVersion {
+			if !downloadDir.IsDir() || strings.EqualFold(entry.Name(), versionedDirName) {
 				//if the config folder is not a directory, or if the version folder is the same as the current version, then skip it
 				continue
 			}

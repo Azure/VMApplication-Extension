@@ -12,7 +12,7 @@ import (
 
 var (
 	errorExtensionVersionDirNotFound     = errors.New("could not find the directory that contains all the extension versions")
-	errorNoOlderPakcageRegistryFileFound = errors.New(fmt.Sprintf("could not find an older '%s' file", packageregistry.LocalApplicationRegistryFileName))
+	errorNoOlderPackageRegistryFileFound = errors.New(fmt.Sprintf("could not find an older '%s' file", packageregistry.LocalApplicationRegistryFileName))
 	emptyPackageRegistryContent          = []byte("[]")
 )
 
@@ -94,7 +94,7 @@ func getMostRecentlyUpdatedPackageRegistryFile(dirContainingAllVersions string, 
 		}
 	}
 	if sortableRegistryFileInfo.Len() < 1 {
-		return "", errorNoOlderPakcageRegistryFileFound
+		return "", errorNoOlderPackageRegistryFileFound
 	}
 	sort.Sort(sortableRegistryFileInfo)
 	return sortableRegistryFileInfo.FileInfoArray[len(sortableRegistryFileInfo.FileInfoArray)-1].filePath, nil

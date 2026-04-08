@@ -185,7 +185,7 @@ func Test_cannotFindPackageConfigFile(t *testing.T) {
 
 	//call update
 	err := vmAppUpdateCallback(ext)
-	require.ErrorIs(t, err, errorNoOlderPakcageRegistryFileFound)
+	require.ErrorIs(t, err, errorNoOlderPackageRegistryFileFound)
 }
 
 func Test_existingPackageRegistryFileIsNotOverwritten(t *testing.T) {
@@ -287,12 +287,34 @@ func Test_moveDownloadDirToCurrentVersion_copiesFromOlderVersions(t *testing.T) 
 	rootDir := setupDataFolderForMoveTest(t, ext, []string{"0.0.1", "1.0.3"})
 	defer os.RemoveAll(rootDir)
 
+	// Create a subdirectory in the current version's data folder with a marker file
+	// this should not get overwritten
+	appDir := filepath.Join(ext.HandlerEnv.DataFolder, "appFromCurrent")
+	err := os.MkdirAll(appDir, os.ModeDir)
+	require.NoError(t, err)
+	markerPath := filepath.Join(appDir, "marker.txt")
+	markerContent := []byte("should-not-be-copied")
+	err = os.WriteFile(markerPath, markerContent, 0666)
+	require.NoError(t, err)
+
+	markerInfoBefore, err := os.Stat(markerPath)
+	require.NoError(t, err)
+
 	// Ensure config folder exists for the package registry lock file
-	err := os.MkdirAll(ext.HandlerEnv.ConfigFolder, os.ModeDir)
+	err = os.MkdirAll(ext.HandlerEnv.ConfigFolder, os.ModeDir)
 	require.NoError(t, err)
 
 	err = moveDownloadDirToCurrentVersion(ext)
 	require.NoError(t, err)
+
+	// Verify marker.txt was not modified: contents and write time must be unchanged
+	markerInfoAfter, err := os.Stat(markerPath)
+	require.NoError(t, err)
+	require.Equal(t, markerInfoBefore.ModTime(), markerInfoAfter.ModTime(), "marker.txt mod time should not change")
+
+	readBack, err := os.ReadFile(markerPath)
+	require.NoError(t, err)
+	require.Equal(t, markerContent, readBack, "marker.txt contents should not change")
 
 	// Verify subdirectories were copied into the current DataFolder
 	for _, app := range []string{"appA", "appB"} {
@@ -317,7 +339,12 @@ func Test_moveDownloadDirToCurrentVersion_skipsCurrentVersion(t *testing.T) {
 	appDir := filepath.Join(rootDir, ExtensionVersion, downloadsSubpath, "appFromCurrent")
 	err = os.MkdirAll(appDir, os.ModeDir)
 	require.NoError(t, err)
-	err = os.WriteFile(filepath.Join(appDir, "marker.txt"), []byte("should-not-be-copied"), 0666)
+	markerPath := filepath.Join(appDir, "marker.txt")
+	markerContent := []byte("should-not-be-copied")
+	err = os.WriteFile(markerPath, markerContent, 0666)
+	require.NoError(t, err)
+
+	markerInfoBefore, err := os.Stat(markerPath)
 	require.NoError(t, err)
 
 	err = os.MkdirAll(ext.HandlerEnv.ConfigFolder, os.ModeDir)
@@ -326,8 +353,14 @@ func Test_moveDownloadDirToCurrentVersion_skipsCurrentVersion(t *testing.T) {
 	err = moveDownloadDirToCurrentVersion(ext)
 	require.NoError(t, err)
 
-	// The current version's own dirs should not be re-copied into DataFolder root
-	// (DataFolder already IS the current version folder, so we just check no error)
+	// Verify marker.txt was not modified: contents and write time must be unchanged
+	markerInfoAfter, err := os.Stat(markerPath)
+	require.NoError(t, err)
+	require.Equal(t, markerInfoBefore.ModTime(), markerInfoAfter.ModTime(), "marker.txt mod time should not change")
+
+	readBack, err := os.ReadFile(markerPath)
+	require.NoError(t, err)
+	require.Equal(t, markerContent, readBack, "marker.txt contents should not change")
 }
 
 func Test_moveDownloadDirToCurrentVersion_noOlderVersions(t *testing.T) {
@@ -345,6 +378,11 @@ func Test_moveDownloadDirToCurrentVersion_noOlderVersions(t *testing.T) {
 
 	err = moveDownloadDirToCurrentVersion(ext)
 	require.NoError(t, err)
+
+	// Verify no files or directories were created under currentDataFolder
+	entries, err := os.ReadDir(currentDataFolder)
+	require.NoError(t, err)
+	require.Empty(t, entries, "no files or directories should be created under currentDataFolder")
 }
 
 func Test_moveDownloadDirToCurrentVersion_noVersionDirFound(t *testing.T) {

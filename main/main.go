@@ -46,6 +46,8 @@ func main() {
 }
 
 func getExtensionAndRun(arguments []string) error {
+	// simple way to test value of ExtensionVersion set at compile time
+	// just run "vm-application-mamager(.exe) version"
 	if len(arguments) == 2 && strings.EqualFold(arguments[1], argVersion) {
 		fmt.Println("Extension version is", ExtensionVersion)
 		return nil
@@ -64,6 +66,10 @@ func getExtensionAndRun(arguments []string) error {
 			ext.ExtensionLogger.Warn(msg)
 			ext.ExtensionEvents.LogWarningEvent("ExtensionVersion", msg)
 		}
+	} else {
+		msg := fmt.Sprintf("Could not read environment variable '%s' that was supposed to be set by guest agent", vmextensionhelper.GuestAgentEnvVarExtensionVersion)
+		ext.ExtensionLogger.Warn(msg)
+		ext.ExtensionEvents.LogWarningEvent("ExtensionVersion", msg)
 	}
 
 	if len(arguments) != 2 {
@@ -80,7 +86,12 @@ func getExtensionAndRun(arguments []string) error {
 				ext.ExtensionLogger.Warn(msg)
 				ext.ExtensionEvents.LogWarningEvent("ExtensionVersion", msg)
 			}
+		} else {
+			msg := fmt.Sprintf("Could not read environment variable '%s' that was supposed to be set by guest agent", vmextensionhelper.GuestAgentEnvVarUpdateToVersion)
+			ext.ExtensionLogger.Warn(msg)
+			ext.ExtensionEvents.LogWarningEvent("ExtensionVersion", msg)
 		}
+
 	}
 
 	pid := os.Getpid()
