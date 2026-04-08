@@ -25,7 +25,7 @@ import (
 )
 
 var (
-	ExtensionName         string     // assign at compile time, it is the ExtensionHandler.ExtensionType
+	ExtensionName         string     // assign at compile time, it is the ExtensionPublisher.ExtensionType
 	ExtensionVersion      = "1.0.10" // should be assigned at compile time, do not edit in code outside of unit tests
 	reportStatusFunc      = utils.ReportStatus
 	getVMExtensionFunc    = getVMExtension
