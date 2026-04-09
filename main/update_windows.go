@@ -143,7 +143,9 @@ func updateDownloadDirInPackageRegistryFile(ext *vmextensionhelper.VMExtension) 
 	}
 
 	// Build a regex that matches: <prefix>/<any_version>/<suffix> in DownloadDir paths
-	// Use forward slashes since DownloadDir is stored with filepath.ToSlash
+	// Use forward slashes because we normalize file paths to forward slash before running the regex
+	// after replacement, the file path will be converted back to OS specific separator (baclskash in this case for windows)
+	// by using filepath.FromSlash
 	escapedPrefix := regexp.QuoteMeta(filepath.ToSlash(downloadDirBeforeVersion))
 	escapedSuffix := regexp.QuoteMeta(filepath.ToSlash(downloadDirAfterVersion))
 	downloadDirVersionRegex := regexp.MustCompile(escapedPrefix + `/[^/]+/` + escapedSuffix)
