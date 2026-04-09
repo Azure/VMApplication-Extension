@@ -28,6 +28,17 @@ func vmAppUpdateCallback(ext *vmextensionhelper.VMExtension) error {
 		return nil
 	}
 
+	if _, statErr := os.Stat(ext.HandlerEnv.ConfigFolder); os.IsNotExist(statErr) {
+
+		err = os.MkdirAll(ext.HandlerEnv.ConfigFolder, 0755)
+		if err != nil {
+			return fmt.Errorf("failed to create config folder '%s': %w", ext.HandlerEnv.ConfigFolder, err)
+		}
+		msg := fmt.Sprintf("created config folder '%s'", ext.HandlerEnv.ConfigFolder)
+		ext.ExtensionLogger.Info(msg)
+		ext.ExtensionEvents.LogInformationalEvent("ExtensionUpdate", msg)
+	}
+
 	head, versionedDirName, tail, err := splitPathAroundVersionedDirLinux(ext.HandlerEnv.ConfigFolder)
 	if err != nil {
 		return err

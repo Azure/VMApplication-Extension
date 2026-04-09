@@ -221,84 +221,98 @@ func Test_vmAppUpdateCallback_endToEnd(t *testing.T) {
 	ExtensionName = "TestExtension"
 	defer func() { ExtensionName = "" }()
 
-	ext := createTestVMExtension(t, []extdeserialization.VmAppSetting{})
+	runAndValidate := func(t *testing.T, createConfigDirBeforeUpdate bool) {
+		t.Helper()
 
-	// --- Set up config folder structure with multiple old versions ---
-	configRoot := t.TempDir()
-	configFolderName := "config"
-	currentConfigDir := filepath.Join(configRoot, ExtensionName+"-"+ExtensionVersion, configFolderName)
-	err := os.MkdirAll(currentConfigDir, 0755)
-	require.NoError(t, err)
-	ext.HandlerEnv.ConfigFolder = currentConfigDir
+		ext := createTestVMExtension(t, []extdeserialization.VmAppSetting{})
 
-	// Creates ExtensionName-{1.0.1,0.0.1,1.0.3}/config/ with placeholder files;
-	// 0.0.1 is written last so it has the most recent modification time
-	fileName := packageregistry.LocalApplicationRegistryFileName
-	err = createTestFilesLinux(configRoot, configFolderName, fileName)
-	require.NoError(t, err)
+		// --- Set up config folder structure with multiple old versions ---
+		configRoot := t.TempDir()
+		configFolderName := "config"
+		currentConfigDir := filepath.Join(configRoot, ExtensionName+"-"+ExtensionVersion, configFolderName)
+		if createConfigDirBeforeUpdate {
+			err := os.MkdirAll(currentConfigDir, 0755)
+			require.NoError(t, err)
+		}
+		ext.HandlerEnv.ConfigFolder = currentConfigDir
 
-	// Overwrite 1.0.3's registry file with real package data using the package registry API.
-	// WriteToDisk updates the file's modification time, making 1.0.3 the most recently updated.
-	mostRecentOldConfigDir := filepath.Join(configRoot, ExtensionName+"-1.0.3", configFolderName)
-	ext.HandlerEnv.ConfigFolder = mostRecentOldConfigDir
-	oldPkr, err := packageregistry.New(ext.ExtensionLogger, ext.HandlerEnv, 1*time.Second)
-	require.NoError(t, err)
+		// Creates ExtensionName-{1.0.1,0.0.1,1.0.3}/config/ with placeholder files;
+		// 0.0.1 is written last so it has the most recent modification time
+		fileName := packageregistry.LocalApplicationRegistryFileName
+		err := createTestFilesLinux(configRoot, configFolderName, fileName)
+		require.NoError(t, err)
 
-	oldPackages := packageregistry.CurrentPackageRegistry{
-		"appA": &packageregistry.VMAppPackageCurrent{
-			ApplicationName: "appA",
-			Version:         "1.0",
-			DownloadDir:     "/var/lib/waagent/downloads/appA/1.0",
-		},
-		"appB": &packageregistry.VMAppPackageCurrent{
-			ApplicationName: "appB",
-			Version:         "2.0",
-			DownloadDir:     "/var/lib/waagent/downloads/appB/2.0",
-		},
+		// Overwrite 1.0.3's registry file with real package data using the package registry API.
+		// WriteToDisk updates the file's modification time, making 1.0.3 the most recently updated.
+		mostRecentOldConfigDir := filepath.Join(configRoot, ExtensionName+"-1.0.3", configFolderName)
+		ext.HandlerEnv.ConfigFolder = mostRecentOldConfigDir
+		oldPkr, err := packageregistry.New(ext.ExtensionLogger, ext.HandlerEnv, 1*time.Second)
+		require.NoError(t, err)
+
+		oldPackages := packageregistry.CurrentPackageRegistry{
+			"appA": &packageregistry.VMAppPackageCurrent{
+				ApplicationName: "appA",
+				Version:         "1.0",
+				DownloadDir:     "/var/lib/waagent/downloads/appA/1.0",
+			},
+			"appB": &packageregistry.VMAppPackageCurrent{
+				ApplicationName: "appB",
+				Version:         "2.0",
+				DownloadDir:     "/var/lib/waagent/downloads/appB/2.0",
+			},
+		}
+		time.Sleep(time.Second) // sleep before writing to ensure this file has the most recent mod time
+		err = oldPkr.WriteToDisk(oldPackages)
+		require.NoError(t, err)
+		err = oldPkr.Close()
+		require.NoError(t, err)
+
+		// Read back the old registry content before update
+		oldRegistryPath := filepath.Join(mostRecentOldConfigDir, packageregistry.LocalApplicationRegistryFileName)
+		oldFileContents, err := os.ReadFile(oldRegistryPath)
+		require.NoError(t, err)
+
+		// Restore ConfigFolder to the current version
+		ext.HandlerEnv.ConfigFolder = currentConfigDir
+
+		// --- Call vmAppUpdateCallback ---
+		err = vmAppUpdateCallback(ext)
+		require.NoError(t, err)
+
+		// --- Validation 1: Package registry file was copied from the old version ---
+		newFileContents, err := os.ReadFile(filepath.Join(currentConfigDir, packageregistry.LocalApplicationRegistryFileName))
+		require.NoError(t, err)
+		require.True(t, bytes.Equal(oldFileContents, newFileContents),
+			"package registry content should be copied from the old version")
+
+		// --- Validation 2: Old version's registry should be emptied ---
+		oldFileContentsAfterUpdate, err := os.ReadFile(oldRegistryPath)
+		require.NoError(t, err)
+		require.True(t, bytes.Equal([]byte("[]"), oldFileContentsAfterUpdate),
+			"old version's package registry should be overwritten with empty list")
+
+		// --- Validation 3: Copied registry should be readable and contain the expected packages ---
+		pkr, err := packageregistry.New(ext.ExtensionLogger, ext.HandlerEnv, 1*time.Second)
+		require.NoError(t, err)
+		defer pkr.Close()
+
+		packages, err := pkr.GetExistingPackages()
+		require.NoError(t, err)
+		require.Len(t, packages, len(oldPackages))
+		for name, expected := range oldPackages {
+			actual, ok := packages[name]
+			require.True(t, ok, "expected package %s not found in copied registry", name)
+			require.Equal(t, expected.Version, actual.Version)
+			require.Equal(t, expected.DownloadDir, actual.DownloadDir)
+			require.Equal(t, expected.ApplicationName, actual.ApplicationName)
+		}
 	}
-	time.Sleep(time.Second) // sleep before writing to ensure this file has the most recent mod time
-	err = oldPkr.WriteToDisk(oldPackages)
-	require.NoError(t, err)
-	err = oldPkr.Close()
-	require.NoError(t, err)
 
-	// Read back the old registry content before update
-	oldRegistryPath := filepath.Join(mostRecentOldConfigDir, packageregistry.LocalApplicationRegistryFileName)
-	oldFileContents, err := os.ReadFile(oldRegistryPath)
-	require.NoError(t, err)
+	t.Run("config_folder_already_exists", func(t *testing.T) {
+		runAndValidate(t, true)
+	})
 
-	// Restore ConfigFolder to the current version
-	ext.HandlerEnv.ConfigFolder = currentConfigDir
-
-	// --- Call vmAppUpdateCallback ---
-	err = vmAppUpdateCallback(ext)
-	require.NoError(t, err)
-
-	// --- Validation 1: Package registry file was copied from the old version ---
-	newFileContents, err := os.ReadFile(filepath.Join(currentConfigDir, packageregistry.LocalApplicationRegistryFileName))
-	require.NoError(t, err)
-	require.True(t, bytes.Equal(oldFileContents, newFileContents),
-		"package registry content should be copied from the old version")
-
-	// --- Validation 2: Old version's registry should be emptied ---
-	oldFileContentsAfterUpdate, err := os.ReadFile(oldRegistryPath)
-	require.NoError(t, err)
-	require.True(t, bytes.Equal([]byte("[]"), oldFileContentsAfterUpdate),
-		"old version's package registry should be overwritten with empty list")
-
-	// --- Validation 3: Copied registry should be readable and contain the expected packages ---
-	pkr, err := packageregistry.New(ext.ExtensionLogger, ext.HandlerEnv, 1*time.Second)
-	require.NoError(t, err)
-	defer pkr.Close()
-
-	packages, err := pkr.GetExistingPackages()
-	require.NoError(t, err)
-	require.Len(t, packages, len(oldPackages))
-	for name, expected := range oldPackages {
-		actual, ok := packages[name]
-		require.True(t, ok, "expected package %s not found in copied registry", name)
-		require.Equal(t, expected.Version, actual.Version)
-		require.Equal(t, expected.DownloadDir, actual.DownloadDir)
-		require.Equal(t, expected.ApplicationName, actual.ApplicationName)
-	}
+	t.Run("config_folder_does_not_exist", func(t *testing.T) {
+		runAndValidate(t, false)
+	})
 }
