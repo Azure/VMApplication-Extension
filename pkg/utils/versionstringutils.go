@@ -4,8 +4,13 @@
 package utils
 
 import (
+	"regexp"
 	"strconv"
 	"strings"
+)
+
+const (
+	versionStringPattern = `^[0-9]+(\.[0-9]+){2,4}$`
 )
 
 func AreVersionsEqual(versionString1 *string, versionString2 *string) bool {
@@ -84,6 +89,14 @@ func CompareVersion(versionString1 *string, versionString2 *string) (int, error)
 			return -1, nil
 		}
 	}
+}
+
+func IsValidVersionString(versionString string) bool {
+	matched, err := regexp.MatchString(versionStringPattern, versionString)
+	if err != nil {
+		return false
+	}
+	return matched
 }
 
 func findNonZeroVersionNumber(versionStringSlice []string, startIndex int, length int) (int, error) {

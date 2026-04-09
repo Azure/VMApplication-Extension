@@ -49,6 +49,13 @@ func main() {
 		eh.Exit(exithelper.MiscError)
 	}
 
+	// validate ExtensionVersion against the version reported by Guest Agent
+	if extensionVersionFromEnv, err := vmextension.GetGuestAgentEnvironmetVariable(vmextension.GuestAgentEnvVarExtensionVersion); err == nil {
+		if extensionVersionFromEnv != ExtensionVersion {
+			el.Warn("ExtensionVersion mismatch: compile-time ExtensionVersion value '%s' does not match value '%s' in environment variable '%s'", ExtensionVersion, extensionVersionFromEnv, vmextension.GuestAgentEnvVarExtensionVersion)
+		}
+	}
+
 	arg := args[1]
 
 	switch arg {

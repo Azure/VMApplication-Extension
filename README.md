@@ -32,9 +32,9 @@ Trademarks This project may contain trademarks or logos for projects, products, 
     -  OS-specific tests may be run on an Azure VM or local VM (eg. WSL on Windows)
 -  To build the extension zip packages
     - Windows:
-        - execute `nmake -f makefile.win`
+        - execute `nmake -f makefile.win EXTENSIONVERSION=<n.n.n>`
     - Linux:
-        - execute `make`
+        - execute `make EXTENSIONVERSION=<n.n.n>`
 
 -  Please do not check-in vendor files
 

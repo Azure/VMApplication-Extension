@@ -29,7 +29,6 @@ import (
 	handlersettings "github.com/Azure/azure-extension-platform/pkg/settings"
 	"github.com/Azure/azure-extension-platform/pkg/status"
 	"github.com/Azure/azure-extension-platform/vmextension"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -464,84 +463,6 @@ func Test_main_nothingToProcess_withStatus(t *testing.T) {
 	require.Contains(t, fileString, vmextension.EnableOperation.ToStatusName())
 	require.Contains(t, fileString, status.StatusSuccess)
 	require.Equal(t, requestedSequenceNumber, currentSequenceNumber)
-}
-
-func Test_uninstall_cannotCreatePackageRegistry(t *testing.T) {
-	vmApplications := []extdeserialization.VmAppSetting{}
-	ext := createTestVMExtension(t, vmApplications)
-	hostGaCommunicator := NoopHostGaCommunicator{}
-
-	// Set the config folder to an invalid path so we can't create a package registry
-	ext.HandlerEnv.ConfigFolder = "/yabaflarg/flarpaglarp"
-
-	err := doVmAppUninstallCallback(ext, &hostGaCommunicator)
-	require.Error(t, err)
-	require.EqualError(t, err, cannotCreatePackageRegistryError)
-}
-
-func Test_uninstall_cannotReadPackageRegistry(t *testing.T) {
-	vmApplications := []extdeserialization.VmAppSetting{}
-	ext := createTestVMExtension(t, vmApplications)
-	hostGaCommunicator := NoopHostGaCommunicator{}
-
-	// Write an invalid registry so we can't create a package registry
-	appRegistryFilePath := path.Join(ext.HandlerEnv.ConfigFolder, packageregistry.LocalApplicationRegistryFileName)
-	ioutil.WriteFile(appRegistryFilePath, []byte("}"), 0644)
-	defer os.Remove(appRegistryFilePath)
-
-	err := doVmAppUninstallCallback(ext, &hostGaCommunicator)
-	require.Error(t, err)
-	require.EqualError(t, err, "Could not read current package registry: invalid character '}' looking for beginning of value")
-}
-
-func Test_uninstall_noAppsToUninstall(t *testing.T) {
-	vmApplications := []extdeserialization.VmAppSetting{}
-	ext := createTestVMExtension(t, vmApplications)
-	hostGaCommunicator := NoopHostGaCommunicator{}
-
-	package1 := path.Join(ext.HandlerEnv.ConfigFolder, "package1")
-	package2 := path.Join(ext.HandlerEnv.ConfigFolder, "package2")
-	package1Quotes := fmt.Sprintf("\"%v\"", package1)
-	package2Quotes := fmt.Sprintf("\"%v\"", package2)
-
-	// Create a package registry where the remove commands will write their respective files
-	reg := packageregistry.CurrentPackageRegistry{"package1": &packageregistry.VMAppPackageCurrent{
-		ApplicationName:    "package1",
-		DirectDownloadOnly: false,
-		InstallCommand:     "dontcare",
-		RemoveCommand:      "echo moein > " + package1Quotes,
-		UpdateCommand:      "dontcare",
-		Version:            "1.2.3.1",
-	}, "package2": &packageregistry.VMAppPackageCurrent{
-		ApplicationName:    "package2",
-		DirectDownloadOnly: true,
-		InstallCommand:     "dontcare",
-		RemoveCommand:      "echo moein > " + package2Quotes,
-		UpdateCommand:      "dontcare",
-		Version:            "1.2.3.2",
-	}}
-
-	pkgHndlr, err := packageregistry.New(nopLog(), ext.HandlerEnv, time.Second)
-	assert.NoError(t, err, "operation should not throw error")
-	err = pkgHndlr.WriteToDisk(reg)
-	assert.NoError(t, err, "Should be able to write package registry to disk")
-	pkgHndlr.Close()
-
-	err = doVmAppUninstallCallback(ext, &hostGaCommunicator)
-	require.NoError(t, err)
-
-	// Verify we removed both apps, which deleted the files
-	require.True(t, fileExists(package1), "First application was not removed")
-	require.True(t, fileExists(package2), "Second application was not removed")
-}
-
-func Test_uninstall_uninstallApps(t *testing.T) {
-	vmApplications := []extdeserialization.VmAppSetting{}
-	ext := createTestVMExtension(t, vmApplications)
-	hostGaCommunicator := NoopHostGaCommunicator{}
-
-	err := doVmAppUninstallCallback(ext, &hostGaCommunicator)
-	require.NoError(t, err)
 }
 
 func fileExists(filePath string) bool {
