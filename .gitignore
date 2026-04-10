@@ -13,3 +13,5 @@ bundle
 extension-launcher*
 internal/customactionplan/testdir/
 licenses
+main.exe
+internal/hostgacommunicator/TestArtifacts/

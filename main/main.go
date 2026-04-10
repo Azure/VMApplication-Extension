@@ -33,10 +33,7 @@ var (
 )
 
 const (
-	vmPackagesSetting       = "vmPackages"
-	operationInstall        = "install"
-	operationUpdate         = "update"
-	operationRemove         = "remove"
+	argVersion              = "version"
 	filelockTimeoutDuration = 45 * time.Minute
 )
 
@@ -48,10 +45,30 @@ func main() {
 }
 
 func getExtensionAndRun(arguments []string) error {
+	// simple way to test value of ExtensionVersion set at compile time
+	// just run "vm-application-mamager(.exe) version"
+	if len(arguments) == 2 && strings.EqualFold(arguments[1], argVersion) {
+		fmt.Println("Extension version is", ExtensionVersion)
+		return nil
+	}
+
 	// require SeqNoChange is set to false because we want the extension to ensure that the packages are in sync with the desired packages
 	ext, err := getVMExtensionFunc()
 	if err != nil {
 		return err
+	}
+
+	// validate ExtensionVersion against the version reported by Guest Agent
+	if extVersionInEnvVariable, err := vmextensionhelper.GetGuestAgentEnvironmetVariable(vmextensionhelper.GuestAgentEnvVarExtensionVersion); err == nil {
+		if extVersionInEnvVariable != ExtensionVersion {
+			msg := fmt.Sprintf("ExtensionVersion mismatch: compile-time ExtensionVersion value '%s' does not match value '%s' in environment variable '%s'", ExtensionVersion, extVersionInEnvVariable, vmextensionhelper.GuestAgentEnvVarExtensionVersion)
+			ext.ExtensionLogger.Warn(msg)
+			ext.ExtensionEvents.LogWarningEvent("ExtensionVersion", msg)
+		}
+	} else {
+		msg := fmt.Sprintf("Could not read environment variable '%s' that was supposed to be set by guest agent", vmextensionhelper.GuestAgentEnvVarExtensionVersion)
+		ext.ExtensionLogger.Warn(msg)
+		ext.ExtensionEvents.LogWarningEvent("ExtensionVersion", msg)
 	}
 
 	if len(arguments) != 2 {
@@ -60,6 +77,21 @@ func getExtensionAndRun(arguments []string) error {
 		return errors.Errorf("vm-application-manager requires an argument")
 	}
 	command := arguments[1]
+
+	if command == vmextensionhelper.UpdateOperation.ToString() {
+		if updateToVersion, err := vmextensionhelper.GetGuestAgentEnvironmetVariable(vmextensionhelper.GuestAgentEnvVarUpdateToVersion); err == nil {
+			if updateToVersion != ExtensionVersion {
+				msg := fmt.Sprintf("ExtensionVersion mismatch: compile-time ExtensionVersion value '%s' does not match value '%s' in environment variable '%s'", ExtensionVersion, updateToVersion, vmextensionhelper.GuestAgentEnvVarUpdateToVersion)
+				ext.ExtensionLogger.Warn(msg)
+				ext.ExtensionEvents.LogWarningEvent("ExtensionVersion", msg)
+			}
+		} else {
+			msg := fmt.Sprintf("Could not read environment variable '%s' that was supposed to be set by guest agent", vmextensionhelper.GuestAgentEnvVarUpdateToVersion)
+			ext.ExtensionLogger.Warn(msg)
+			ext.ExtensionEvents.LogWarningEvent("ExtensionVersion", msg)
+		}
+
+	}
 
 	pid := os.Getpid()
 	ext.ExtensionEvents.LogInformationalEvent("vm-application-manager-process", fmt.Sprintf("VmApplications extension starting, PID: %d, Command: %s", pid, command))
@@ -132,7 +164,7 @@ func getVMExtension() (*vmextensionhelper.VMExtension, error) {
 		return nil, err
 	}
 
-	ii.UninstallCallback = vmAppUninstallCallback
+	ii.UninstallCallback = nil // no need to do any special handling on uninstall, so we can set the callback to nil
 	ii.UpdateCallback = vmAppUpdateCallback
 	ii.LogFileNamePattern = "VmAppExt_%v.log"
 

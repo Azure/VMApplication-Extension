@@ -5,7 +5,6 @@ package packageregistry
 
 import (
 	"encoding/json"
-	"io/ioutil"
 	"os"
 	"path"
 	"time"
@@ -168,7 +167,7 @@ func (self *PackageRegistry) GetExistingPackages() (CurrentPackageRegistry, erro
 	_, err := os.Stat(localApplicationRegistryFilePath)
 	if err == nil {
 		// The file exists
-		fileBytes, err := ioutil.ReadFile(localApplicationRegistryFilePath)
+		fileBytes, err := os.ReadFile(localApplicationRegistryFilePath)
 		if err != nil {
 			return currentPackageRegistry, err
 		}
@@ -210,7 +209,7 @@ func (self *PackageRegistry) WriteToDisk(packageRegistry CurrentPackageRegistry)
 		return err
 	}
 
-	err = ioutil.WriteFile(regFile, bytes, constants.FilePermissions_UserOnly_ReadWrite)
+	err = os.WriteFile(regFile, bytes, constants.FilePermissions_UserOnly_ReadWrite)
 	self.logger.Info("Wrote package registry to %v", regFile)
 
 	if doesBackupFileExist {
