@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
@@ -29,6 +28,7 @@ import (
 	handlersettings "github.com/Azure/azure-extension-platform/pkg/settings"
 	"github.com/Azure/azure-extension-platform/pkg/status"
 	"github.com/Azure/azure-extension-platform/vmextension"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -72,15 +72,15 @@ func nopLog() *logging.ExtensionLogger {
 
 var maintestdir string
 
-func TestMain(m *testing.M) {
-	testdir, err := ioutil.TempDir("", "maintest")
+func setupTest(t *testing.T) {
+	testdir, err := os.MkdirTemp("", "maintest")
 	if err != nil {
-		return
+		t.Fatalf("Failed to create temp dir: %v", err)
 	}
 
 	err = os.MkdirAll(testdir, constants.FilePermissions_UserOnly_ReadWriteExecute)
 	if err != nil {
-		return
+		t.Fatalf("Failed to create test dir: %v", err)
 	}
 
 	setSequenceNumberFunc = func(extName, extVersion string, seqNo uint) error {
@@ -89,13 +89,14 @@ func TestMain(m *testing.M) {
 	}
 
 	maintestdir = testdir
-	exitVal := m.Run()
-	os.RemoveAll(maintestdir)
 
-	os.Exit(exitVal)
+	t.Cleanup(func() {
+		os.RemoveAll(maintestdir)
+	})
 }
 
 func Test_settingsFailToInit(t *testing.T) {
+	setupTest(t)
 	ExtensionVersion = ""
 	defer resetExtensionVersion()
 	err := getExtensionAndRun([]string{"vm-application-manager", "enable"})
@@ -103,18 +104,21 @@ func Test_settingsFailToInit(t *testing.T) {
 }
 
 func Test_failToCreateExtension(t *testing.T) {
+	setupTest(t)
 	// This will fail automatically because Guest Agent hasn't set the required sequence numbers
 	err := getExtensionAndRun([]string{"vm-application-manager", "enable"})
 	require.Error(t, err)
 }
 
 func Test_getVMPackageData_noSettings(t *testing.T) {
+	setupTest(t)
 	ext := createTestVMExtension(t, nil)
 	err := customEnable(ext, noopHostGaCommunicator, 0)
 	require.Error(t, err)
 }
 
 func Test_getVMPackageData_cannotDeserialize(t *testing.T) {
+	setupTest(t)
 	vmPackages := "yabasnarfle {}"
 
 	ext := createTestVMExtension(t, vmPackages)
@@ -123,6 +127,7 @@ func Test_getVMPackageData_cannotDeserialize(t *testing.T) {
 }
 
 func Test_getVMPackageData_noApplications(t *testing.T) {
+	setupTest(t)
 	vmApplications := []extdeserialization.VmAppSetting{}
 
 	ext := createTestVMExtension(t, vmApplications)
@@ -131,6 +136,7 @@ func Test_getVMPackageData_noApplications(t *testing.T) {
 }
 
 func Test_getVMPackageData_valid(t *testing.T) {
+	setupTest(t)
 	order := 1
 	vmApplications := []extdeserialization.VmAppSetting{
 		{
@@ -147,6 +153,7 @@ func Test_getVMPackageData_valid(t *testing.T) {
 }
 
 func Test_getVMAppProtectedSettings_valid(t *testing.T) {
+	setupTest(t)
 	order := 1
 	actions := extdeserialization.ActionSetting{
 		ActionName:   "logging",
@@ -180,6 +187,7 @@ func Test_getVMAppProtectedSettings_valid(t *testing.T) {
 }
 
 func Test_getVMAppProtectedSettings_valid_no_custom_actions(t *testing.T) {
+	setupTest(t)
 	order := 1
 
 	appSettings := extdeserialization.VmAppSetting{
@@ -200,6 +208,7 @@ func Test_getVMAppProtectedSettings_valid_no_custom_actions(t *testing.T) {
 }
 
 func Test_getVMPackageData_noVersion(t *testing.T) {
+	setupTest(t)
 	order := 1
 	vmApplications := []extdeserialization.VmAppSetting{
 		{
@@ -216,6 +225,7 @@ func Test_getVMPackageData_noVersion(t *testing.T) {
 }
 
 func Test_GetApplicationMetadataWithInvalidRebootBehavior_DefaultsToNone(t *testing.T) {
+	setupTest(t)
 	order := 1
 	vmApplications := []extdeserialization.VmAppSetting{
 		{
@@ -246,6 +256,7 @@ func Test_GetApplicationMetadataWithInvalidRebootBehavior_DefaultsToNone(t *test
 }
 
 func Test_getVMPackageDataCustomAction_valid(t *testing.T) {
+	setupTest(t)
 	order := 1
 	actions := extdeserialization.ActionSetting{
 		ActionName:   "Action1",
@@ -284,7 +295,7 @@ func Test_getVMPackageDataCustomAction_valid(t *testing.T) {
 	require.Contains(t, currentpackages[vmApplications[0].ApplicationName].Result, actionplan.Success)
 	// test contents of the status file
 	statusFilePath := filepath.Join(ext.HandlerEnv.StatusFolder, fmt.Sprintf("%d.status", requestedSequenceNumber))
-	fileBytes, err := ioutil.ReadFile(statusFilePath)
+	fileBytes, err := os.ReadFile(statusFilePath)
 	require.NoError(t, err)
 	statusReport := status.StatusReport{}
 	err = json.Unmarshal(fileBytes, &statusReport)
@@ -308,6 +319,7 @@ func Test_getVMPackageDataCustomAction_valid(t *testing.T) {
 }
 
 func Test_getVMPackageDataCustomAction_CriticalError(t *testing.T) {
+	setupTest(t)
 	order := 1
 	actions := extdeserialization.ActionSetting{
 		ActionName:   "Action1",
@@ -332,6 +344,7 @@ func Test_getVMPackageDataCustomAction_CriticalError(t *testing.T) {
 }
 
 func Test_getVMPackageData_noApplicationName(t *testing.T) {
+	setupTest(t)
 	order := 1
 	vmApplications := []extdeserialization.VmAppSetting{
 		{
@@ -348,6 +361,7 @@ func Test_getVMPackageData_noApplicationName(t *testing.T) {
 }
 
 func Test_main_statusIsWrittenForCriticalErrors(t *testing.T) {
+	setupTest(t)
 	order := 1
 	vmApplications := []extdeserialization.VmAppSetting{
 		{
@@ -371,7 +385,7 @@ func Test_main_statusIsWrittenForCriticalErrors(t *testing.T) {
 	err := getExtensionAndRun([]string{"vm-application-manager", vmextension.EnableOperation.ToString()})
 	require.NoError(t, err)
 	statusFilePath := filepath.Join(ext.HandlerEnv.StatusFolder, fmt.Sprintf("%d.status", requestedSequenceNumber))
-	fileBytes, err := ioutil.ReadFile(statusFilePath)
+	fileBytes, err := os.ReadFile(statusFilePath)
 	require.NoError(t, err)
 	fileString := string(fileBytes)
 	require.Contains(t, fileString, vmextension.EnableOperation.ToStatusName())
@@ -383,6 +397,7 @@ func Test_main_statusIsWrittenForCriticalErrors(t *testing.T) {
 }
 
 func Test_main_statusIsNotWrittenForFileLockErrors(t *testing.T) {
+	setupTest(t)
 	order := 1
 	vmApplications := []extdeserialization.VmAppSetting{
 		{
@@ -416,6 +431,7 @@ func Test_main_statusIsNotWrittenForFileLockErrors(t *testing.T) {
 }
 
 func Test_main_nothingToProcess_noStatusUpdate(t *testing.T) {
+	setupTest(t)
 	vmApplications := []extdeserialization.VmAppSetting{}
 	ext := createTestVMExtension(t, vmApplications)
 
@@ -426,13 +442,15 @@ func Test_main_nothingToProcess_noStatusUpdate(t *testing.T) {
 	err = customEnable(ext, &hostGaCommunicator, requestedSequenceNumber)
 	require.NoError(t, err)
 	// ensure stautus file is not overwritten
-	statusType, err := utils.GetStatusType(ext.HandlerEnv, requestedSequenceNumber)
+	statusObj, err := utils.GetStatus(ext.HandlerEnv, requestedSequenceNumber)
 	require.NoError(t, err)
-	require.Equal(t, status.StatusError, statusType)
+	require.NotNil(t, statusObj)
+	require.Equal(t, status.StatusError, statusObj.Status)
 	require.Equal(t, requestedSequenceNumber, currentSequenceNumber)
 }
 
 func Test_main_transitioningStatusIsUpdated(t *testing.T) {
+	setupTest(t)
 	vmApplications := []extdeserialization.VmAppSetting{}
 	ext := createTestVMExtension(t, vmApplications)
 
@@ -443,13 +461,15 @@ func Test_main_transitioningStatusIsUpdated(t *testing.T) {
 	err = customEnable(ext, &hostGaCommunicator, requestedSequenceNumber)
 	require.NoError(t, err)
 	// ensure error stautus file is not overwritten
-	statusType, err := utils.GetStatusType(ext.HandlerEnv, requestedSequenceNumber)
+	statusObj, err := utils.GetStatus(ext.HandlerEnv, requestedSequenceNumber)
 	require.NoError(t, err)
-	require.Equal(t, status.StatusSuccess, statusType)
+	require.NotNil(t, statusObj)
+	require.Equal(t, status.StatusSuccess, statusObj.Status)
 	require.Equal(t, requestedSequenceNumber, currentSequenceNumber)
 }
 
 func Test_main_nothingToProcess_withStatus(t *testing.T) {
+	setupTest(t)
 	vmApplications := []extdeserialization.VmAppSetting{}
 	ext := createTestVMExtension(t, vmApplications)
 	hostGaCommunicator := NoopHostGaCommunicator{}
@@ -457,12 +477,94 @@ func Test_main_nothingToProcess_withStatus(t *testing.T) {
 	err := customEnable(ext, &hostGaCommunicator, requestedSequenceNumber)
 	require.NoError(t, err)
 	statusFilePath := filepath.Join(ext.HandlerEnv.StatusFolder, fmt.Sprintf("%d.status", requestedSequenceNumber))
-	fileBytes, err := ioutil.ReadFile(statusFilePath)
+	fileBytes, err := os.ReadFile(statusFilePath)
 	require.NoError(t, err)
 	fileString := string(fileBytes)
 	require.Contains(t, fileString, vmextension.EnableOperation.ToStatusName())
 	require.Contains(t, fileString, status.StatusSuccess)
 	require.Equal(t, requestedSequenceNumber, currentSequenceNumber)
+}
+
+func Test_uninstall_cannotCreatePackageRegistry(t *testing.T) {
+	setupTest(t)
+	vmApplications := []extdeserialization.VmAppSetting{}
+	ext := createTestVMExtension(t, vmApplications)
+	hostGaCommunicator := NoopHostGaCommunicator{}
+
+	// Set the config folder to an invalid path so we can't create a package registry
+	ext.HandlerEnv.ConfigFolder = "/yabaflarg/flarpaglarp"
+
+	err := doVmAppUninstallCallback(ext, &hostGaCommunicator)
+	require.Error(t, err)
+	require.EqualError(t, err, cannotCreatePackageRegistryError)
+}
+
+func Test_uninstall_cannotReadPackageRegistry(t *testing.T) {
+	setupTest(t)
+	vmApplications := []extdeserialization.VmAppSetting{}
+	ext := createTestVMExtension(t, vmApplications)
+	hostGaCommunicator := NoopHostGaCommunicator{}
+
+	// Write an invalid registry so we can't create a package registry
+	appRegistryFilePath := path.Join(ext.HandlerEnv.ConfigFolder, packageregistry.LocalApplicationRegistryFileName)
+	os.WriteFile(appRegistryFilePath, []byte("}"), 0644)
+	defer os.Remove(appRegistryFilePath)
+
+	err := doVmAppUninstallCallback(ext, &hostGaCommunicator)
+	require.Error(t, err)
+	require.EqualError(t, err, "Could not read current package registry: invalid character '}' looking for beginning of value")
+}
+
+func Test_uninstall_noAppsToUninstall(t *testing.T) {
+	setupTest(t)
+	vmApplications := []extdeserialization.VmAppSetting{}
+	ext := createTestVMExtension(t, vmApplications)
+	hostGaCommunicator := NoopHostGaCommunicator{}
+
+	package1 := path.Join(ext.HandlerEnv.ConfigFolder, "package1")
+	package2 := path.Join(ext.HandlerEnv.ConfigFolder, "package2")
+	package1Quotes := fmt.Sprintf("\"%v\"", package1)
+	package2Quotes := fmt.Sprintf("\"%v\"", package2)
+
+	// Create a package registry where the remove commands will write their respective files
+	reg := packageregistry.CurrentPackageRegistry{"package1": &packageregistry.VMAppPackageCurrent{
+		ApplicationName:    "package1",
+		DirectDownloadOnly: false,
+		InstallCommand:     "dontcare",
+		RemoveCommand:      "echo moein > " + package1Quotes,
+		UpdateCommand:      "dontcare",
+		Version:            "1.2.3.1",
+	}, "package2": &packageregistry.VMAppPackageCurrent{
+		ApplicationName:    "package2",
+		DirectDownloadOnly: true,
+		InstallCommand:     "dontcare",
+		RemoveCommand:      "echo moein > " + package2Quotes,
+		UpdateCommand:      "dontcare",
+		Version:            "1.2.3.2",
+	}}
+
+	pkgHndlr, err := packageregistry.New(nopLog(), ext.HandlerEnv, time.Second)
+	assert.NoError(t, err, "operation should not throw error")
+	err = pkgHndlr.WriteToDisk(reg)
+	assert.NoError(t, err, "Should be able to write package registry to disk")
+	pkgHndlr.Close()
+
+	err = doVmAppUninstallCallback(ext, &hostGaCommunicator)
+	require.NoError(t, err)
+
+	// Verify we removed both apps, which deleted the files
+	require.True(t, fileExists(package1), "First application was not removed")
+	require.True(t, fileExists(package2), "Second application was not removed")
+}
+
+func Test_uninstall_uninstallApps(t *testing.T) {
+	setupTest(t)
+	vmApplications := []extdeserialization.VmAppSetting{}
+	ext := createTestVMExtension(t, vmApplications)
+	hostGaCommunicator := NoopHostGaCommunicator{}
+
+	err := doVmAppUninstallCallback(ext, &hostGaCommunicator)
+	require.NoError(t, err)
 }
 
 func fileExists(filePath string) bool {
@@ -527,4 +629,118 @@ func createTestVMExtension(t *testing.T, settings interface{}) *vmextension.VMEx
 		ExtensionLogger: el,
 		ExtensionEvents: eem,
 	}
+}
+
+// Test computeStatus when vmAppResults has items and no deployment failure
+func Test_computeStatus_WithVMAppResults_Success(t *testing.T) {
+	setupTest(t)
+	ext := createTestVMExtension(t, nil)
+
+	vmAppResults := actionplan.PackageOperationResults{
+		actionplan.PackageOperationResult{
+			PackageName: "testApp",
+			AppVersion:  "1.0.0",
+			Operation:   "install",
+			Result:      "0",
+		},
+	}
+	executeError := &actionplan.ExecuteError{}
+	currentPkgReg := packageregistry.CurrentPackageRegistry{}
+
+	updated, statusType, _ := computeStatus(ext, 1, &currentPkgReg, executeError, &vmAppResults, &vmAppResults)
+
+	assert.True(t, updated)
+	assert.Equal(t, status.StatusSuccess, statusType)
+}
+
+// Test computeStatus when no vmAppResults and status file doesn't exist
+func Test_computeStatus_NoVMAppResults_NoStatusFile(t *testing.T) {
+	setupTest(t)
+	ext := createTestVMExtension(t, nil)
+
+	executeError := &actionplan.ExecuteError{}
+	currentPkgReg := packageregistry.CurrentPackageRegistry{}
+	emptyResults := actionplan.PackageOperationResults{}
+
+	updated, statusType, _ := computeStatus(ext, 1, &currentPkgReg, executeError, &emptyResults, nil)
+
+	assert.True(t, updated)
+	assert.Equal(t, status.StatusSuccess, statusType)
+}
+
+// Test computeStatus when no vmAppResults and current status has HostGA error prefix but no last stable
+func Test_computeStatus_NoVMAppResults_HostGAError_NoLastStable(t *testing.T) {
+	setupTest(t)
+	ext := createTestVMExtension(t, nil)
+
+	// Write a status file with HostGA error prefix
+	// ReportStatus adds "Enable failed: " prefix, but Contains still finds the HostGaMetadataErrorPrefix
+	err := utils.ReportStatus(ext.HandlerEnv, 1, status.StatusError, "Enable", hostgacommunicator.HostGaMetadataErrorPrefix+" some error")
+	require.NoError(t, err)
+
+	seqNo := uint(1)
+	ext.CurrentSequenceNumber = &seqNo
+
+	executeError := &actionplan.ExecuteError{}
+	currentPkgReg := packageregistry.CurrentPackageRegistry{}
+	emptyResults := actionplan.PackageOperationResults{}
+
+	updated, statusType, _ := computeStatus(ext, 1, &currentPkgReg, executeError, &emptyResults, nil)
+
+	// HostGA error detected, no last stable status exists, so update to success
+	assert.True(t, updated)
+	assert.Equal(t, status.StatusSuccess, statusType)
+}
+
+// Test computeStatus when no vmAppResults and current status has HostGA error with last stable status
+func Test_computeStatus_NoVMAppResults_HostGAError_WithLastStable(t *testing.T) {
+	setupTest(t)
+	ext := createTestVMExtension(t, nil)
+
+	// First write a stable (lastgood) status file
+	err := utils.ReportStatus(ext.HandlerEnv, 1, status.StatusSuccess, "Enable", "last good message")
+	require.NoError(t, err)
+	err = utils.BackupStatusFile(ext.HandlerEnv.StatusFolder, 1)
+	require.NoError(t, err)
+
+	// Now write a status file with HostGA error prefix
+	// ReportStatus adds "Enable failed: " prefix, but Contains still finds the HostGaMetadataErrorPrefix
+	err = utils.ReportStatus(ext.HandlerEnv, 1, status.StatusError, "Enable", hostgacommunicator.HostGaMetadataErrorPrefix+" some error")
+	require.NoError(t, err)
+
+	seqNo := uint(1)
+	ext.CurrentSequenceNumber = &seqNo
+
+	executeError := &actionplan.ExecuteError{}
+	currentPkgReg := packageregistry.CurrentPackageRegistry{}
+	emptyResults := actionplan.PackageOperationResults{}
+
+	updated, statusType, msg := computeStatus(ext, 1, &currentPkgReg, executeError, &emptyResults, nil)
+
+	// HostGA error detected, last stable status restored
+	assert.True(t, updated)
+	assert.Equal(t, status.StatusSuccess, statusType)
+	assert.Contains(t, msg, "last good message")
+}
+
+// Test computeStatus when status is Transitioning and CurrentSequenceNumber is nil (first Enable)
+func Test_computeStatus_StatusTransitioning_FirstEnable(t *testing.T) {
+	setupTest(t)
+	ext := createTestVMExtension(t, nil)
+
+	// Write a transitioning status file
+	err := utils.ReportStatus(ext.HandlerEnv, 1, status.StatusTransitioning, "Enable", "transitioning")
+	require.NoError(t, err)
+
+	// Set CurrentSequenceNumber to nil (first time Enable)
+	ext.CurrentSequenceNumber = nil
+
+	executeError := &actionplan.ExecuteError{}
+	currentPkgReg := packageregistry.CurrentPackageRegistry{}
+	emptyResults := actionplan.PackageOperationResults{}
+
+	updated, statusType, _ := computeStatus(ext, 1, &currentPkgReg, executeError, &emptyResults, nil)
+
+	assert.True(t, updated)
+	assert.Equal(t, status.StatusSuccess, statusType)
 }
