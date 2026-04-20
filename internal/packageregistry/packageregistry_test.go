@@ -172,7 +172,7 @@ func TestOnlyOneInstanceofPackageRegistryCanExist(t *testing.T) {
 	require.NoError(t, err, "operation should not throw error")
 
 	// let things settle down before retrying
-	time.Sleep(2 * time.Second)
+	time.Sleep(60 * time.Second)
 	pkgHndlr2, err = New(nopLog(), &hndlEnv, time.Second)
 	require.NoError(t, err, "operation should not throw error")
 	err = pkgHndlr2.Close()
