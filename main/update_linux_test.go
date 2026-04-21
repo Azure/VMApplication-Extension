@@ -302,3 +302,10 @@ func Test_vmAppUpdateCallback_endToEnd(t *testing.T) {
 		require.Equal(t, expected.ApplicationName, actual.ApplicationName)
 	}
 }
+
+func Test_IsVersionString(t *testing.T) {
+	ExtensionName = "VMApplicationManagerLinux"
+	actualDirName := "Microsoft.CPlat.Core.Edp.VMApplicationManagerLinux-1.0.18"
+	checkerFunc := getDirNameCheckerWithExtensionVersionPattern()
+	require.True(t, checkerFunc(actualDirName))
+}
