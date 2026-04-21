@@ -47,6 +47,9 @@ func TestGetVmAppInfo_InvalidUri(t *testing.T) {
 	hgc := &HostGaCommunicator{}
 	_, err := hgc.GetVMAppInfo(nopLog(), myAppName)
 	require.NotNil(t, err, "did not fail")
+	_, ok := err.(*HostGaCommunicatorGetVMAppInfoError)
+	require.True(t, ok, "expected error to be of type *HostGaCommunicatorGetVMAppInfoError")
+	require.Contains(t, err.Error(), InitializationError.ToString(), "Wrong error code")
 	require.Contains(t, err.Error(), "Could not parse the HostGA URI", "Wrong message for invalid uri")
 }
 
@@ -60,7 +63,10 @@ func TestGetVmAppInfo_RequestFailed(t *testing.T) {
 	hgc := &HostGaCommunicator{}
 	_, err := hgc.GetVMAppInfo(nopLog(), myAppName)
 	require.NotNil(t, err, "did not fail")
-	require.Contains(t, err.Error(), "Metadata request failed with retries.", "Wrong message for failed request")
+	_, ok := err.(*HostGaCommunicatorGetVMAppInfoError)
+	require.True(t, ok, "expected error to be of type *HostGaCommunicatorGetVMAppInfoError")
+	require.Contains(t, err.Error(), MetadataRequestFailedWithRetries.ToString(), "Wrong error code")
+	require.Contains(t, err.Error(), "Metadata request failed after retries:", "Wrong message for failed request")
 }
 
 func TestGetVmAppInfo_CouldNotDecodeResponse(t *testing.T) {
@@ -75,7 +81,10 @@ func TestGetVmAppInfo_CouldNotDecodeResponse(t *testing.T) {
 	hgc := &HostGaCommunicator{}
 	_, err := hgc.GetVMAppInfo(nopLog(), myAppName)
 	require.NotNil(t, err, "did not fail")
-	require.Contains(t, err.Error(), "failed to decode response body", "Wrong message for invalid response")
+	_, ok := err.(*HostGaCommunicatorGetVMAppInfoError)
+	require.True(t, ok, "expected error to be of type *HostGaCommunicatorGetVMAppInfoError")
+	require.Contains(t, err.Error(), MetadataRequestFailedInvalidResponseBody.ToString(), "Wrong error code")
+	require.Contains(t, err.Error(), "Failed to decode response body:", "Wrong message for invalid response")
 }
 
 func TestGetVmAppInfo_MissingProperties(t *testing.T) {
@@ -155,7 +164,20 @@ func TestDownloadPackage_CannotRemoveExistingFile(t *testing.T) {
 	hgc := &HostGaCommunicator{}
 	err = hgc.DownloadPackage(nopLog(), myAppName, filePath)
 	require.NotNil(t, err, "did not fail")
+	_, ok := err.(*DownloadPackageError)
+	require.True(t, ok, "expected error to be of type *DownloadPackageError")
+	require.Contains(t, err.Error(), "DownloadPackageFileError", "Wrong error code")
 	require.Contains(t, err.Error(), "Could not remove the existing file", "Wrong message for failing to remove locked file")
+}
+
+func TestDownloadPackage_InvalidUri(t *testing.T) {
+	os.Setenv(WireProtocolAddress, "htt!p:notgoingtohappen!")
+	hgc := &HostGaCommunicator{}
+	err := hgc.DownloadPackage(nopLog(), myAppName, "somepath")
+	require.NotNil(t, err, "did not fail")
+	_, ok := err.(*DownloadPackageError)
+	require.True(t, ok, "expected error to be of type *DownloadPackageError")
+	require.Contains(t, err.Error(), DownloadPackageRequestFactoryError.ToString(), "Wrong error type")
 }
 
 func TestDownloadPackage_InvalidPath(t *testing.T) {
@@ -170,6 +192,9 @@ func TestDownloadPackage_InvalidPath(t *testing.T) {
 	hgc := &HostGaCommunicator{}
 	err := hgc.DownloadPackage(nopLog(), myAppName, filePath)
 	require.NotNil(t, err, "did not fail")
+	_, ok := err.(*DownloadPackageError)
+	require.True(t, ok, "expected error to be of type *DownloadPackageError")
+	require.Contains(t, err.Error(), "DownloadPackageFileError", "Wrong error code")
 	require.Contains(t, err.Error(), "Cannot retrieve file information", "Wrong message for invalid file path")
 }
 
@@ -220,6 +245,9 @@ func TestDownloadPackage_TooManyTries(t *testing.T) {
 	hgc := &HostGaCommunicator{}
 	err := hgc.DownloadPackage(nopLog(), myAppName, filePath)
 	require.NotNil(t, err, "did not fail")
+	_, ok := err.(*DownloadPackageError)
+	require.True(t, ok, "expected error to be of type *DownloadPackageError")
+	require.Contains(t, err.Error(), "DownloadPackageFileError", "Wrong error code")
 	require.Contains(t, err.Error(), "Failed to completely download the file", "Wrong message for incomplete file")
 }
 
@@ -249,6 +277,9 @@ func TestDownloadPackage_IntermediateCallFails(t *testing.T) {
 	hgc := &HostGaCommunicator{}
 	err := hgc.DownloadPackage(nopLog(), myAppName, filePath)
 	require.NotNil(t, err, "did not fail")
+	_, ok := err.(*DownloadPackageError)
+	require.True(t, ok, "expected error to be of type *DownloadPackageError")
+	require.Contains(t, err.Error(), "DownloadPackageFileError", "Wrong error code")
 	require.Contains(t, err.Error(), "Unrecoverable error while downloading the file", "Wrong message for failure mid-retries")
 }
 
@@ -286,6 +317,34 @@ func TestDownloadPackage_MultipleCallDownload(t *testing.T) {
 	require.Nil(t, err, "Download failed")
 	require.Equal(t, expectedCallCount, callCount)
 	verifyFileContents(t, filePath, expected)
+}
+
+func TestDownloadConfig_InvalidUri(t *testing.T) {
+	os.Setenv(WireProtocolAddress, "htt!p:notgoingtohappen!")
+	hgc := &HostGaCommunicator{}
+	err := hgc.DownloadConfig(nopLog(), myAppName, "somepath")
+	require.NotNil(t, err, "did not fail")
+	_, ok := err.(*DownloadConfigError)
+	require.True(t, ok, "expected error to be of type *DownloadConfigError")
+	require.Contains(t, err.Error(), DownloadConfigRequestFactoryError.ToString(), "Wrong error code")
+}
+
+func TestDownloadConfig_InvalidPath(t *testing.T) {
+	filePath := string(make([]byte, 5)) // null characters in file names are invalid in both windows and linux
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	os.Setenv(WireProtocolAddress, srv.URL)
+	hgc := &HostGaCommunicator{}
+	err := hgc.DownloadConfig(nopLog(), myAppName, filePath)
+	require.NotNil(t, err, "did not fail")
+	_, ok := err.(*DownloadConfigError)
+	require.True(t, ok, "expected error to be of type *DownloadConfigError")
+	require.Contains(t, err.Error(), DownloadConfigFileError.ToString(), "Wrong error code")
+	require.Contains(t, err.Error(), "Cannot retrieve file information", "Wrong message for invalid file path")
 }
 
 func TestDownloadConfig_SingeCallDownload(t *testing.T) {

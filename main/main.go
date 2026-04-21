@@ -25,9 +25,8 @@ import (
 )
 
 var (
-	ExtensionName         string     // assign at compile time, it is the ExtensionPublisher.ExtensionType
-	ExtensionVersion      = "1.0.10" // should be assigned at compile time, do not edit in code outside of unit tests
-	reportStatusFunc      = utils.ReportStatus
+	ExtensionName         string     // assign at compile time
+	ExtensionVersion      = "1.0.10" // should be assigned at compile time, do not edit in code
 	getVMExtensionFunc    = getVMExtension
 	customEnableFunc      = customEnable
 	setSequenceNumberFunc = seqno.SetSequenceNumber
@@ -127,15 +126,24 @@ func getExtensionAndRun(arguments []string) error {
 				ext.ExtensionLogger.Error(errorMessage)
 				ext.ExtensionEvents.LogErrorEvent("Enable Failed", errorMessage)
 			default:
+				if _, ok := enableError.(*hostgacommunicator.HostGaCommunicatorGetVMAppInfoError); ok {
+					// Preserve the last good status file if it exists and isn't already a
+					// HostGA network error
+					if statusObj, err := utils.GetStatus(ext.HandlerEnv, requestedSequenceNumber); err == nil {
+						msg := statusObj.FormattedMessage.Message
+						if !strings.HasPrefix(msg, hostgacommunicator.HostGaMetadataErrorPrefix) {
+							if err := utils.BackupStatusFile(ext.HandlerEnv.StatusFolder, requestedSequenceNumber); err != nil {
+								ext.ExtensionLogger.Warn("Failed to back up status file for sequence %d: %v", requestedSequenceNumber, err)
+							}
+						}
+					}
+				}
 				ext.ExtensionLogger.Error(enableError.Error())
 				ext.ExtensionEvents.LogErrorEvent("Enable Failed", enableError.Error())
 				// try to save status file
 				statusMessage := enableError.Error()
-				err := reportStatusFunc(ext.HandlerEnv, requestedSequenceNumber, status.StatusError, vmextensionhelper.EnableOperation.ToStatusName(), statusMessage)
+				err := reportStatusWrapper(ext, requestedSequenceNumber, status.StatusError, vmextensionhelper.EnableOperation.ToStatusName(), statusMessage)
 				if err != nil {
-					errorMessage := fmt.Sprintf("Failed to save status file: %s", err.Error())
-					ext.ExtensionLogger.Error(errorMessage)
-					ext.ExtensionEvents.LogErrorEvent("Save Status", errorMessage)
 					return err
 				}
 			}
@@ -246,37 +254,18 @@ func customEnable(ext *vmextensionhelper.VMExtension, hostgaCommunicator hostgac
 		return errors.Wrapf(err, "Could not get package registry")
 	}
 
-	// write success status if requested sequence number is newer
-	shouldReportStatus := false
+	statusUpdated, statusResult, statusMessage := computeStatus(ext, requestedSequenceNumber, &currentPackageRegistry, executeError, result, vmAppResults)
 
-	if ext.CurrentSequenceNumber == nil || requestedSequenceNumber > *ext.CurrentSequenceNumber {
-		shouldReportStatus = true
-	} else if requestedSequenceNumber == *ext.CurrentSequenceNumber {
-		statusType, err := utils.GetStatusType(ext.HandlerEnv, requestedSequenceNumber)
-		if err != nil || strings.EqualFold(string(statusType), string(status.StatusTransitioning)) {
-			// either something is wrong with the status file
-			// or its a transitioning status file
-			// overwrite it in either case
-			shouldReportStatus = true
-		}
-	}
-	if shouldReportStatus {
-		var statusResult status.StatusType
-		statusMessage := getStatusMessage(currentPackageRegistry.GetPackageCollection(), executeError, result)
-		if executeError.GetErrorIfDeploymentFailed() == nil { // treatFailureAsDeploymentFailure
-			statusResult = status.StatusSuccess
-		} else {
-			statusResult = status.StatusError
-		}
-		err := utils.ReportStatus(ext.HandlerEnv, requestedSequenceNumber, statusResult, vmextensionhelper.EnableOperation.ToStatusName(), statusMessage)
+	if statusUpdated {
+		err := reportStatusWrapper(ext, requestedSequenceNumber, statusResult, vmextensionhelper.EnableOperation.ToStatusName(), statusMessage)
 		if err != nil {
-			errorMessage := fmt.Sprintf("Failed to save status file: %s", err.Error())
-			ext.ExtensionLogger.Error(errorMessage)
-			ext.ExtensionEvents.LogErrorEvent("Save Status", errorMessage)
 			return err
 		}
+
 		// update the sequence number that has been executed
-		if err := setSequenceNumberFunc(ExtensionName, ExtensionVersion, requestedSequenceNumber); err != nil {
+		err = setSequenceNumberFunc(ExtensionName, ExtensionVersion, requestedSequenceNumber)
+		if err != nil {
+			// log but not return the error
 			errorMessage := fmt.Sprintf("Failed to update sequence number to %d: %s", requestedSequenceNumber, err.Error())
 			ext.ExtensionLogger.Error(errorMessage)
 			ext.ExtensionEvents.LogErrorEvent("Update Sequence Number", errorMessage)
@@ -286,6 +275,113 @@ func customEnable(ext *vmextensionhelper.VMExtension, hostgaCommunicator hostgac
 		ext.ExtensionLogger.Info(message)
 		ext.ExtensionEvents.LogInformationalEvent("Save Status", message)
 	}
+
+	return nil
+}
+
+func computeStatus(
+	ext *vmextensionhelper.VMExtension,
+	requestedSequenceNumber uint,
+	currentPackageRegistry *packageregistry.CurrentPackageRegistry,
+	executeError *actionplan.ExecuteError,
+	customActionResult actionplan.IResult,
+	vmAppResults *actionplan.PackageOperationResults,
+) (bool, status.StatusType, string) {
+	statusUpdated := false
+	var statusResult status.StatusType
+	var statusMessage string
+
+	if vmAppResults != nil && len(*vmAppResults) > 0 {
+		// executeError is only meaningful if there are VM App operations, otherwise
+		// it is the equivalent of no error (i.e success).
+		statusMessage = getStatusMessage(currentPackageRegistry.GetPackageCollection(), executeError, customActionResult)
+		if executeError.GetErrorIfDeploymentFailed() == nil { // treatFailureAsDeploymentFailure
+			statusResult = status.StatusSuccess
+		} else {
+			statusResult = status.StatusError
+		}
+		statusUpdated = true
+	} else {
+		// These next cases are dependent on the existing status
+		statusObj, err := utils.GetStatus(ext.HandlerEnv, requestedSequenceNumber)
+		if err != nil {
+			// Existing status file maybe corrupted or missing. The existing behavior is
+			// to write a success status.
+			statusMessage = getStatusMessage(currentPackageRegistry.GetPackageCollection(), executeError, customActionResult)
+			statusResult = status.StatusSuccess
+			statusUpdated = true
+		} else if strings.EqualFold(string(statusObj.Status), string(status.StatusTransitioning)) {
+			// If status is Transitioning and there's no VM App operations,
+			// then record a succes status.
+			statusMessage = getStatusMessage(currentPackageRegistry.GetPackageCollection(), executeError, customActionResult)
+			statusResult = status.StatusSuccess
+			statusUpdated = true
+		} else if strings.Contains(statusObj.FormattedMessage.Message, hostgacommunicator.HostGaMetadataErrorPrefix) {
+			// If there is no VM App operations, but the requested sequence's status is
+			// a transient host GA communication error, the status should be the same as
+			// its last stable status.
+			prevStatusObj, prevStatusErr := utils.GetLastStableStatus(ext.HandlerEnv, requestedSequenceNumber)
+			if prevStatusErr != nil {
+				// No last stable status save, should record as success since the hostGA issue
+				// is gone
+				statusResult = status.StatusSuccess
+				statusMessage = getStatusMessage(currentPackageRegistry.GetPackageCollection(), executeError, customActionResult)
+			} else {
+				statusResult = prevStatusObj.Status
+				statusMessage = prevStatusObj.FormattedMessage.Message
+			}
+			statusUpdated = true
+		}
+	}
+
+	return statusUpdated, statusResult, statusMessage
+}
+
+// A wrapper for utils.ReportStatus to log any errors occurring in that function
+func reportStatusWrapper(ext *vmextensionhelper.VMExtension, requestedSequenceNumber uint, statusType status.StatusType, operationName string, message string) error {
+	err := utils.ReportStatus(ext.HandlerEnv, requestedSequenceNumber, statusType, operationName, message)
+	if err != nil {
+		errorMessage := fmt.Sprintf("Failed to save status file: %s", err.Error())
+		ext.ExtensionLogger.Error(errorMessage)
+		ext.ExtensionEvents.LogErrorEvent("Save Status", errorMessage)
+	}
+	return err
+}
+
+func vmAppUninstallCallback(ext *vmextensionhelper.VMExtension) error {
+	ext.ExtensionEvents.LogInformationalEvent("Uninstalling", "VmApplications extension - removing all applications for uninstall")
+	hostGaCommunicator := hostgacommunicator.HostGaCommunicator{}
+	err := doVmAppUninstallCallback(ext, &hostGaCommunicator)
+	if err == nil {
+		ext.ExtensionEvents.LogInformationalEvent("Completed", "VmApplications extension uninstalled. Result=Success")
+	} else {
+		ext.ExtensionEvents.LogInformationalEvent(
+			"Completed",
+			fmt.Sprintf("VmApplications extension uninstall finished. Result=Failure;Reason=%v", err.Error()))
+	}
+	return err
+}
+
+func doVmAppUninstallCallback(ext *vmextensionhelper.VMExtension, hostGaCommunicator hostgacommunicator.IHostGaCommunicator) error {
+	packageRegistry, err := packageregistry.New(ext.ExtensionLogger, ext.HandlerEnv, filelockTimeoutDuration)
+	if err != nil {
+		return errors.Wrapf(err, "Could not create package registry")
+	}
+	defer packageRegistry.Close()
+
+	currentPackageRegistry, err := packageRegistry.GetExistingPackages()
+	if err != nil {
+		return errors.Wrapf(err, "Could not read current package registry")
+	}
+
+	// Create an empty incoming collection so we'll create an action plan to remove all applications
+	emptyIncomingCollection := make(packageregistry.VMAppPackageIncomingCollection, 0)
+
+	actionPlan := actionplan.New(currentPackageRegistry, emptyIncomingCollection, ext.HandlerEnv, hostGaCommunicator, ext.ExtensionLogger)
+	commandHandler := commandhandler.CommandHandler{}
+
+	// Removing applications is best effort, so even if there are errors here, we ignore them
+	_, _ = actionPlan.Execute(packageRegistry, ext.ExtensionEvents, &commandHandler)
 
 	return nil
 }

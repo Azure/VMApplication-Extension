@@ -510,101 +510,115 @@ func Test_updateDownloadDirInPackageRegistryFile_packageWithNoVersionInPath(t *t
 }
 
 func Test_vmAppUpdateCallback_endToEnd(t *testing.T) {
-	ext := createTestVMExtension(t, []extdeserialization.VmAppSetting{})
-	oldVersion := "0.0.1"
-	configSubpath := "RuntimeSettings"
+	runAndValidate := func(t *testing.T, createConfigDirBeforeUpdate bool) {
+		t.Helper()
 
-	// --- Set up config folder structure: <root>/<extensionVersion>/RuntimeSettings ---
-	configRoot := t.TempDir()
-	oldConfigDir := filepath.Join(configRoot, oldVersion, configSubpath)
-	err := os.MkdirAll(oldConfigDir, os.ModeDir)
-	require.NoError(t, err)
+		ext := createTestVMExtension(t, []extdeserialization.VmAppSetting{})
+		oldVersion := "0.0.1"
+		configSubpath := "RuntimeSettings"
 
-	currentConfigDir := filepath.Join(configRoot, ExtensionVersion, configSubpath)
-	err = os.MkdirAll(currentConfigDir, os.ModeDir)
-	require.NoError(t, err)
-	ext.HandlerEnv.ConfigFolder = currentConfigDir
-
-	// --- Set up data folder structure: <root>/<extensionVersion>/downloads/<app>/<appVersion>/ ---
-	dataRoot := t.TempDir()
-	oldDataDir := filepath.Join(dataRoot, oldVersion, "downloads")
-	appVersions := map[string]string{"appA": "1.0", "appB": "2.0"}
-	for app, ver := range appVersions {
-		appDir := filepath.Join(oldDataDir, app, ver)
-		err = os.MkdirAll(appDir, os.ModeDir)
+		// --- Set up config folder structure: <root>/<extensionVersion>/RuntimeSettings ---
+		configRoot := t.TempDir()
+		oldConfigDir := filepath.Join(configRoot, oldVersion, configSubpath)
+		err := os.MkdirAll(oldConfigDir, os.ModeDir)
 		require.NoError(t, err)
-		err = os.WriteFile(filepath.Join(appDir, "file.txt"), []byte("content-"+app), 0666)
+
+		currentConfigDir := filepath.Join(configRoot, ExtensionVersion, configSubpath)
+		if createConfigDirBeforeUpdate {
+			err = os.MkdirAll(currentConfigDir, os.ModeDir)
+			require.NoError(t, err)
+		}
+		ext.HandlerEnv.ConfigFolder = currentConfigDir
+
+		// --- Set up data folder structure: <root>/<extensionVersion>/downloads/<app>/<appVersion>/ ---
+		dataRoot := t.TempDir()
+		oldDataDir := filepath.Join(dataRoot, oldVersion, "downloads")
+		appVersions := map[string]string{"appA": "1.0", "appB": "2.0"}
+		for app, ver := range appVersions {
+			appDir := filepath.Join(oldDataDir, app, ver)
+			err = os.MkdirAll(appDir, os.ModeDir)
+			require.NoError(t, err)
+			err = os.WriteFile(filepath.Join(appDir, "file.txt"), []byte("content-"+app), 0666)
+			require.NoError(t, err)
+		}
+		currentDataDir := filepath.Join(dataRoot, ExtensionVersion, "downloads")
+		ext.HandlerEnv.DataFolder = currentDataDir
+
+		// --- Write a package registry file for the OLD version using the package registry ---
+		// Temporarily point ConfigFolder to old config dir to write the registry there
+		ext.HandlerEnv.ConfigFolder = oldConfigDir
+		oldPkr, err := packageregistry.New(ext.ExtensionLogger, ext.HandlerEnv, 1*time.Second)
 		require.NoError(t, err)
+
+		oldPackages := packageregistry.CurrentPackageRegistry{
+			"appA": &packageregistry.VMAppPackageCurrent{
+				ApplicationName: "appA",
+				Version:         "1.0",
+				DownloadDir:     filepath.ToSlash(filepath.Join(oldDataDir, "appA", "1.0")),
+			},
+			"appB": &packageregistry.VMAppPackageCurrent{
+				ApplicationName: "appB",
+				Version:         "2.0",
+				DownloadDir:     filepath.ToSlash(filepath.Join(oldDataDir, "appB", "2.0")),
+			},
+		}
+		err = oldPkr.WriteToDisk(oldPackages)
+		require.NoError(t, err)
+		err = oldPkr.Close()
+		require.NoError(t, err)
+
+		// Restore ConfigFolder to the current version
+		ext.HandlerEnv.ConfigFolder = currentConfigDir
+
+		// --- Call vmAppUpdateCallback ---
+		err = vmAppUpdateCallback(ext)
+		require.NoError(t, err)
+
+		// --- Validation 1: Package registry file was copied to current version's config folder ---
+		newRegistryPath := filepath.Join(currentConfigDir, packageregistry.LocalApplicationRegistryFileName)
+		_, err = os.Stat(newRegistryPath)
+		require.NoError(t, err, "package registry file should exist in the current version config folder")
+
+		// Old version's registry should be emptied
+		oldRegistryAfterUpdate, err := os.ReadFile(filepath.Join(oldConfigDir, packageregistry.LocalApplicationRegistryFileName))
+		require.NoError(t, err)
+		require.True(t, bytes.Equal([]byte("[]"), oldRegistryAfterUpdate),
+			"old version's package registry should be overwritten with empty list")
+
+		// --- Validation 2: Download directories were copied to current version's data folder ---
+		for app, ver := range appVersions {
+			copiedFile := filepath.Join(currentDataDir, app, ver, "file.txt")
+			_, err = os.Stat(copiedFile)
+			require.NoError(t, err, "download directory for %s should be copied to current version", app)
+		}
+
+		// --- Validation 3: DownloadDir in the registry was updated to point to current version ---
+		pkr, err := packageregistry.New(ext.ExtensionLogger, ext.HandlerEnv, 1*time.Second)
+		require.NoError(t, err)
+		defer pkr.Close()
+
+		packages, err := pkr.GetExistingPackages()
+		require.NoError(t, err)
+		require.Len(t, packages, 2)
+
+		for appName, pkg := range packages {
+			expectedDownloadDir := filepath.Join(dataRoot, ExtensionVersion, "downloads", appName, appVersions[appName])
+			require.Equal(t, expectedDownloadDir, pkg.DownloadDir,
+				"DownloadDir for %s should point to current version path", appName)
+
+			// Verify the expected files exist at the DownloadDir path
+			fileContent, err := os.ReadFile(filepath.Join(pkg.DownloadDir, "file.txt"))
+			require.NoError(t, err, "file.txt should exist in DownloadDir for %s", appName)
+			require.Equal(t, "content-"+appName, string(fileContent),
+				"file.txt content for %s should match", appName)
+		}
 	}
-	currentDataDir := filepath.Join(dataRoot, ExtensionVersion, "downloads")
-	ext.HandlerEnv.DataFolder = currentDataDir
 
-	// --- Write a package registry file for the OLD version using the package registry ---
-	// Temporarily point ConfigFolder to old config dir to write the registry there
-	ext.HandlerEnv.ConfigFolder = oldConfigDir
-	oldPkr, err := packageregistry.New(ext.ExtensionLogger, ext.HandlerEnv, 1*time.Second)
-	require.NoError(t, err)
+	t.Run("config_folder_already_exists", func(t *testing.T) {
+		runAndValidate(t, true)
+	})
 
-	oldPackages := packageregistry.CurrentPackageRegistry{
-		"appA": &packageregistry.VMAppPackageCurrent{
-			ApplicationName: "appA",
-			Version:         "1.0",
-			DownloadDir:     filepath.ToSlash(filepath.Join(oldDataDir, "appA", "1.0")),
-		},
-		"appB": &packageregistry.VMAppPackageCurrent{
-			ApplicationName: "appB",
-			Version:         "2.0",
-			DownloadDir:     filepath.ToSlash(filepath.Join(oldDataDir, "appB", "2.0")),
-		},
-	}
-	err = oldPkr.WriteToDisk(oldPackages)
-	require.NoError(t, err)
-	err = oldPkr.Close()
-	require.NoError(t, err)
-
-	// Restore ConfigFolder to the current version
-	ext.HandlerEnv.ConfigFolder = currentConfigDir
-
-	// --- Call vmAppUpdateCallback ---
-	err = vmAppUpdateCallback(ext)
-	require.NoError(t, err)
-
-	// --- Validation 1: Package registry file was copied to current version's config folder ---
-	newRegistryPath := filepath.Join(currentConfigDir, packageregistry.LocalApplicationRegistryFileName)
-	_, err = os.Stat(newRegistryPath)
-	require.NoError(t, err, "package registry file should exist in the current version config folder")
-
-	// Old version's registry should be emptied
-	oldRegistryAfterUpdate, err := os.ReadFile(filepath.Join(oldConfigDir, packageregistry.LocalApplicationRegistryFileName))
-	require.NoError(t, err)
-	require.True(t, bytes.Equal([]byte("[]"), oldRegistryAfterUpdate),
-		"old version's package registry should be overwritten with empty list")
-
-	// --- Validation 2: Download directories were copied to current version's data folder ---
-	for app, ver := range appVersions {
-		copiedFile := filepath.Join(currentDataDir, app, ver, "file.txt")
-		_, err = os.Stat(copiedFile)
-		require.NoError(t, err, "download directory for %s should be copied to current version", app)
-	}
-
-	// --- Validation 3: DownloadDir in the registry was updated to point to current version ---
-	pkr, err := packageregistry.New(ext.ExtensionLogger, ext.HandlerEnv, 1*time.Second)
-	require.NoError(t, err)
-	defer pkr.Close()
-
-	packages, err := pkr.GetExistingPackages()
-	require.NoError(t, err)
-	require.Len(t, packages, 2)
-
-	for appName, pkg := range packages {
-		expectedDownloadDir := filepath.Join(dataRoot, ExtensionVersion, "downloads", appName, appVersions[appName])
-		require.Equal(t, expectedDownloadDir, pkg.DownloadDir,
-			"DownloadDir for %s should point to current version path", appName)
-
-		// Verify the expected files exist at the DownloadDir path
-		fileContent, err := os.ReadFile(filepath.Join(pkg.DownloadDir, "file.txt"))
-		require.NoError(t, err, "file.txt should exist in DownloadDir for %s", appName)
-		require.Equal(t, "content-"+appName, string(fileContent),
-			"file.txt content for %s should match", appName)
-	}
+	t.Run("config_folder_does_not_exist", func(t *testing.T) {
+		runAndValidate(t, false)
+	})
 }
