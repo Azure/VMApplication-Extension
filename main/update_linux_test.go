@@ -323,3 +323,28 @@ func Test_getDirNameCheckerWithExtensionVersionPattern_matchesWithPublisherPrefi
 	checkerFunc := getDirNameCheckerWithExtensionVersionPattern()
 	require.True(t, checkerFunc(actualDirName))
 }
+
+func Test_canFindOlderPackageRegistryFile(t *testing.T) {
+	// test that case insensitivity works when looking for older package registry files
+	unmodifiedExtensionName := "Microsoft.CPlat.Core.Edp.VMApplicationManagerLinux"
+	ExtensionName = "Microsoft.CPlat.Core.EDP.VMApplicationManagerLinux"
+	defer func() {
+		ExtensionName = unmodifiedExtensionName
+	}()
+
+	testRoot := t.TempDir()
+	oldConfigDir := filepath.Join(testRoot, "/var/lib/waagent/Microsoft.CPlat.Core.Edp.VMApplicationManagerLinux-1.0.18/config")
+	oldPackageRegistryFilePath := filepath.Join(oldConfigDir, packageregistry.LocalApplicationRegistryFileName)
+	err := os.MkdirAll(oldConfigDir, 0o755)
+	require.NoError(t, err)
+	err = os.WriteFile(oldPackageRegistryFilePath, []byte("[]"), 0o644)
+	require.NoError(t, err)
+	head, target, tail, err := splitPathAroundVersionedDirLinux(oldConfigDir)
+	require.NoError(t, err)
+	require.Equal(t, filepath.Join(testRoot, "/var/lib/waagent"), head)
+	require.Equal(t, "Microsoft.CPlat.Core.Edp.VMApplicationManagerLinux-1.0.18", target)
+	require.Equal(t, "config", tail)
+	packageRegistryFilePath, err := getMostRecentlyUpdatedPackageRegistryFile(head, tail, getDirNameCheckerWithExtensionVersionPattern())
+	require.NoError(t, err)
+	require.Equal(t, oldPackageRegistryFilePath, packageRegistryFilePath, "should be able to find older package registry file")
+}

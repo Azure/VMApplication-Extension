@@ -118,7 +118,7 @@ func getDirNameCheckerWithKnownExtensionVersion(extensionVersion string) func(cu
 func getDirNameCheckerWithExtensionVersionPattern() func(currentDirName string) bool {
 	return func(currentDirName string) bool {
 		marker := ExtensionName + "-"
-		idx := strings.Index(currentDirName, marker)
+		idx := strings.Index(strings.ToLower(currentDirName), strings.ToLower(marker))
 		if idx >= 0 {
 			versionPart := currentDirName[idx+len(marker):]
 			return utils.IsValidVersionString(versionPart)
