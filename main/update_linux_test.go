@@ -326,7 +326,7 @@ func Test_getDirNameCheckerWithExtensionVersionPattern_matchesWithPublisherPrefi
 
 func Test_canFindOlderPackageRegistryFile(t *testing.T) {
 	// test that case insensitivity works when looking for older package registry files
-	unmodifiedExtensionName := "Microsoft.CPlat.Core.Edp.VMApplicationManagerLinux"
+	unmodifiedExtensionName := ExtensionName
 	ExtensionName = "Microsoft.CPlat.Core.EDP.VMApplicationManagerLinux"
 	defer func() {
 		ExtensionName = unmodifiedExtensionName
