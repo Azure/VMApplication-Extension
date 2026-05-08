@@ -348,3 +348,44 @@ func Test_canFindOlderPackageRegistryFile(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, oldPackageRegistryFilePath, packageRegistryFilePath, "should be able to find older package registry file")
 }
+
+func Test_vmAppUpdateCallback_backsUpDataFolder(t *testing.T) {
+	ExtensionName = "TestExtension"
+	defer func() { ExtensionName = "" }()
+
+	ext := createTestVMExtension(t, []extdeserialization.VmAppSetting{})
+
+	configRoot := t.TempDir()
+	configFolderName := "config"
+	currentConfigDir := filepath.Join(configRoot, ExtensionName+"-"+ExtensionVersion, configFolderName)
+	err := os.MkdirAll(currentConfigDir, 0755)
+	require.NoError(t, err)
+	ext.HandlerEnv.ConfigFolder = currentConfigDir
+
+	// Create older-version package registry files so update callback can complete.
+	err = createTestFilesLinux(configRoot, configFolderName, packageregistry.LocalApplicationRegistryFileName)
+	require.NoError(t, err)
+
+	dataFolder := filepath.Join(configRoot, ExtensionName+"-"+ExtensionVersion, "data")
+	ext.HandlerEnv.DataFolder = dataFolder
+
+	nestedDataFilePath := filepath.Join(dataFolder, "downloadedPackages", "appA", "payload.txt")
+	err = os.MkdirAll(filepath.Dir(nestedDataFilePath), 0755)
+	require.NoError(t, err)
+	originalContent := []byte("downloaded payload")
+	err = os.WriteFile(nestedDataFilePath, originalContent, 0644)
+	require.NoError(t, err)
+
+	err = vmAppUpdateCallback(ext)
+	require.NoError(t, err)
+
+	backupDir := getDataFolderBackupPath(ext)
+	backupDataFilePath := filepath.Join(backupDir, "downloadedPackages", "appA", "payload.txt")
+	backupContent, err := os.ReadFile(backupDataFilePath)
+	require.NoError(t, err)
+	require.True(t, bytes.Equal(originalContent, backupContent), "backup DataFolder should contain original files")
+
+	dataFolderEntries, err := os.ReadDir(dataFolder)
+	require.NoError(t, err)
+	require.Len(t, dataFolderEntries, 0, "DataFolder should be recreated as empty after backup")
+}

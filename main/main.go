@@ -25,11 +25,12 @@ import (
 )
 
 var (
-	ExtensionName         string     // assign at compile time
-	ExtensionVersion      = "1.0.10" // should be assigned at compile time, do not edit in code
-	getVMExtensionFunc    = getVMExtension
-	customEnableFunc      = customEnable
-	setSequenceNumberFunc = seqno.SetSequenceNumber
+	ExtensionName                  string     // assign at compile time
+	ExtensionVersion               = "1.0.10" // should be assigned at compile time, do not edit in code
+	getExtensionInstanceFunc       = getVMExtension
+	customEnableFunc               = customEnable
+	setSequenceNumberFunc          = seqno.SetSequenceNumber
+	buildExtensionFromInitInfoFunc = vmextensionhelper.GetVMExtension
 )
 
 const (
@@ -53,7 +54,7 @@ func getExtensionAndRun(arguments []string) error {
 	}
 
 	// require SeqNoChange is set to false because we want the extension to ensure that the packages are in sync with the desired packages
-	ext, err := getVMExtensionFunc()
+	ext, err := getExtensionInstanceFunc()
 	if err != nil {
 		return err
 	}
@@ -167,9 +168,9 @@ func getVMExtension() (*vmextensionhelper.VMExtension, error) {
 	ii.UninstallCallback = nil // no need to do any special handling on uninstall, so we can set the callback to nil
 	ii.UpdateCallback = vmAppUpdateCallback
 	ii.InstallCallback = vmAppInstallCallback
-	ii.LogFileNamePattern = "VmAppExt_%v.log"
+	ii.LogFileNamePattern = fmt.Sprintf("VmAppExt_%v.log", ExtensionVersion)
 
-	ext, err := vmextensionhelper.GetVMExtension(ii)
+	ext, err := buildExtensionFromInitInfoFunc(ii)
 	if err != nil {
 		return nil, err
 	}

@@ -371,15 +371,15 @@ func Test_main_statusIsWrittenForCriticalErrors(t *testing.T) {
 	}
 
 	requestedSequenceNumber := uint(5)
-	oldGetVMExtFunc := getVMExtensionFunc
+	oldGetVMExtFunc := getExtensionInstanceFunc
 	var ext *vmextension.VMExtension
-	getVMExtensionFunc = func() (*vmextension.VMExtension, error) {
+	getExtensionInstanceFunc = func() (*vmextension.VMExtension, error) {
 		ext = createTestVMExtension(t, vmApplications)
 		ext.GetRequestedSequenceNumber = func() (uint, error) { return requestedSequenceNumber, nil }
 		return ext, nil
 	}
 	defer func() {
-		getVMExtensionFunc = oldGetVMExtFunc
+		getExtensionInstanceFunc = oldGetVMExtFunc
 	}()
 
 	err := getExtensionAndRun([]string{"vm-application-manager", vmextension.EnableOperation.ToString()})
@@ -407,15 +407,15 @@ func Test_main_statusIsNotWrittenForFileLockErrors(t *testing.T) {
 	}
 
 	requestedSequenceNumber := uint(6)
-	oldGetVMExtFunc := getVMExtensionFunc
+	oldGetVMExtFunc := getExtensionInstanceFunc
 	var ext *vmextension.VMExtension
-	getVMExtensionFunc = func() (*vmextension.VMExtension, error) {
+	getExtensionInstanceFunc = func() (*vmextension.VMExtension, error) {
 		ext = createTestVMExtension(t, vmApplications)
 		ext.GetRequestedSequenceNumber = func() (uint, error) { return requestedSequenceNumber, nil }
 		return ext, nil
 	}
 	defer func() {
-		getVMExtensionFunc = oldGetVMExtFunc
+		getExtensionInstanceFunc = oldGetVMExtFunc
 	}()
 
 	oldCustomEnable := customEnableFunc
