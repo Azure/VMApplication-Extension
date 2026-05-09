@@ -318,6 +318,15 @@ func computeStatus(
 			statusMessage = getStatusMessage(currentPackageRegistry.GetPackageCollection(), executeError, customActionResult)
 			statusResult = status.StatusSuccess
 			statusUpdated = true
+		} else if strings.EqualFold(statusObj.Operation, vmextensionhelper.DisableOperation.ToStatusName()) {
+			// If the last operation was disable, then the enable should be treated as fresh start, and the status should be updated based on the current enable execution result.
+			statusMessage = getStatusMessage(currentPackageRegistry.GetPackageCollection(), executeError, customActionResult)
+			if executeError.GetErrorIfDeploymentFailed() == nil { // treatFailureAsDeploymentFailure
+				statusResult = status.StatusSuccess
+			} else {
+				statusResult = status.StatusError
+			}
+			statusUpdated = true
 		} else if strings.Contains(statusObj.FormattedMessage.Message, hostgacommunicator.HostGaMetadataErrorPrefix) {
 			// If there is no VM App operations, but the requested sequence's status is
 			// a transient host GA communication error, the status should be the same as
