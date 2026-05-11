@@ -169,7 +169,7 @@ func Test_linuxUpdateInstallFlow_BackupAndRestoreDataFolderAndRegistry(t *testin
 	os.Args = []string{ExtensionName, "update"}
 	currentExtension.Do()
 
-	// validatr the following after update and before install:
+	// validate the following after update and before install:
 	// 1) current registry should match old registry content from before update (i.e. registry was copied over by update callback)
 	// 2) backup DataFolder should preserve downloaded package content (i.e. DataFolder was backed up by update callback)
 	// 3) current DataFolder should be recreated as empty during update (i.e. original DataFolder was renamed to backup and a new empty DataFolder was created by platform before invoking update callback)
