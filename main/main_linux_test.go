@@ -52,12 +52,12 @@ func (m *mockEnvironmentManager) SetSequenceNumberInternal(extensionName, extens
 
 func Test_linuxUpdateInstallFlow_BackupAndRestoreDataFolderAndRegistry(t *testing.T) {
 	environment := &mockEnvironmentManager{}
-	oldGetVMExtension := buildExtensionFromInitInfoFunc
+	originalExtensionInitFunc := buildExtensionFromInitInfoFunc
 	buildExtensionFromInitInfoFunc = func(ii *vmextensionhelper.InitializationInfo) (*vmextensionhelper.VMExtension, error) {
 		return vmextensionhelper.GetVMExtensionForTesting(ii, environment)
 	}
 	defer func() {
-		buildExtensionFromInitInfoFunc = oldGetVMExtension
+		buildExtensionFromInitInfoFunc = originalExtensionInitFunc
 	}()
 
 	originalExtensionName := ExtensionName
@@ -78,16 +78,6 @@ func Test_linuxUpdateInstallFlow_BackupAndRestoreDataFolderAndRegistry(t *testin
 	require.NoError(t, err)
 	err = os.MkdirAll(oldVersionDir, 0755)
 	require.NoError(t, err)
-
-	testHandlerEnvironment := &handlerenv.HandlerEnvironment{
-		HeartbeatFile: "heartbeat",
-		StatusFolder:  "status",
-		ConfigFolder:  filepath.Join(oldVersionDir, "config"),
-		LogFolder:     filepath.Join(oldVersionDir, "log"),
-		DataFolder:    filepath.Join(oldVersionDir, "data"),
-		EventsFolder:  filepath.Join(oldVersionDir, "events"),
-	}
-
 	// Create required directories for both versions
 	for _, dir := range []string{currentVersionDir, oldVersionDir} {
 		err = os.MkdirAll(filepath.Join(dir, "status"), 0755)
@@ -100,13 +90,21 @@ func Test_linuxUpdateInstallFlow_BackupAndRestoreDataFolderAndRegistry(t *testin
 		require.NoError(t, err)
 	}
 
-	environment.handlerEnv = testHandlerEnvironment
-
+	// create old-version extension instance with old version DataFolder path
 	ExtensionVersion = oldVersion
+	environment.handlerEnv = &handlerenv.HandlerEnvironment{
+		HeartbeatFile: "heartbeat",
+		StatusFolder:  "status",
+		ConfigFolder:  filepath.Join(oldVersionDir, "config"),
+		LogFolder:     filepath.Join(oldVersionDir, "log"),
+		DataFolder:    filepath.Join(oldVersionDir, "data"),
+		EventsFolder:  filepath.Join(oldVersionDir, "events"),
+	}
 	oldExtension, err := getVMExtension()
 	require.NoError(t, err)
-	ExtensionVersion = originalExtensionVersion
 
+	// create current-version extension instance with current version DataFolder path
+	ExtensionVersion = originalExtensionVersion
 	environment.handlerEnv = &handlerenv.HandlerEnvironment{
 		HeartbeatFile: "heartbeat",
 		StatusFolder:  "status",
@@ -115,7 +113,6 @@ func Test_linuxUpdateInstallFlow_BackupAndRestoreDataFolderAndRegistry(t *testin
 		DataFolder:    filepath.Join(currentVersionDir, "data"),
 		EventsFolder:  filepath.Join(currentVersionDir, "events"),
 	}
-
 	currentExtension, err := getVMExtension()
 	require.NoError(t, err)
 
@@ -124,10 +121,6 @@ func Test_linuxUpdateInstallFlow_BackupAndRestoreDataFolderAndRegistry(t *testin
 	currentDataFolder := filepath.Join(currentVersionDir, "data")
 	oldDataFolder := filepath.Join(oldVersionDir, "data")
 
-	err = os.MkdirAll(currentConfigDir, 0755)
-	require.NoError(t, err)
-	err = os.MkdirAll(oldConfigDir, 0755)
-	require.NoError(t, err)
 	err = os.MkdirAll(currentDataFolder, 0755)
 	require.NoError(t, err)
 	err = os.MkdirAll(oldDataFolder, 0755)
