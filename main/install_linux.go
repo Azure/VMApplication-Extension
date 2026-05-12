@@ -6,7 +6,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 
 	vmextensionhelper "github.com/Azure/azure-extension-platform/vmextension"
 )
@@ -37,40 +36,12 @@ func vmAppInstallCallback(ext *vmextensionhelper.VMExtension) error {
 			return nil
 		}
 	} else {
-		// DataFolder already exists — move each entry from backupDir into DataFolder, then remove backupDir
-		entries, err := os.ReadDir(backupDir)
-		if err != nil {
-			msg := fmt.Sprintf("failed to read backup dir '%s': %v", backupDir, err)
+		// DataFolder already exists — merge backup into DataFolder while keeping existing destination entries on clash.
+		if err := moveDirsAll(backupDir, dataFolder, mvDirsPreferenceDestDir); err != nil {
+			msg := fmt.Sprintf("failed to merge backup dir '%s' into existing DataFolder '%s': %v", backupDir, dataFolder, err)
 			ext.ExtensionLogger.Error(msg)
 			ext.ExtensionEvents.LogWarningEvent("ExtensionInstall", msg)
 			return nil
-		}
-		for _, entry := range entries {
-			src := filepath.Join(backupDir, entry.Name())
-			dst := filepath.Join(dataFolder, entry.Name())
-
-			if _, dstStatErr := os.Stat(dst); dstStatErr == nil {
-				msg := fmt.Sprintf("destination already exists at '%s'; keeping existing entry and discarding backup entry '%s'", dst, src)
-				ext.ExtensionLogger.Info(msg)
-				continue
-			} else if !os.IsNotExist(dstStatErr) {
-				msg := fmt.Sprintf("failed to stat destination path '%s': %v", dst, dstStatErr)
-				ext.ExtensionLogger.Error(msg)
-				ext.ExtensionEvents.LogWarningEvent("ExtensionInstall", msg)
-				continue
-			}
-
-			if err := os.Rename(src, dst); err != nil {
-				msg := fmt.Sprintf("failed to move '%s' to '%s': %v", src, dst, err)
-				ext.ExtensionLogger.Error(msg)
-				ext.ExtensionEvents.LogWarningEvent("ExtensionInstall", msg)
-				continue
-			}
-		}
-		if err := os.RemoveAll(backupDir); err != nil {
-			msg := fmt.Sprintf("failed to remove backup dir '%s': %v", backupDir, err)
-			ext.ExtensionLogger.Error(msg)
-			ext.ExtensionEvents.LogWarningEvent("ExtensionInstall", msg)
 		}
 	}
 

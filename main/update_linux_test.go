@@ -389,3 +389,118 @@ func Test_vmAppUpdateCallback_backsUpDataFolder(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, dataFolderEntries, 0, "DataFolder should be recreated as empty after backup")
 }
+
+func Test_vmAppUpdateCallback_mergesIntoExistingBackupAndOverwritesCollisions(t *testing.T) {
+	ExtensionName = "TestExtension"
+	defer func() { ExtensionName = "" }()
+
+	ext := createTestVMExtension(t, []extdeserialization.VmAppSetting{})
+
+	configRoot := t.TempDir()
+	configFolderName := "config"
+	currentConfigDir := filepath.Join(configRoot, ExtensionName+"-"+ExtensionVersion, configFolderName)
+	err := os.MkdirAll(currentConfigDir, 0755)
+	require.NoError(t, err)
+	ext.HandlerEnv.ConfigFolder = currentConfigDir
+
+	err = createTestFilesLinux(configRoot, configFolderName, packageregistry.LocalApplicationRegistryFileName)
+	require.NoError(t, err)
+
+	dataFolder := filepath.Join(configRoot, ExtensionName+"-"+ExtensionVersion, "data")
+	ext.HandlerEnv.DataFolder = dataFolder
+	backupDir := getDataFolderBackupPath(ext)
+
+	// Existing backup has colliding files/directories and backup-only content.
+	collisionDstPath := filepath.Join(backupDir, "downloadedPackages", "appA", "payload.txt")
+	err = os.MkdirAll(filepath.Dir(collisionDstPath), 0755)
+	require.NoError(t, err)
+	err = os.WriteFile(collisionDstPath, []byte("stale backup payload"), 0644)
+	require.NoError(t, err)
+	collisionDirFileDstPath := filepath.Join(backupDir, "collisionDir", "fromBackup.txt")
+	err = os.MkdirAll(filepath.Dir(collisionDirFileDstPath), 0755)
+	require.NoError(t, err)
+	err = os.WriteFile(collisionDirFileDstPath, []byte("old dir payload"), 0644)
+	require.NoError(t, err)
+	backupOnlyPath := filepath.Join(backupDir, "backupOnly.txt")
+	err = os.WriteFile(backupOnlyPath, []byte("keep me"), 0644)
+	require.NoError(t, err)
+	backupOnlyNestedPath := filepath.Join(backupDir, "backupOnlyDir", "nested", "keep.txt")
+	err = os.MkdirAll(filepath.Dir(backupOnlyNestedPath), 0755)
+	require.NoError(t, err)
+	err = os.WriteFile(backupOnlyNestedPath, []byte("keep nested"), 0644)
+	require.NoError(t, err)
+	backupCollidingSymlinkPath := filepath.Join(backupDir, "links", "colliding-link")
+	err = os.MkdirAll(filepath.Dir(backupCollidingSymlinkPath), 0755)
+	require.NoError(t, err)
+	err = os.Symlink("backup-target", backupCollidingSymlinkPath)
+	require.NoError(t, err)
+
+	// Current DataFolder contains colliding entries and source-only (non-colliding) entries.
+	srcCollisionPath := filepath.Join(dataFolder, "downloadedPackages", "appA", "payload.txt")
+	err = os.MkdirAll(filepath.Dir(srcCollisionPath), 0755)
+	require.NoError(t, err)
+	err = os.WriteFile(srcCollisionPath, []byte("new payload"), 0644)
+	require.NoError(t, err)
+	srcCollisionDirFilePath := filepath.Join(dataFolder, "collisionDir", "fromSource.txt")
+	err = os.MkdirAll(filepath.Dir(srcCollisionDirFilePath), 0755)
+	require.NoError(t, err)
+	err = os.WriteFile(srcCollisionDirFilePath, []byte("new dir payload"), 0644)
+	require.NoError(t, err)
+	srcOnlyPath := filepath.Join(dataFolder, "sourceOnly.txt")
+	err = os.WriteFile(srcOnlyPath, []byte("new source file"), 0644)
+	require.NoError(t, err)
+	srcOnlyNestedPath := filepath.Join(dataFolder, "sourceOnlyDir", "nested", "new.txt")
+	err = os.MkdirAll(filepath.Dir(srcOnlyNestedPath), 0755)
+	require.NoError(t, err)
+	err = os.WriteFile(srcOnlyNestedPath, []byte("new nested source file"), 0644)
+	require.NoError(t, err)
+	srcCollidingSymlinkPath := filepath.Join(dataFolder, "links", "colliding-link")
+	err = os.MkdirAll(filepath.Dir(srcCollidingSymlinkPath), 0755)
+	require.NoError(t, err)
+	err = os.Symlink("source-target", srcCollidingSymlinkPath)
+	require.NoError(t, err)
+	srcOnlySymlinkPath := filepath.Join(dataFolder, "links", "source-only-link")
+	err = os.Symlink("source-only-target", srcOnlySymlinkPath)
+	require.NoError(t, err)
+
+	err = vmAppUpdateCallback(ext)
+	require.NoError(t, err)
+
+	collisionContent, err := os.ReadFile(collisionDstPath)
+	require.NoError(t, err)
+	require.True(t, bytes.Equal([]byte("new payload"), collisionContent), "colliding file in backup should be overwritten by DataFolder content")
+
+	collisionDirContent, err := os.ReadFile(filepath.Join(backupDir, "collisionDir", "fromSource.txt"))
+	require.NoError(t, err)
+	require.True(t, bytes.Equal([]byte("new dir payload"), collisionDirContent), "colliding directory in backup should be replaced by DataFolder directory")
+	_, err = os.Stat(filepath.Join(backupDir, "collisionDir", "fromBackup.txt"))
+	require.True(t, os.IsNotExist(err), "old colliding directory content should be removed")
+
+	backupOnlyContent, err := os.ReadFile(backupOnlyPath)
+	require.NoError(t, err)
+	require.True(t, bytes.Equal([]byte("keep me"), backupOnlyContent), "backup-only file should be preserved")
+
+	sourceOnlyInBackup, err := os.ReadFile(filepath.Join(backupDir, "sourceOnly.txt"))
+	require.NoError(t, err)
+	require.True(t, bytes.Equal([]byte("new source file"), sourceOnlyInBackup), "source-only file should be copied into existing backup")
+
+	sourceOnlyNestedInBackup, err := os.ReadFile(filepath.Join(backupDir, "sourceOnlyDir", "nested", "new.txt"))
+	require.NoError(t, err)
+	require.True(t, bytes.Equal([]byte("new nested source file"), sourceOnlyNestedInBackup), "source-only nested file should be copied into existing backup")
+
+	backupOnlyNestedContent, err := os.ReadFile(backupOnlyNestedPath)
+	require.NoError(t, err)
+	require.True(t, bytes.Equal([]byte("keep nested"), backupOnlyNestedContent), "backup-only nested content should be preserved")
+
+	collidingSymlinkTarget, err := os.Readlink(filepath.Join(backupDir, "links", "colliding-link"))
+	require.NoError(t, err)
+	require.Equal(t, "source-target", collidingSymlinkTarget, "colliding symlink should be overwritten by source symlink")
+
+	sourceOnlySymlinkTarget, err := os.Readlink(filepath.Join(backupDir, "links", "source-only-link"))
+	require.NoError(t, err)
+	require.Equal(t, "source-only-target", sourceOnlySymlinkTarget, "source-only symlink should be copied into backup")
+
+	entries, err := os.ReadDir(dataFolder)
+	require.NoError(t, err)
+	require.Len(t, entries, 0, "DataFolder should be recreated as empty after merge to backup")
+}

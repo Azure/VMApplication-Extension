@@ -84,11 +84,23 @@ func vmAppUpdateCallback(ext *vmextensionhelper.VMExtension) error {
 	if _, statErr := os.Stat(dataFolder); !os.IsNotExist(statErr) {
 		backupDir := getDataFolderBackupPath(ext)
 		if err = os.Rename(dataFolder, backupDir); err != nil {
-			return fmt.Errorf("failed to rename DataFolder '%s' to '%s': %w", dataFolder, backupDir, err)
+			backupInfo, backupStatErr := os.Stat(backupDir)
+			if backupStatErr != nil || !backupInfo.IsDir() {
+				return fmt.Errorf("failed to rename DataFolder '%s' to '%s': %w", dataFolder, backupDir, err)
+			}
+
+			if mergeErr := moveDirsAll(dataFolder, backupDir, mvDirsPreferenceSrcDir); mergeErr != nil {
+				return fmt.Errorf("failed to merge DataFolder '%s' into existing backup '%s': %w", dataFolder, backupDir, mergeErr)
+			}
+
+			msg := fmt.Sprintf("merged DataFolder '%s' into existing backup '%s' with overwrite semantics", dataFolder, backupDir)
+			ext.ExtensionLogger.Info(msg)
+			ext.ExtensionEvents.LogInformationalEvent("ExtensionUpdate", msg)
+		} else {
+			msg := fmt.Sprintf("renamed DataFolder '%s' to '%s'", dataFolder, backupDir)
+			ext.ExtensionLogger.Info(msg)
+			ext.ExtensionEvents.LogInformationalEvent("ExtensionUpdate", msg)
 		}
-		msg := fmt.Sprintf("renamed DataFolder '%s' to '%s'", dataFolder, backupDir)
-		ext.ExtensionLogger.Info(msg)
-		ext.ExtensionEvents.LogInformationalEvent("ExtensionUpdate", msg)
 	}
 
 	if err = os.MkdirAll(dataFolder, 0755); err != nil {
