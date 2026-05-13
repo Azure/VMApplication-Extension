@@ -25,24 +25,35 @@ func vmAppInstallCallback(ext *vmextensionhelper.VMExtension) error {
 		ext.ExtensionLogger.Info(msg)
 		ext.ExtensionEvents.LogInformationalEvent("ExtensionInstall", msg)
 		return nil
+	} else if statErr != nil {
+		msg := fmt.Sprintf("failed to stat DataFolder backup path '%s': %v", backupDir, statErr)
+		ext.ExtensionLogger.Error(msg)
+		ext.ExtensionEvents.LogWarningEvent("ExtensionInstall", msg)
+		return nil
 	}
 
-	if _, statErr := os.Stat(dataFolder); os.IsNotExist(statErr) {
-		// DataFolder doesn't exist — simple rename
-		if err := os.Rename(backupDir, dataFolder); err != nil {
-			msg := fmt.Sprintf("failed to restore DataFolder backup from '%s' to '%s': %v", backupDir, dataFolder, err)
+	dataFolderInfo, statErr := os.Stat(dataFolder)
+	if statErr != nil && !os.IsNotExist(statErr) {
+		msg := fmt.Sprintf("failed to stat DataFolder path '%s': %v", dataFolder, statErr)
+		ext.ExtensionLogger.Error(msg)
+		ext.ExtensionEvents.LogWarningEvent("ExtensionInstall", msg)
+		return nil
+	}
+
+	if statErr == nil && !dataFolderInfo.IsDir() {
+		if err := os.RemoveAll(dataFolder); err != nil {
+			msg := fmt.Sprintf("failed to remove non-directory DataFolder path '%s': %v", dataFolder, err)
 			ext.ExtensionLogger.Error(msg)
 			ext.ExtensionEvents.LogWarningEvent("ExtensionInstall", msg)
 			return nil
 		}
-	} else {
-		// DataFolder already exists — merge backup into DataFolder while keeping existing destination entries on clash.
-		if err := moveDirsAll(backupDir, dataFolder, mvDirsPreferenceDestDir); err != nil {
-			msg := fmt.Sprintf("failed to merge backup dir '%s' into existing DataFolder '%s': %v", backupDir, dataFolder, err)
-			ext.ExtensionLogger.Error(msg)
-			ext.ExtensionEvents.LogWarningEvent("ExtensionInstall", msg)
-			return nil
-		}
+	}
+
+	if err := moveDirsAll(backupDir, dataFolder, mvDirsPreferenceDestDir); err != nil {
+		msg := fmt.Sprintf("failed to restore backup dir '%s' into DataFolder '%s' with destdir preference: %v", backupDir, dataFolder, err)
+		ext.ExtensionLogger.Error(msg)
+		ext.ExtensionEvents.LogWarningEvent("ExtensionInstall", msg)
+		return nil
 	}
 
 	msg := fmt.Sprintf("restored dataFolder backup from '%s' to '%s'", backupDir, dataFolder)

@@ -81,26 +81,17 @@ func vmAppUpdateCallback(ext *vmextensionhelper.VMExtension) error {
 	// The backed up DataFolder will be retrieved in the Install callback if a backup exists; it's a renaming operation so no file copy needs to happen.
 	// This is to ensure that we don't lose any data in the update process.
 	dataFolder := ext.HandlerEnv.DataFolder
-	if _, statErr := os.Stat(dataFolder); !os.IsNotExist(statErr) {
+	if _, statErr := os.Stat(dataFolder); statErr == nil {
 		backupDir := getDataFolderBackupPath(ext)
-		if err = os.Rename(dataFolder, backupDir); err != nil {
-			backupInfo, backupStatErr := os.Stat(backupDir)
-			if backupStatErr != nil || !backupInfo.IsDir() {
-				return fmt.Errorf("failed to rename DataFolder '%s' to '%s': %w", dataFolder, backupDir, err)
-			}
-
-			if mergeErr := moveDirsAll(dataFolder, backupDir, mvDirsPreferenceSrcDir); mergeErr != nil {
-				return fmt.Errorf("failed to merge DataFolder '%s' into existing backup '%s': %w", dataFolder, backupDir, mergeErr)
-			}
-
-			msg := fmt.Sprintf("merged DataFolder '%s' into existing backup '%s' with overwrite semantics", dataFolder, backupDir)
-			ext.ExtensionLogger.Info(msg)
-			ext.ExtensionEvents.LogInformationalEvent("ExtensionUpdate", msg)
-		} else {
-			msg := fmt.Sprintf("renamed DataFolder '%s' to '%s'", dataFolder, backupDir)
-			ext.ExtensionLogger.Info(msg)
-			ext.ExtensionEvents.LogInformationalEvent("ExtensionUpdate", msg)
+		if err = moveDirsAll(dataFolder, backupDir, mvDirsPreferenceSrcDir); err != nil {
+			return fmt.Errorf("failed to move DataFolder '%s' to backup '%s' with srcdir preference: %w", dataFolder, backupDir, err)
 		}
+
+		msg := fmt.Sprintf("moved DataFolder '%s' to backup '%s' with srcdir preference", dataFolder, backupDir)
+		ext.ExtensionLogger.Info(msg)
+		ext.ExtensionEvents.LogInformationalEvent("ExtensionUpdate", msg)
+	} else if !os.IsNotExist(statErr) {
+		return fmt.Errorf("failed to stat DataFolder '%s': %w", dataFolder, statErr)
 	}
 
 	if err = os.MkdirAll(dataFolder, 0755); err != nil {

@@ -5,7 +5,6 @@ package main
 
 import (
 	"fmt"
-	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -21,161 +20,119 @@ const (
 // moveDirsAll moves all immediate entries from srcDir into dstDir.
 // On name clashes, srcdir preference replaces destination entries, while
 // destdir preference keeps destination entries and skips source entries.
-// Each entry is moved with os.Rename first, then falls back to copy+remove
-// when rename cannot be used (for example, cross-device boundaries).
+// Each entry is moved with os.Rename.
 // removes source directory after moving all entries, if not error is encountered, regardless of preference.
 func moveDirsAll(srcDir, dstDir string, preference mvDirsPreference) error {
 	if preference != mvDirsPreferenceSrcDir && preference != mvDirsPreferenceDestDir {
 		return fmt.Errorf("unsupported moveDirsAll preference '%s'", preference)
 	}
 
-	entries, err := os.ReadDir(srcDir)
+	dstInfo, err := os.Lstat(dstDir)
 	if err != nil {
-		return err
-	}
-
-	if err := os.MkdirAll(dstDir, 0o755); err != nil {
-		return err
-	}
-
-	for _, entry := range entries {
-		srcPath := filepath.Join(srcDir, entry.Name())
-		dstPath := filepath.Join(dstDir, entry.Name())
-		if err := movePathWithPreference(srcPath, dstPath, preference); err != nil {
-			return err
+		if os.IsNotExist(err) {
+			return renameWithParent(srcDir, dstDir)
 		}
-	}
-
-	return os.RemoveAll(srcDir)
-}
-
-func movePathWithPreference(srcPath, dstPath string, preference mvDirsPreference) error {
-	_, err := os.Lstat(dstPath)
-	destinationExists := err == nil
-	if err != nil && !os.IsNotExist(err) {
 		return err
 	}
 
-	if destinationExists {
+	if !dstInfo.IsDir() {
 		if preference == mvDirsPreferenceDestDir {
-			return nil
+			return os.RemoveAll(srcDir)
 		}
 
-		if err := os.RemoveAll(dstPath); err != nil {
+		if err := os.RemoveAll(dstDir); err != nil {
 			return err
 		}
+
+		return renameWithParent(srcDir, dstDir)
 	}
 
-	if err := os.Rename(srcPath, dstPath); err == nil {
-		return nil
-	}
-
-	info, err := os.Lstat(srcPath)
-	if err != nil {
-		return err
-	}
-
-	if info.Mode()&os.ModeSymlink != 0 {
-		target, err := os.Readlink(srcPath)
-		if err != nil {
-			return err
-		}
-		if err := os.MkdirAll(filepath.Dir(dstPath), 0o755); err != nil {
-			return err
-		}
-		if err := os.Symlink(target, dstPath); err != nil {
-			return err
-		}
-		return os.RemoveAll(srcPath)
-	}
-
-	if info.IsDir() {
-		if err := copyDirOverwrite(srcPath, dstPath); err != nil {
-			return err
-		}
-		return os.RemoveAll(srcPath)
-	}
-
-	if err := copyFileOverwrite(srcPath, dstPath, info.Mode().Perm()); err != nil {
-		return err
-	}
-
-	return os.RemoveAll(srcPath)
+	return mergeDirWithPreferenceWalk(srcDir, dstDir, preference)
 }
 
-// copyDirOverwrite copies src into dst recursively and overwrites collisions.
-// Existing files are replaced; existing directories are reused.
-func copyDirOverwrite(srcDir, dstDir string) error {
-	srcDir = filepath.Clean(srcDir)
-	dstDir = filepath.Clean(dstDir)
-
-	return filepath.WalkDir(srcDir, func(srcPath string, d fs.DirEntry, walkErr error) error {
+func mergeDirWithPreferenceWalk(srcDir, dstDir string, preference mvDirsPreference) error {
+	if err := filepath.WalkDir(srcDir, func(srcPath string, sourcePathInfo fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
 
+		// Build the destination path by applying the current relative source path to dstDir.
 		rel, err := filepath.Rel(srcDir, srcPath)
 		if err != nil {
 			return err
 		}
 		if rel == "." {
-			return os.MkdirAll(dstDir, 0o755)
+			return nil
 		}
-
 		dstPath := filepath.Join(dstDir, rel)
-		info, err := d.Info()
-		if err != nil {
-			return err
-		}
 
-		// Handle symlinks explicitly.
-		if info.Mode()&os.ModeSymlink != 0 {
-			target, err := os.Readlink(srcPath)
+		if sourcePathInfo.IsDir() {
+			dstInfo, err := os.Lstat(dstPath)
 			if err != nil {
+				if os.IsNotExist(err) {
+					// Destination entry does not exist; move the source directory to destination.
+					if err := renameWithParent(srcPath, dstPath); err != nil {
+						return err
+					}
+					// The full source directory was moved, so skip walking the old subtree.
+					return fs.SkipDir
+				}
 				return err
 			}
-			_ = os.RemoveAll(dstPath)
-			return os.Symlink(target, dstPath)
-		}
 
-		if d.IsDir() {
-			// If a non-dir exists at dstPath, remove it so dir can be created.
-			if dstInfo, err := os.Lstat(dstPath); err == nil && !dstInfo.IsDir() {
-				if err := os.RemoveAll(dstPath); err != nil {
-					return err
-				}
+			if dstInfo.IsDir() {
+				// Both are directories; continue walking to merge contents.
+				return nil
 			}
-			return os.MkdirAll(dstPath, info.Mode().Perm())
+
+			// Destination is not a directory while source is a directory; resolve by preference.
+			if preference == mvDirsPreferenceDestDir {
+				// Keep destination entry; skip source directory and all its children.
+				return fs.SkipDir
+			}
+
+			// Source wins: remove destination entry, move full source directory, then skip old subtree.
+			if err := os.RemoveAll(dstPath); err != nil {
+				return err
+			}
+			if err := renameWithParent(srcPath, dstPath); err != nil {
+				return err
+			}
+			return fs.SkipDir
 		}
 
-		return copyFileOverwrite(srcPath, dstPath, info.Mode().Perm())
-	})
-}
-
-func copyFileOverwrite(srcPath, dstPath string, mode os.FileMode) error {
-	// If a directory exists where file should go, remove it first.
-	if dstInfo, err := os.Lstat(dstPath); err == nil && dstInfo.IsDir() {
-		if err := os.RemoveAll(dstPath); err != nil {
+		// Source is not a directory. If destination exists, resolve by preference.
+		_, err = os.Lstat(dstPath)
+		if err == nil {
+			if preference == mvDirsPreferenceDestDir {
+				// Keep destination entry; skip source entry.
+				return nil
+			}
+			// Source wins: remove destination entry, then move source entry.
+			if err := os.RemoveAll(dstPath); err != nil {
+				return err
+			}
+		} else if !os.IsNotExist(err) {
 			return err
 		}
+
+		// Move source entry to destination.
+		return renameWithParent(srcPath, dstPath)
+	}); err != nil {
+		return err
 	}
 
+	return os.RemoveAll(srcDir)
+}
+
+func renameWithParent(srcPath, dstPath string) error {
 	if err := os.MkdirAll(filepath.Dir(dstPath), 0o755); err != nil {
 		return err
 	}
 
-	src, err := os.Open(srcPath)
-	if err != nil {
-		return err
+	if err := os.Rename(srcPath, dstPath); err != nil {
+		return fmt.Errorf("failed to rename '%s' to '%s': %w", srcPath, dstPath, err)
 	}
-	defer src.Close()
 
-	dst, err := os.OpenFile(dstPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode)
-	if err != nil {
-		return err
-	}
-	defer dst.Close()
-
-	_, err = io.Copy(dst, src)
-	return err
+	return nil
 }

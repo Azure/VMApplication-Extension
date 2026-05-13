@@ -472,9 +472,11 @@ func Test_vmAppUpdateCallback_mergesIntoExistingBackupAndOverwritesCollisions(t 
 
 	collisionDirContent, err := os.ReadFile(filepath.Join(backupDir, "collisionDir", "fromSource.txt"))
 	require.NoError(t, err)
-	require.True(t, bytes.Equal([]byte("new dir payload"), collisionDirContent), "colliding directory in backup should be replaced by DataFolder directory")
-	_, err = os.Stat(filepath.Join(backupDir, "collisionDir", "fromBackup.txt"))
-	require.True(t, os.IsNotExist(err), "old colliding directory content should be removed")
+	require.True(t, bytes.Equal([]byte("new dir payload"), collisionDirContent), "colliding directory should include source file content after merge")
+
+	dirDestinationOnlyContent, err := os.ReadFile(filepath.Join(backupDir, "collisionDir", "fromBackup.txt"))
+	require.NoError(t, err)
+	require.True(t, bytes.Equal([]byte("old dir payload"), dirDestinationOnlyContent), "destination-only file in colliding directory should be preserved")
 
 	backupOnlyContent, err := os.ReadFile(backupOnlyPath)
 	require.NoError(t, err)
