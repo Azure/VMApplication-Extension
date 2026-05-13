@@ -77,7 +77,35 @@ func vmAppUpdateCallback(ext *vmextensionhelper.VMExtension) error {
 		ext.ExtensionEvents.LogInformationalEvent("ExtensionUpdate", msg)
 	}
 
+	// Rename the DataFolder with an extension .backup so that its contents are preserved and create an empty DataFolder.
+	// The backed up DataFolder will be retrieved in the Install callback if a backup exists; it's a renaming operation so no file copy needs to happen.
+	// This is to ensure that we don't lose any data in the update process.
+	dataFolder := ext.HandlerEnv.DataFolder
+	if _, statErr := os.Stat(dataFolder); statErr == nil {
+		backupDir := getDataFolderBackupPath(ext)
+		if err = moveDirsAll(dataFolder, backupDir, mvDirsPreferenceSrcDir); err != nil {
+			return fmt.Errorf("failed to move DataFolder '%s' to backup '%s' with srcdir preference: %w", dataFolder, backupDir, err)
+		}
+
+		msg := fmt.Sprintf("moved DataFolder '%s' to backup '%s' with srcdir preference", dataFolder, backupDir)
+		ext.ExtensionLogger.Info(msg)
+		ext.ExtensionEvents.LogInformationalEvent("ExtensionUpdate", msg)
+	} else if !os.IsNotExist(statErr) {
+		return fmt.Errorf("failed to stat DataFolder '%s': %w", dataFolder, statErr)
+	}
+
+	if err = os.MkdirAll(dataFolder, 0755); err != nil {
+		return fmt.Errorf("failed to create new empty DataFolder '%s': %w", dataFolder, err)
+	}
+	msg = fmt.Sprintf("created new empty DataFolder '%s'", dataFolder)
+	ext.ExtensionLogger.Info(msg)
+	ext.ExtensionEvents.LogInformationalEvent("ExtensionUpdate", msg)
+
 	return nil
+}
+
+func getDataFolderBackupPath(ext *vmextensionhelper.VMExtension) string {
+	return ext.HandlerEnv.DataFolder + ".backup"
 }
 
 // splitPathAroundVersionedDirLinux splits dirpath into (head, versionedDirName, tail) by walking up to find an ancestor

@@ -371,15 +371,15 @@ func Test_main_statusIsWrittenForCriticalErrors(t *testing.T) {
 	}
 
 	requestedSequenceNumber := uint(5)
-	oldGetVMExtFunc := getVMExtensionFunc
+	oldGetVMExtFunc := getExtensionInstanceFunc
 	var ext *vmextension.VMExtension
-	getVMExtensionFunc = func() (*vmextension.VMExtension, error) {
+	getExtensionInstanceFunc = func() (*vmextension.VMExtension, error) {
 		ext = createTestVMExtension(t, vmApplications)
 		ext.GetRequestedSequenceNumber = func() (uint, error) { return requestedSequenceNumber, nil }
 		return ext, nil
 	}
 	defer func() {
-		getVMExtensionFunc = oldGetVMExtFunc
+		getExtensionInstanceFunc = oldGetVMExtFunc
 	}()
 
 	err := getExtensionAndRun([]string{"vm-application-manager", vmextension.EnableOperation.ToString()})
@@ -407,15 +407,15 @@ func Test_main_statusIsNotWrittenForFileLockErrors(t *testing.T) {
 	}
 
 	requestedSequenceNumber := uint(6)
-	oldGetVMExtFunc := getVMExtensionFunc
+	oldGetVMExtFunc := getExtensionInstanceFunc
 	var ext *vmextension.VMExtension
-	getVMExtensionFunc = func() (*vmextension.VMExtension, error) {
+	getExtensionInstanceFunc = func() (*vmextension.VMExtension, error) {
 		ext = createTestVMExtension(t, vmApplications)
 		ext.GetRequestedSequenceNumber = func() (uint, error) { return requestedSequenceNumber, nil }
 		return ext, nil
 	}
 	defer func() {
-		getVMExtensionFunc = oldGetVMExtFunc
+		getExtensionInstanceFunc = oldGetVMExtFunc
 	}()
 
 	oldCustomEnable := customEnableFunc
@@ -743,4 +743,102 @@ func Test_computeStatus_StatusTransitioning_FirstEnable(t *testing.T) {
 
 	assert.True(t, updated)
 	assert.Equal(t, status.StatusSuccess, statusType)
+}
+
+func Test_computeStatus_NoVMAppResults_LastOperationDisable_UsesCurrentExecutionResult(t *testing.T) {
+	setupTest(t)
+	ext := createTestVMExtension(t, nil)
+
+	err := utils.ReportStatus(ext.HandlerEnv, 1, status.StatusError, vmextension.DisableOperation.ToStatusName(), "disable completed")
+	require.NoError(t, err)
+
+	executeError := &actionplan.ExecuteError{}
+	currentPkgReg := packageregistry.CurrentPackageRegistry{}
+	emptyResults := actionplan.PackageOperationResults{}
+
+	updated, statusType, _ := computeStatus(ext, 1, &currentPkgReg, executeError, &emptyResults, nil)
+
+	assert.True(t, updated)
+	assert.Equal(t, status.StatusSuccess, statusType)
+}
+
+type failingCommandHandler struct{}
+
+func (f *failingCommandHandler) Execute(command string, workingDir, logDir string, waitForCompletion bool, el logging.ILogger) (int, error) {
+	return 1, errors.New("forced command failure")
+}
+
+type mockInMemoryPackageRegistry struct {
+	registry packageregistry.CurrentPackageRegistry
+}
+
+func (r *mockInMemoryPackageRegistry) GetExistingPackages() (packageregistry.CurrentPackageRegistry, error) {
+	if r.registry == nil {
+		r.registry = packageregistry.CurrentPackageRegistry{}
+	}
+	return r.registry, nil
+}
+
+func (r *mockInMemoryPackageRegistry) WriteToDisk(packageRegistry packageregistry.CurrentPackageRegistry) error {
+	r.registry = packageRegistry
+	return nil
+}
+
+func (r *mockInMemoryPackageRegistry) Close() error {
+	return nil
+}
+
+func Test_computeStatus_NoVMAppResults_LastOperationDisable_DeploymentFailure_StatusError(t *testing.T) {
+	setupTest(t)
+	ext := createTestVMExtension(t, nil)
+
+	err := utils.ReportStatus(ext.HandlerEnv, 1, status.StatusError, vmextension.DisableOperation.ToStatusName(), "disable completed")
+	require.NoError(t, err)
+
+	order := 1
+	incoming := packageregistry.VMAppPackageIncomingCollection{
+		&packageregistry.VMAppPackageIncoming{
+			ApplicationName:                 "app1",
+			Version:                         "1.0.0",
+			InstallCommand:                  "fail-cmd",
+			TreatFailureAsDeploymentFailure: true,
+			Order:                           &order,
+		},
+	}
+
+	actionPlan := actionplan.New(packageregistry.CurrentPackageRegistry{}, incoming, ext.HandlerEnv, noopHostGaCommunicator, ext.ExtensionLogger)
+	registry := &mockInMemoryPackageRegistry{registry: packageregistry.CurrentPackageRegistry{}}
+	command := &failingCommandHandler{}
+	executeError, _ := actionPlan.Execute(registry, ext.ExtensionEvents, command)
+
+	emptyResults := actionplan.PackageOperationResults{}
+	updated, statusType, _ := computeStatus(ext, 1, &registry.registry, executeError, &emptyResults, nil)
+
+	assert.True(t, updated)
+	assert.Equal(t, status.StatusError, statusType)
+}
+
+func Test_computeStatus_NoVMAppResults_LastOperationDisable_TakesPrecedenceOverHostGAFallback(t *testing.T) {
+	setupTest(t)
+	ext := createTestVMExtension(t, nil)
+
+	err := utils.ReportStatus(ext.HandlerEnv, 1, status.StatusSuccess, vmextension.EnableOperation.ToStatusName(), "last good message")
+	require.NoError(t, err)
+	err = utils.BackupStatusFile(ext.HandlerEnv.StatusFolder, 1)
+	require.NoError(t, err)
+
+	// Disable is the last operation and message also contains HostGA prefix.
+	// computeStatus should follow the Disable branch, not restore last stable status.
+	err = utils.ReportStatus(ext.HandlerEnv, 1, status.StatusError, vmextension.DisableOperation.ToStatusName(), hostgacommunicator.HostGaMetadataErrorPrefix+" transient")
+	require.NoError(t, err)
+
+	executeError := &actionplan.ExecuteError{}
+	currentPkgReg := packageregistry.CurrentPackageRegistry{}
+	emptyResults := actionplan.PackageOperationResults{}
+
+	updated, statusType, msg := computeStatus(ext, 1, &currentPkgReg, executeError, &emptyResults, nil)
+
+	assert.True(t, updated)
+	assert.Equal(t, status.StatusSuccess, statusType)
+	assert.NotContains(t, msg, "last good message")
 }
