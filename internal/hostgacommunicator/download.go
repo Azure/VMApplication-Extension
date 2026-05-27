@@ -21,9 +21,8 @@ const (
 	configOperation  = "config"
 	packageOperation = "package"
 
-	rangeHeaderName        = "x-ms-range"
-	contentRangeHeaderName = "Content-Range"
-	rangeHeaderFormat      = "bytes=%d-"
+	rangeHeaderName   = "x-ms-range"
+	rangeHeaderFormat = "bytes=%d-"
 
 	maxDownloadAttempts = 10
 )
@@ -140,6 +139,11 @@ func (u downloadRequestFactory) downloadAttempt(el *logging.ExtensionLogger, fil
 	// the entire file in memory
 	_, err = io.Copy(f, body)
 	if err != nil {
+		if errors.Is(err, io.ErrUnexpectedEOF) {
+			// This error can occur when the connection is interrupted during the download. Since we support resuming downloads, we can ignore this error and attempt to resume the download in the next attempt.
+			el.Info("Download was interrupted, but this is expected to be recoverable. Will attempt to resume download.")
+			return false, nil
+		}
 		return true, errors.Wrapf(err, "Could not copy response data to file")
 	}
 
