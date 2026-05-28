@@ -319,6 +319,9 @@ func TestDownloadPackage_MultipleCallDownload(t *testing.T) {
 	verifyFileContents(t, filePath, expected)
 }
 
+// TestDownloadPackage_UnexpectedEOFIsRecoverable verifies that a truncated response body
+// (surfacing as io.ErrUnexpectedEOF during io.Copy) is treated as recoverable and the
+// next attempt completes the download successfully.
 func TestDownloadPackage_UnexpectedEOFIsRecoverable(t *testing.T) {
 	expected := "This download should succeed after recovering from an unexpected EOF."
 	firstChunk := expected[:20]
@@ -333,6 +336,9 @@ func TestDownloadPackage_UnexpectedEOFIsRecoverable(t *testing.T) {
 		callCount++
 
 		if callCount == 1 {
+			// Hijack the connection so we can write a deliberately truncated HTTP response.
+			// We advertise a larger Content-Length than bytes actually sent, then close.
+			// The client should surface io.ErrUnexpectedEOF while copying the body.
 			hj, ok := w.(http.Hijacker)
 			require.True(t, ok, "response writer does not support hijacking")
 
@@ -352,6 +358,8 @@ func TestDownloadPackage_UnexpectedEOFIsRecoverable(t *testing.T) {
 			return
 		}
 
+		// Second request is a normal successful response with the remaining bytes.
+		// The test verifies the download logic treats the first failure as recoverable.
 		w.WriteHeader(http.StatusOK)
 		_, err := w.Write([]byte(secondChunk))
 		require.NoError(t, err)
