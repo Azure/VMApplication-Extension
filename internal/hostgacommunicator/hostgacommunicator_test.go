@@ -319,6 +319,61 @@ func TestDownloadPackage_MultipleCallDownload(t *testing.T) {
 	verifyFileContents(t, filePath, expected)
 }
 
+// TestDownloadPackage_UnexpectedEOFIsRecoverable verifies that a truncated response body
+// (surfacing as io.ErrUnexpectedEOF during io.Copy) is treated as recoverable and the
+// next attempt completes the download successfully.
+func TestDownloadPackage_UnexpectedEOFIsRecoverable(t *testing.T) {
+	expected := "This download should succeed after recovering from an unexpected EOF."
+	firstChunk := expected[:20]
+	secondChunk := expected[20:]
+
+	createTestDir(t)
+	defer cleanupTestDir()
+	filePath := path.Join(testDirPath, "UnexpectedEOFRecoverableFile")
+
+	callCount := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+
+		if callCount == 1 {
+			// Hijack the connection so we can write a deliberately truncated HTTP response.
+			// We advertise a larger Content-Length than bytes actually sent, then close.
+			// The client should surface io.ErrUnexpectedEOF while copying the body.
+			hj, ok := w.(http.Hijacker)
+			require.True(t, ok, "response writer does not support hijacking")
+
+			conn, rw, err := hj.Hijack()
+			require.NoError(t, err, "failed to hijack HTTP connection")
+			defer conn.Close()
+
+			_, err = rw.WriteString("HTTP/1.1 200 OK\r\n")
+			require.NoError(t, err)
+			_, err = rw.WriteString(fmt.Sprintf("Content-Length: %d\r\n", len(expected)))
+			require.NoError(t, err)
+			_, err = rw.WriteString("Content-Type: application/octet-stream\r\n\r\n")
+			require.NoError(t, err)
+			_, err = rw.WriteString(firstChunk)
+			require.NoError(t, err)
+			require.NoError(t, rw.Flush())
+			return
+		}
+
+		// Second request is a normal successful response with the remaining bytes.
+		// The test verifies the download logic treats the first failure as recoverable.
+		w.WriteHeader(http.StatusOK)
+		_, err := w.Write([]byte(secondChunk))
+		require.NoError(t, err)
+	}))
+	defer srv.Close()
+
+	os.Setenv(WireProtocolAddress, srv.URL)
+	hgc := &HostGaCommunicator{}
+	err := hgc.DownloadPackage(nopLog(), myAppName, filePath)
+	require.NoError(t, err, "Download should recover from io.ErrUnexpectedEOF and succeed")
+	require.Equal(t, 2, callCount, "Expected one retry after interrupted download")
+	verifyFileContents(t, filePath, expected)
+}
+
 func TestDownloadConfig_InvalidUri(t *testing.T) {
 	os.Setenv(WireProtocolAddress, "htt!p:notgoingtohappen!")
 	hgc := &HostGaCommunicator{}
