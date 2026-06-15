@@ -168,7 +168,7 @@ func getVMExtension() (*vmextensionhelper.VMExtension, error) {
 	ii.UninstallCallback = nil // no need to do any special handling on uninstall, so we can set the callback to nil
 	ii.UpdateCallback = vmAppUpdateCallback
 	ii.InstallCallback = vmAppInstallCallback
-	ii.LogFileNamePattern = fmt.Sprintf("VmAppExt_%v.log", ExtensionVersion)
+	ii.LogFileNamePattern = fmt.Sprintf("VmAppExt_%v_%%v.log", ExtensionVersion)
 
 	ext, err := buildExtensionFromInitInfoFunc(ii)
 	if err != nil {
