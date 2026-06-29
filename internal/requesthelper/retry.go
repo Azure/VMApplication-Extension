@@ -93,7 +93,7 @@ func retryRequest(
 						break
 					}
 				} else {
-					el.Info("%sNo response returned and unexpected error, skipping retries", infoPrefix)
+					el.Info("%sNo response returned and unexpected error, skipping retries: %v", infoPrefix, lastErr)
 					break
 				}
 			}
