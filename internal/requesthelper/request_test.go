@@ -6,6 +6,7 @@ package requesthelper_test
 import (
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -72,6 +73,20 @@ func (u *testUrlRequest) GetRequest() (*http.Request, error) {
 func (e *errorDownloader) GetRequest() (*http.Request, error) {
 	e.calls++
 	return nil, e.err
+}
+
+type eofDownloader struct{ calls int }
+
+func (e *eofDownloader) GetRequest() (*http.Request, error) {
+	e.calls++
+	return nil, io.EOF
+}
+
+type unexpectedEOFDownloader struct{ calls int }
+
+func (e *unexpectedEOFDownloader) GetRequest() (*http.Request, error) {
+	e.calls++
+	return nil, io.ErrUnexpectedEOF
 }
 
 func TestMakeRequest_wrapsGetRequestError(t *testing.T) {
