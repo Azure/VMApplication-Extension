@@ -272,7 +272,12 @@ func TestOperations_TruncatedTransportResponse_RetriedByRequestHelper(t *testing
 			_, ok := opErr.(*HostGaCommunicatorGetVMAppInfoError)
 			require.True(t, ok)
 			require.Contains(t, opErr.Error(), MetadataRequestFailedWithRetries.ToString())
-			require.Contains(t, opErr.Error(), "unexpected EOF")
+			require.True(
+				t,
+				isExpectedTruncatedTransportError(opErr),
+				"expected truncated transport error variant, got: %s",
+				opErr.Error(),
+			)
 			return opErr
 		})
 	})
@@ -285,7 +290,12 @@ func TestOperations_TruncatedTransportResponse_RetriedByRequestHelper(t *testing
 			require.True(t, ok)
 			require.Contains(t, opErr.Error(), DownloadPackageFileError.ToString())
 			require.Contains(t, opErr.Error(), "Download request failed with retries")
-			require.Contains(t, opErr.Error(), "unexpected EOF")
+			require.True(
+				t,
+				isExpectedTruncatedTransportError(opErr),
+				"expected truncated transport error variant, got: %s",
+				opErr.Error(),
+			)
 			return opErr
 		})
 	})
@@ -298,7 +308,12 @@ func TestOperations_TruncatedTransportResponse_RetriedByRequestHelper(t *testing
 			require.True(t, ok)
 			require.Contains(t, opErr.Error(), DownloadConfigFileError.ToString())
 			require.Contains(t, opErr.Error(), "Download request failed with retries")
-			require.Contains(t, opErr.Error(), "unexpected EOF")
+			require.True(
+				t,
+				isExpectedTruncatedTransportError(opErr),
+				"expected truncated transport error variant, got: %s",
+				opErr.Error(),
+			)
 			return opErr
 		})
 	})
@@ -680,6 +695,23 @@ func isExpectedImmediateCloseTransportError(err error) bool {
 		strings.Contains(msg, "server closed idle connection") ||
 		strings.Contains(msg, "forcibly closed by the remote host") ||
 		strings.Contains(msg, "aborted by the software in your host machine")
+}
+
+// Truncated responses can fail as unexpected EOF or as transport-level
+// connection-broken/reset variants depending on platform and socket timing.
+func isExpectedTruncatedTransportError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	msg := err.Error()
+	return strings.Contains(msg, "unexpected EOF") ||
+		strings.Contains(msg, "EOF") ||
+		strings.Contains(msg, "HTTP/1.x transport connection broken") ||
+		strings.Contains(msg, "connection reset by peer") ||
+		strings.Contains(msg, "forcibly closed by the remote host") ||
+		strings.Contains(msg, "aborted by the software in your host machine") ||
+		strings.Contains(msg, "server closed idle connection")
 }
 
 func TestIsArcAgentPresent_FileExists(t *testing.T) {

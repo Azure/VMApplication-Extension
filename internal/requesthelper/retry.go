@@ -60,24 +60,8 @@ func retryRequest(
 
 		// status == -1 the value when there was no http request
 		if status == -1 {
-			// io.EOF, io.ErrUnexpectedEOF, and platform-specific connection-reset
-			// errors are treated as transient errors:
-			//   - io.EOF: the most common cause is a stale keep-alive connection
-			//     being recycled by the server (connection-reuse race). The server
-			//     closes the connection before sending any response bytes; retrying
-			//     will open a fresh connection and typically succeeds immediately.
-			//   - io.ErrUnexpectedEOF: the TCP connection was dropped mid-response,
-			//     after the response headers were received but before the body was
-			//     fully transmitted. This is typically caused by a transient network
-			//     interruption or the server closing the connection mid-transfer.
-			//   - On Unix, syscall.ECONNRESET means the peer sent a TCP RST
-			//     (connection reset by peer). On Windows, the equivalent socket-layer
-			//     failures commonly surface as WSAECONNRESET or WSAECONNABORTED.
-			//     These are commonly seen when the server closes or aborts an idle or
-			//     in-flight keep-alive connection. A retry opens a new connection.
-			//   - "http: server closed idle connection": net/http's unexported
-			//     keep-alive race sentinel. The server closed a reused idle
-			//     connection just as the client sent the next request.
+			// Treat EOF-family, platform-specific connection-reset, and net/http
+			// idle-close sentinel errors as transient transport failures.
 			if isTransientTransportError(lastErr) {
 				el.Info("%sTransient transport error, retrying: %v", infoPrefix, lastErr)
 			} else {
@@ -117,6 +101,17 @@ func retryRequest(
 	return nil, lastErr
 }
 
+// isTransientTransportError returns true for transport failures that are known
+// to be recoverable on the next attempt.
+//
+// The following cases are treated as transient:
+//   - io.EOF: commonly a stale keep-alive connection reuse race where the
+//     server closed the socket before sending response bytes.
+//   - io.ErrUnexpectedEOF: connection dropped mid-response after headers.
+//   - Platform reset/abort errors (see isPlatformConnectionResetError):
+//     Unix ECONNRESET and Windows WSAECONNRESET/WSAECONNABORTED.
+//   - "http: server closed idle connection": net/http idle keep-alive close
+//     sentinel when a reused idle connection is closed just before a request.
 func isTransientTransportError(err error) bool {
 	return errors.Is(err, io.EOF) ||
 		errors.Is(err, io.ErrUnexpectedEOF) ||
