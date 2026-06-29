@@ -70,6 +70,9 @@ func retryRequest(
 			//     after the response headers were received but before the body was
 			//     fully transmitted. This is typically caused by a transient network
 			//     interruption or the server closing the connection mid-transfer.
+			//   - syscall.ECONNRESET: the peer sent a TCP RST (connection reset by
+			//     peer), commonly seen when the server closes or aborts an idle or
+			//     in-flight keep-alive connection. A retry opens a new connection.
 			if errors.Is(lastErr, io.EOF) || errors.Is(lastErr, io.ErrUnexpectedEOF) || errors.Is(lastErr, syscall.ECONNRESET) {
 				el.Info("%sEOF error, retrying: %v", infoPrefix, lastErr)
 			} else {
