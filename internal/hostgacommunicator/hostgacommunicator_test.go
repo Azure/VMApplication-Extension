@@ -8,13 +8,18 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path"
 	"runtime"
+	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
+	"github.com/Azure/VMApplication-Extension/internal/requesthelper"
 	"github.com/Azure/azure-extension-platform/pkg/logging"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -141,6 +146,162 @@ func TestGetVmAppInfo_ValidResponse(t *testing.T) {
 	require.Equal(t, expected.UpdateCommand, actual.UpdateCommand)
 	require.Equal(t, expected.RemoveCommand, actual.RemoveCommand)
 	require.Equal(t, expected.DirectDownloadOnly, fmt.Sprintf("%v", actual.DirectDownloadOnly))
+}
+
+func TestOperations_ImmediateCloseTransportError_RetriedByRequestHelper(t *testing.T) {
+	createTestDir(t)
+	defer cleanupTestDir()
+
+	origSleep := requesthelper.ActualSleep
+	requesthelper.ActualSleep = func(time.Duration) {}
+	defer func() { requesthelper.ActualSleep = origSleep }()
+
+	runWithImmediateClose := func(t *testing.T, expectedAttempts int32, op func(hgc *HostGaCommunicator) error) {
+		t.Helper()
+
+		listener, err := net.Listen("tcp", "127.0.0.1:0")
+		require.NoError(t, err)
+		defer listener.Close()
+
+		var attempts atomic.Int32
+		go func() {
+			for {
+				conn, acceptErr := listener.Accept()
+				if acceptErr != nil {
+					return
+				}
+				attempts.Add(1)
+				_ = conn.Close()
+			}
+		}()
+
+		t.Setenv(WireProtocolAddress, listener.Addr().String())
+		hgc := &HostGaCommunicator{}
+
+		err = op(hgc)
+		require.Error(t, err)
+		require.True(
+			t,
+			strings.Contains(err.Error(), "EOF") || strings.Contains(err.Error(), "connection reset by peer"),
+			"expected EOF-family or connection reset error, got: %s",
+			err.Error(),
+		)
+		require.Equal(t, expectedAttempts, attempts.Load(), "unexpected number of HTTP attempts")
+	}
+
+	t.Run("metadata", func(t *testing.T) {
+		runWithImmediateClose(t, 7, func(hgc *HostGaCommunicator) error {
+			_, opErr := hgc.GetVMAppInfo(nopLog(), myAppName)
+			_, ok := opErr.(*HostGaCommunicatorGetVMAppInfoError)
+			require.True(t, ok)
+			require.Contains(t, opErr.Error(), MetadataRequestFailedWithRetries.ToString())
+			return opErr
+		})
+	})
+
+	t.Run("package", func(t *testing.T) {
+		runWithImmediateClose(t, 7, func(hgc *HostGaCommunicator) error {
+			dst := path.Join(testDirPath, "ImmediateClosePackage.bin")
+			opErr := hgc.DownloadPackage(nopLog(), myAppName, dst)
+			_, ok := opErr.(*DownloadPackageError)
+			require.True(t, ok)
+			require.Contains(t, opErr.Error(), DownloadPackageFileError.ToString())
+			require.Contains(t, opErr.Error(), "Download request failed with retries")
+			return opErr
+		})
+	})
+
+	t.Run("config", func(t *testing.T) {
+		runWithImmediateClose(t, 7, func(hgc *HostGaCommunicator) error {
+			dst := path.Join(testDirPath, "ImmediateCloseConfig.bin")
+			opErr := hgc.DownloadConfig(nopLog(), myAppName, dst)
+			_, ok := opErr.(*DownloadConfigError)
+			require.True(t, ok)
+			require.Contains(t, opErr.Error(), DownloadConfigFileError.ToString())
+			require.Contains(t, opErr.Error(), "Download request failed with retries")
+			return opErr
+		})
+	})
+}
+
+func TestOperations_TruncatedTransportResponse_RetriedByRequestHelper(t *testing.T) {
+	createTestDir(t)
+	defer cleanupTestDir()
+
+	origSleep := requesthelper.ActualSleep
+	requesthelper.ActualSleep = func(time.Duration) {}
+	defer func() { requesthelper.ActualSleep = origSleep }()
+
+	// Simulate a transport-level truncation (partial HTTP response headers, then close).
+	// This should fail during http.Client.Do() and be retried by requesthelper.retryRequest.
+	runWithTruncatedResponse := func(t *testing.T, expectedAttempts int32, op func(hgc *HostGaCommunicator) error) {
+		t.Helper()
+
+		listener, err := net.Listen("tcp", "127.0.0.1:0")
+		require.NoError(t, err)
+		defer listener.Close()
+
+		var attempts atomic.Int32
+		go func() {
+			for {
+				conn, acceptErr := listener.Accept()
+				if acceptErr != nil {
+					return
+				}
+				attempts.Add(1)
+
+				_, _ = conn.Write([]byte("HTTP/1.1 200 OK\r\n"))
+				_, _ = conn.Write([]byte("Content-Length: 128\r\n"))
+				_, _ = conn.Write([]byte("Content-Type: application/octet-stream\r\n"))
+				// Close before completing headers/body to trigger Do()-time truncated response.
+				_ = conn.Close()
+			}
+		}()
+
+		t.Setenv(WireProtocolAddress, listener.Addr().String())
+		hgc := &HostGaCommunicator{}
+
+		err = op(hgc)
+		require.Error(t, err)
+		require.Equal(t, expectedAttempts, attempts.Load(), "unexpected number of HTTP attempts")
+	}
+
+	t.Run("metadata", func(t *testing.T) {
+		runWithTruncatedResponse(t, 7, func(hgc *HostGaCommunicator) error {
+			_, opErr := hgc.GetVMAppInfo(nopLog(), myAppName)
+			_, ok := opErr.(*HostGaCommunicatorGetVMAppInfoError)
+			require.True(t, ok)
+			require.Contains(t, opErr.Error(), MetadataRequestFailedWithRetries.ToString())
+			require.Contains(t, opErr.Error(), "unexpected EOF")
+			return opErr
+		})
+	})
+
+	t.Run("package", func(t *testing.T) {
+		runWithTruncatedResponse(t, 7, func(hgc *HostGaCommunicator) error {
+			dst := path.Join(testDirPath, "TruncatedPackage.bin")
+			opErr := hgc.DownloadPackage(nopLog(), myAppName, dst)
+			_, ok := opErr.(*DownloadPackageError)
+			require.True(t, ok)
+			require.Contains(t, opErr.Error(), DownloadPackageFileError.ToString())
+			require.Contains(t, opErr.Error(), "Download request failed with retries")
+			require.Contains(t, opErr.Error(), "unexpected EOF")
+			return opErr
+		})
+	})
+
+	t.Run("config", func(t *testing.T) {
+		runWithTruncatedResponse(t, 7, func(hgc *HostGaCommunicator) error {
+			dst := path.Join(testDirPath, "TruncatedConfig.bin")
+			opErr := hgc.DownloadConfig(nopLog(), myAppName, dst)
+			_, ok := opErr.(*DownloadConfigError)
+			require.True(t, ok)
+			require.Contains(t, opErr.Error(), DownloadConfigFileError.ToString())
+			require.Contains(t, opErr.Error(), "Download request failed with retries")
+			require.Contains(t, opErr.Error(), "unexpected EOF")
+			return opErr
+		})
+	})
 }
 
 func TestDownloadPackage_CannotRemoveExistingFile(t *testing.T) {

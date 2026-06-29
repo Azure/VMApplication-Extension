@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"syscall"
 	"testing"
 	"time"
 
@@ -88,6 +89,13 @@ type unexpectedEOFDownloader struct{ calls int }
 func (e *unexpectedEOFDownloader) GetRequest() (*http.Request, error) {
 	e.calls++
 	return nil, &url.Error{Op: "Get", URL: "http://test", Err: io.ErrUnexpectedEOF}
+}
+
+type connResetDownloader struct{ calls int }
+
+func (e *connResetDownloader) GetRequest() (*http.Request, error) {
+	e.calls++
+	return nil, &url.Error{Op: "Get", URL: "http://test", Err: syscall.ECONNRESET}
 }
 
 func TestMakeRequest_wrapsGetRequestError(t *testing.T) {
