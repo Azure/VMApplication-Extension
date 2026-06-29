@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"syscall"
 	"testing"
 	"time"
 
@@ -95,7 +94,14 @@ type connResetDownloader struct{ calls int }
 
 func (e *connResetDownloader) GetRequest() (*http.Request, error) {
 	e.calls++
-	return nil, &url.Error{Op: "Get", URL: "http://test", Err: syscall.ECONNRESET}
+	return nil, &url.Error{Op: "Get", URL: "http://test", Err: platformConnectionResetError()}
+}
+
+type serverClosedIdleDownloader struct{ calls int }
+
+func (e *serverClosedIdleDownloader) GetRequest() (*http.Request, error) {
+	e.calls++
+	return nil, &url.Error{Op: "Get", URL: "http://test", Err: errors.New("http: server closed idle connection")}
 }
 
 func TestMakeRequest_wrapsGetRequestError(t *testing.T) {

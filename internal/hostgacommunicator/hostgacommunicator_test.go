@@ -182,8 +182,8 @@ func TestOperations_ImmediateCloseTransportError_RetriedByRequestHelper(t *testi
 		require.Error(t, err)
 		require.True(
 			t,
-			strings.Contains(err.Error(), "EOF") || strings.Contains(err.Error(), "connection reset by peer"),
-			"expected EOF-family or connection reset error, got: %s",
+			isExpectedImmediateCloseTransportError(err),
+			"expected EOF-family, idle-close, or connection reset error, got: %s",
 			err.Error(),
 		)
 		require.Equal(t, expectedAttempts, attempts.Load(), "unexpected number of HTTP attempts")
@@ -664,6 +664,19 @@ func verifyFileContents(t *testing.T, file string, expected string) {
 	require.Nil(t, err, "File does not exist")
 	actual := string(content)
 	require.Equal(t, expected, actual)
+}
+
+func isExpectedImmediateCloseTransportError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	msg := err.Error()
+	return strings.Contains(msg, "EOF") ||
+		strings.Contains(msg, "connection reset by peer") ||
+		strings.Contains(msg, "server closed idle connection") ||
+		strings.Contains(msg, "forcibly closed by the remote host") ||
+		strings.Contains(msg, "aborted by the software in your host machine")
 }
 
 func TestIsArcAgentPresent_FileExists(t *testing.T) {

@@ -162,7 +162,18 @@ func TestWithRetries_connectionResetIsRetried(t *testing.T) {
 
 	sr := new(sleepRecorder)
 	_, err := requesthelper.WithRetries(nopLog(), rm, sr.Sleep)
-	require.EqualError(t, err, "Get \"http://test\": connection reset by peer")
+	require.EqualError(t, err, "Get \"http://test\": "+platformConnectionResetErrorText())
+	require.EqualValues(t, 7, ed.calls, "calls exactly expRetryN times")
+	require.Equal(t, sleepSchedule, []time.Duration(*sr))
+}
+
+func TestWithRetries_serverClosedIdleIsRetried(t *testing.T) {
+	ed := &serverClosedIdleDownloader{}
+	rm := requesthelper.GetRequestManager(ed, testRequestTimeout)
+
+	sr := new(sleepRecorder)
+	_, err := requesthelper.WithRetries(nopLog(), rm, sr.Sleep)
+	require.EqualError(t, err, "Get \"http://test\": http: server closed idle connection")
 	require.EqualValues(t, 7, ed.calls, "calls exactly expRetryN times")
 	require.Equal(t, sleepSchedule, []time.Duration(*sr))
 }

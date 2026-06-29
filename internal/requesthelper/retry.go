@@ -8,7 +8,7 @@ import (
 	"io"
 	"math"
 	"net/http"
-	"syscall"
+	"strings"
 	"time"
 
 	"github.com/Azure/azure-extension-platform/pkg/logging"
@@ -60,8 +60,8 @@ func retryRequest(
 
 		// status == -1 the value when there was no http request
 		if status == -1 {
-			// io.EOF, io.ErrUnexpectedEOF, and connection reset by peer
-			// (syscall.ECONNRESET) are treated as transient errors:
+			// io.EOF, io.ErrUnexpectedEOF, and platform-specific connection-reset
+			// errors are treated as transient errors:
 			//   - io.EOF: the most common cause is a stale keep-alive connection
 			//     being recycled by the server (connection-reuse race). The server
 			//     closes the connection before sending any response bytes; retrying
@@ -70,11 +70,16 @@ func retryRequest(
 			//     after the response headers were received but before the body was
 			//     fully transmitted. This is typically caused by a transient network
 			//     interruption or the server closing the connection mid-transfer.
-			//   - syscall.ECONNRESET: the peer sent a TCP RST (connection reset by
-			//     peer), commonly seen when the server closes or aborts an idle or
+			//   - On Unix, syscall.ECONNRESET means the peer sent a TCP RST
+			//     (connection reset by peer). On Windows, the equivalent socket-layer
+			//     failures commonly surface as WSAECONNRESET or WSAECONNABORTED.
+			//     These are commonly seen when the server closes or aborts an idle or
 			//     in-flight keep-alive connection. A retry opens a new connection.
-			if errors.Is(lastErr, io.EOF) || errors.Is(lastErr, io.ErrUnexpectedEOF) || errors.Is(lastErr, syscall.ECONNRESET) {
-				el.Info("%sEOF error, retrying: %v", infoPrefix, lastErr)
+			//   - "http: server closed idle connection": net/http's unexported
+			//     keep-alive race sentinel. The server closed a reused idle
+			//     connection just as the client sent the next request.
+			if isTransientTransportError(lastErr) {
+				el.Info("%sTransient transport error, retrying: %v", infoPrefix, lastErr)
 			} else {
 				te, haste := lastErr.(interface {
 					Temporary() bool
@@ -110,6 +115,13 @@ func retryRequest(
 	}
 
 	return nil, lastErr
+}
+
+func isTransientTransportError(err error) bool {
+	return errors.Is(err, io.EOF) ||
+		errors.Is(err, io.ErrUnexpectedEOF) ||
+		isPlatformConnectionResetError(err) ||
+		strings.Contains(err.Error(), "http: server closed idle connection")
 }
 
 // WithRetries retrieves a response body using the specified downloader. Any
