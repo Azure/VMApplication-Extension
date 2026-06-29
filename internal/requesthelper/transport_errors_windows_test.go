@@ -12,5 +12,5 @@ func platformConnectionResetError() error {
 }
 
 func platformConnectionResetErrorText() string {
-	return "wsarecv: An existing connection was forcibly closed by the remote host"
+	return "An existing connection was forcibly closed by the remote host."
 }

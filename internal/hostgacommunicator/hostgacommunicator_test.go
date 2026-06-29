@@ -666,6 +666,9 @@ func verifyFileContents(t *testing.T, file string, expected string) {
 	require.Equal(t, expected, actual)
 }
 
+// An immediate server-side close can surface through different transport-layer
+// errors depending on the OS, socket timing, and whether the connection was
+// reused, so the exact error text is intentionally not deterministic here.
 func isExpectedImmediateCloseTransportError(err error) bool {
 	if err == nil {
 		return false
