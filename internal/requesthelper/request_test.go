@@ -10,6 +10,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 
@@ -79,14 +80,14 @@ type eofDownloader struct{ calls int }
 
 func (e *eofDownloader) GetRequest() (*http.Request, error) {
 	e.calls++
-	return nil, io.EOF
+	return nil, &url.Error{Op: "Get", URL: "http://test", Err: io.EOF}
 }
 
 type unexpectedEOFDownloader struct{ calls int }
 
 func (e *unexpectedEOFDownloader) GetRequest() (*http.Request, error) {
 	e.calls++
-	return nil, io.ErrUnexpectedEOF
+	return nil, &url.Error{Op: "Get", URL: "http://test", Err: io.ErrUnexpectedEOF}
 }
 
 func TestMakeRequest_wrapsGetRequestError(t *testing.T) {

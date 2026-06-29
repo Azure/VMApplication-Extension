@@ -59,34 +59,34 @@ func retryRequest(
 
 		// status == -1 the value when there was no http request
 		if status == -1 {
-			te, haste := lastErr.(interface {
-				Temporary() bool
-			})
-			to, hasto := lastErr.(interface {
-				Timeout() bool
-			})
-
-			if haste || hasto {
-				if haste && te.Temporary() {
-					el.Info("%sTemporary error occurred. Retrying: %v", infoPrefix, lastErr)
-				} else if hasto && to.Timeout() {
-					el.Info("%sTimeout error occurred. Retrying: %v", infoPrefix, lastErr)
-				} else {
-					el.Info("%sNon-timeout, non-temporary error occurred, skipping retries: %v", infoPrefix, lastErr)
-					break
-				}
+			// io.EOF and io.ErrUnexpectedEOF are treated as transient errors:
+			//   - io.EOF: the most common cause is a stale keep-alive connection
+			//     being recycled by the server (connection-reuse race). The server
+			//     closes the connection before sending any response bytes; retrying
+			//     will open a fresh connection and typically succeeds immediately.
+			//   - io.ErrUnexpectedEOF: the TCP connection was dropped mid-response,
+			//     after the response headers were received but before the body was
+			//     fully transmitted. This is typically caused by a transient network
+			//     interruption or the server closing the connection mid-transfer.
+			if errors.Is(lastErr, io.EOF) || errors.Is(lastErr, io.ErrUnexpectedEOF) {
+				el.Info("%sEOF error, retrying: %v", infoPrefix, lastErr)
 			} else {
-				// io.EOF and io.ErrUnexpectedEOF are treated as transient errors:
-				//   - io.EOF: the most common cause is a stale keep-alive connection
-				//     being recycled by the server (connection-reuse race). The server
-				//     closes the connection before sending any response bytes; retrying
-				//     will open a fresh connection and typically succeeds immediately.
-				//   - io.ErrUnexpectedEOF: the TCP connection was dropped mid-response,
-				//     after the response headers were received but before the body was
-				//     fully transmitted. This is typically caused by a transient network
-				//     interruption or the server closing the connection mid-transfer.
-				if errors.Is(lastErr, io.EOF) || errors.Is(lastErr, io.ErrUnexpectedEOF) {
-					el.Info("%sEOF error, retrying: %v", infoPrefix, lastErr)
+				te, haste := lastErr.(interface {
+					Temporary() bool
+				})
+				to, hasto := lastErr.(interface {
+					Timeout() bool
+				})
+
+				if haste || hasto {
+					if haste && te.Temporary() {
+						el.Info("%sTemporary error occurred. Retrying: %v", infoPrefix, lastErr)
+					} else if hasto && to.Timeout() {
+						el.Info("%sTimeout error occurred. Retrying: %v", infoPrefix, lastErr)
+					} else {
+						el.Info("%sNon-timeout, non-temporary error occurred, skipping retries: %v", infoPrefix, lastErr)
+						break
+					}
 				} else {
 					el.Info("%sNo response returned and unexpected error, skipping retries", infoPrefix)
 					break
