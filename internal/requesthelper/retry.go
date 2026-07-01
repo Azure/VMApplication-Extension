@@ -4,8 +4,11 @@
 package requesthelper
 
 import (
+	"errors"
+	"io"
 	"math"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/Azure/azure-extension-platform/pkg/logging"
@@ -57,25 +60,31 @@ func retryRequest(
 
 		// status == -1 the value when there was no http request
 		if status == -1 {
-			te, haste := lastErr.(interface {
-				Temporary() bool
-			})
-			to, hasto := lastErr.(interface {
-				Timeout() bool
-			})
+			// Treat EOF-family, platform-specific connection-reset, and net/http
+			// idle-close sentinel errors as transient transport failures.
+			if isTransientTransportError(lastErr) {
+				el.Info("%sTransient transport error, retrying: %v", infoPrefix, lastErr)
+			} else {
+				te, haste := lastErr.(interface {
+					Temporary() bool
+				})
+				to, hasto := lastErr.(interface {
+					Timeout() bool
+				})
 
-			if haste || hasto {
-				if haste && te.Temporary() {
-					el.Info("%sTemporary error occurred. Retrying: %v", infoPrefix, lastErr)
-				} else if hasto && to.Timeout() {
-					el.Info("%sTimeout error occurred. Retrying: %v", infoPrefix, lastErr)
+				if haste || hasto {
+					if haste && te.Temporary() {
+						el.Info("%sTemporary error occurred. Retrying: %v", infoPrefix, lastErr)
+					} else if hasto && to.Timeout() {
+						el.Info("%sTimeout error occurred. Retrying: %v", infoPrefix, lastErr)
+					} else {
+						el.Info("%sNon-timeout, non-temporary error occurred, skipping retries: %v", infoPrefix, lastErr)
+						break
+					}
 				} else {
-					el.Info("%sNon-timeout, non-temporary error occurred, skipping retries: %v", infoPrefix, lastErr)
+					el.Info("%sNo response returned and unexpected error, skipping retries: %v", infoPrefix, lastErr)
 					break
 				}
-			} else {
-				el.Info("%sNo response returned and unexpected error, skipping retries", infoPrefix)
-				break
 			}
 		} else if !isTransientHTTPStatusCode(status) {
 			el.Info("%sRequest returned %v, skipping retries", infoPrefix, status)
@@ -90,6 +99,24 @@ func retryRequest(
 	}
 
 	return nil, lastErr
+}
+
+// isTransientTransportError returns true for transport failures that are known
+// to be recoverable on the next attempt.
+//
+// The following cases are treated as transient:
+//   - io.EOF: commonly a stale keep-alive connection reuse race where the
+//     server closed the socket before sending response bytes.
+//   - io.ErrUnexpectedEOF: connection dropped mid-response after headers.
+//   - Platform reset/abort errors (see isPlatformConnectionResetError):
+//     Unix ECONNRESET and Windows WSAECONNRESET/WSAECONNABORTED.
+//   - "http: server closed idle connection": net/http idle keep-alive close
+//     sentinel when a reused idle connection is closed just before a request.
+func isTransientTransportError(err error) bool {
+	return errors.Is(err, io.EOF) ||
+		errors.Is(err, io.ErrUnexpectedEOF) ||
+		isPlatformConnectionResetError(err) ||
+		strings.Contains(err.Error(), "http: server closed idle connection")
 }
 
 // WithRetries retrieves a response body using the specified downloader. Any

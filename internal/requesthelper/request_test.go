@@ -6,9 +6,11 @@ package requesthelper_test
 import (
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 
@@ -72,6 +74,34 @@ func (u *testUrlRequest) GetRequest() (*http.Request, error) {
 func (e *errorDownloader) GetRequest() (*http.Request, error) {
 	e.calls++
 	return nil, e.err
+}
+
+type eofDownloader struct{ calls int }
+
+func (e *eofDownloader) GetRequest() (*http.Request, error) {
+	e.calls++
+	return nil, &url.Error{Op: "Get", URL: "http://test", Err: io.EOF}
+}
+
+type unexpectedEOFDownloader struct{ calls int }
+
+func (e *unexpectedEOFDownloader) GetRequest() (*http.Request, error) {
+	e.calls++
+	return nil, &url.Error{Op: "Get", URL: "http://test", Err: io.ErrUnexpectedEOF}
+}
+
+type connResetDownloader struct{ calls int }
+
+func (e *connResetDownloader) GetRequest() (*http.Request, error) {
+	e.calls++
+	return nil, &url.Error{Op: "Get", URL: "http://test", Err: platformConnectionResetError()}
+}
+
+type serverClosedIdleDownloader struct{ calls int }
+
+func (e *serverClosedIdleDownloader) GetRequest() (*http.Request, error) {
+	e.calls++
+	return nil, &url.Error{Op: "Get", URL: "http://test", Err: errors.New("http: server closed idle connection")}
 }
 
 func TestMakeRequest_wrapsGetRequestError(t *testing.T) {

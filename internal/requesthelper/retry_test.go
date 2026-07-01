@@ -134,6 +134,50 @@ func TestWithRetries_requestFailedOther(t *testing.T) {
 	require.EqualValues(t, 1, er.calls, "called exactly one time")
 }
 
+func TestWithRetries_eofIsRetried(t *testing.T) {
+	ed := &eofDownloader{}
+	rm := requesthelper.GetRequestManager(ed, testRequestTimeout)
+
+	sr := new(sleepRecorder)
+	_, err := requesthelper.WithRetries(nopLog(), rm, sr.Sleep)
+	require.EqualError(t, err, "Get \"http://test\": EOF")
+	require.EqualValues(t, 7, ed.calls, "calls exactly expRetryN times")
+	require.Equal(t, sleepSchedule, []time.Duration(*sr))
+}
+
+func TestWithRetries_unexpectedEOFIsRetried(t *testing.T) {
+	ed := &unexpectedEOFDownloader{}
+	rm := requesthelper.GetRequestManager(ed, testRequestTimeout)
+
+	sr := new(sleepRecorder)
+	_, err := requesthelper.WithRetries(nopLog(), rm, sr.Sleep)
+	require.EqualError(t, err, "Get \"http://test\": unexpected EOF")
+	require.EqualValues(t, 7, ed.calls, "calls exactly expRetryN times")
+	require.Equal(t, sleepSchedule, []time.Duration(*sr))
+}
+
+func TestWithRetries_connectionResetIsRetried(t *testing.T) {
+	ed := &connResetDownloader{}
+	rm := requesthelper.GetRequestManager(ed, testRequestTimeout)
+
+	sr := new(sleepRecorder)
+	_, err := requesthelper.WithRetries(nopLog(), rm, sr.Sleep)
+	require.EqualError(t, err, "Get \"http://test\": "+platformConnectionResetErrorText())
+	require.EqualValues(t, 7, ed.calls, "calls exactly expRetryN times")
+	require.Equal(t, sleepSchedule, []time.Duration(*sr))
+}
+
+func TestWithRetries_serverClosedIdleIsRetried(t *testing.T) {
+	ed := &serverClosedIdleDownloader{}
+	rm := requesthelper.GetRequestManager(ed, testRequestTimeout)
+
+	sr := new(sleepRecorder)
+	_, err := requesthelper.WithRetries(nopLog(), rm, sr.Sleep)
+	require.EqualError(t, err, "Get \"http://test\": http: server closed idle connection")
+	require.EqualValues(t, 7, ed.calls, "calls exactly expRetryN times")
+	require.Equal(t, sleepSchedule, []time.Duration(*sr))
+}
+
 func TestWithRetries_failingBadStatusCode_validateSleeps(t *testing.T) {
 	srv := httptest.NewServer(httpbin.GetMux())
 	defer srv.Close()
