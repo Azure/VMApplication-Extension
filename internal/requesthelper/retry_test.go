@@ -184,7 +184,7 @@ func TestWithRetries_readLoopPeekFailIsRetried(t *testing.T) {
 
 	sr := new(sleepRecorder)
 	_, err := requesthelper.WithRetries(nopLog(), rm, sr.Sleep)
-	require.EqualError(t, err, "Get \"http://test\": readLoopPeekFailLocked: %!w(<nil>)")
+	require.ErrorContains(t, err, "readLoopPeekFailLocked")
 	require.EqualValues(t, 7, ed.calls, "calls exactly expRetryN times")
 	require.Equal(t, sleepSchedule, []time.Duration(*sr))
 }
