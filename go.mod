@@ -1,11 +1,9 @@
 module github.com/Azure/VMApplication-Extension
 
-go 1.24.0
-
-toolchain go1.24.3
+go 1.27.0
 
 require (
-	github.com/Azure/azure-extension-platform v0.0.0-20260406194436-44ca1f420dd8
+	github.com/Azure/azure-extension-platform v0.0.0-20260410171604-91b4725acbb1
 	github.com/ahmetalpbalkan/go-httpbin v0.0.0-20200921172446-862fbad56b77
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.7.0
@@ -18,6 +16,6 @@ require (
 	github.com/gorilla/mux v1.7.3 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	golang.org/x/net v0.38.0 // indirect
-	golang.org/x/sys v0.38.0 // indirect
+	golang.org/x/sys v0.47.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
