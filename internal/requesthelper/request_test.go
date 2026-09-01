@@ -104,6 +104,13 @@ func (e *serverClosedIdleDownloader) GetRequest() (*http.Request, error) {
 	return nil, &url.Error{Op: "Get", URL: "http://test", Err: errors.New("http: server closed idle connection")}
 }
 
+type readLoopPeekFailDownloader struct{ calls int }
+
+func (e *readLoopPeekFailDownloader) GetRequest() (*http.Request, error) {
+	e.calls++
+	return nil, &url.Error{Op: "Get", URL: "http://test", Err: errors.New("readLoopPeekFailLocked: %!w(<nil>)")}
+}
+
 func TestMakeRequest_wrapsGetRequestError(t *testing.T) {
 	rm := requesthelper.GetRequestManager(new(badDownloader), testRequestTimeout)
 	_, err := rm.MakeRequest()
