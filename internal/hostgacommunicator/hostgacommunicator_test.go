@@ -711,7 +711,8 @@ func isExpectedTruncatedTransportError(err error) bool {
 		strings.Contains(msg, "connection reset by peer") ||
 		strings.Contains(msg, "forcibly closed by the remote host") ||
 		strings.Contains(msg, "aborted by the software in your host machine") ||
-		strings.Contains(msg, "server closed idle connection")
+		strings.Contains(msg, "server closed idle connection") ||
+		strings.Contains(msg, "readLoopPeekFailLocked")
 }
 
 func TestIsArcAgentPresent_FileExists(t *testing.T) {
