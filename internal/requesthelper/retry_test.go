@@ -178,6 +178,17 @@ func TestWithRetries_serverClosedIdleIsRetried(t *testing.T) {
 	require.Equal(t, sleepSchedule, []time.Duration(*sr))
 }
 
+func TestWithRetries_readLoopPeekFailIsRetried(t *testing.T) {
+	ed := &readLoopPeekFailDownloader{}
+	rm := requesthelper.GetRequestManager(ed, testRequestTimeout)
+
+	sr := new(sleepRecorder)
+	_, err := requesthelper.WithRetries(nopLog(), rm, sr.Sleep)
+	require.EqualError(t, err, "Get \"http://test\": readLoopPeekFailLocked: %!w(<nil>)")
+	require.EqualValues(t, 7, ed.calls, "calls exactly expRetryN times")
+	require.Equal(t, sleepSchedule, []time.Duration(*sr))
+}
+
 func TestWithRetries_failingBadStatusCode_validateSleeps(t *testing.T) {
 	srv := httptest.NewServer(httpbin.GetMux())
 	defer srv.Close()

@@ -112,11 +112,14 @@ func retryRequest(
 //     Unix ECONNRESET and Windows WSAECONNRESET/WSAECONNABORTED.
 //   - "http: server closed idle connection": net/http idle keep-alive close
 //     sentinel when a reused idle connection is closed just before a request.
+//   - "readLoopPeekFailLocked": net/http read-loop failure emitted when a
+//     connection closes while the transport is parsing a response.
 func isTransientTransportError(err error) bool {
 	return errors.Is(err, io.EOF) ||
 		errors.Is(err, io.ErrUnexpectedEOF) ||
 		isPlatformConnectionResetError(err) ||
-		strings.Contains(err.Error(), "http: server closed idle connection")
+		strings.Contains(err.Error(), "http: server closed idle connection") ||
+		strings.Contains(err.Error(), "readLoopPeekFailLocked")
 }
 
 // WithRetries retrieves a response body using the specified downloader. Any
