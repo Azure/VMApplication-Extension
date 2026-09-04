@@ -176,10 +176,10 @@ func (*HostGaCommunicator) DownloadConfig(el *logging.ExtensionLogger, appName s
 	return nil
 }
 
-func getOperationURI(el *logging.ExtensionLogger, appName string, operation string) (string, error) {
+func getOperationURI(el *logging.ExtensionLogger, appName string, operation string, queryParameters map[string]string) (string, error) {
 	baseAddress := os.Getenv(WireProtocolAddress)
 	if baseAddress != "" {
-		return buildUriUsingWireProtocolAddress(baseAddress, appName, operation)
+		return buildUriUsingWireProtocolAddress(baseAddress, appName, operation, queryParameters)
 	}
 
 	var baseEndpoint string
@@ -193,14 +193,19 @@ func getOperationURI(el *logging.ExtensionLogger, appName string, operation stri
 		baseEndpoint = wireServerFallbackAddress
 	}
 
-	uri, _ := url.Parse(baseEndpoint)
+	uri, err := url.Parse(baseEndpoint)
+	if err != nil {
+		return "", err
+	}
+
+	appendQueryParams(uri, queryParameters)
 	// For both Arc and Azure, use the same path structure
 	uri.Path = fmt.Sprintf("applications/%s/%s", appName, operation)
 
 	return uri.String(), nil
 }
 
-func buildUriUsingWireProtocolAddress(baseAddress string, appName string, operation string) (string, error) {
+func buildUriUsingWireProtocolAddress(baseAddress string, appName string, operation string, queryParameters map[string]string) (string, error) {
 	uri, err := url.Parse(baseAddress)
 	if err != nil {
 		// ip with port 10.0.0.1:1234 will fail otherwise
@@ -229,5 +234,15 @@ func buildUriUsingWireProtocolAddress(baseAddress string, appName string, operat
 		uri.Scheme = "http"
 	}
 
+	appendQueryParams(uri, queryParameters)
+
 	return uri.String(), nil
+}
+
+func appendQueryParams(uri *url.URL, queryParams map[string]string) {
+	query := uri.Query()
+	for key, value := range queryParams {
+		query.Set(key, value)
+	}
+	uri.RawQuery = query.Encode()
 }

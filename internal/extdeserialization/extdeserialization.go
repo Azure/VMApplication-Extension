@@ -28,6 +28,7 @@ type VmAppSetting struct {
 	Order                           *int             `json:"order"`
 	TreatFailureAsDeploymentFailure bool             `json:"treatFailureAsDeploymentFailure"`
 	Actions                         []*ActionSetting `json:"actions"`
+	Version                         string           `json:"version"`
 }
 
 func GetParameterNames(settings ActionSetting) []string {

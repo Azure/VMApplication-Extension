@@ -37,8 +37,10 @@ type downloadRequestFactory struct {
 	downloadedBytes int64
 }
 
+var _ requesthelper.RequestFactory = (*downloadRequestFactory)(nil)
+
 func newPackageDownloadRequestFactory(el *logging.ExtensionLogger, appName string) (*downloadRequestFactory, error) {
-	downloadURL, err := getOperationURI(el, appName, packageOperation)
+	downloadURL, err := getOperationURI(el, appName, packageOperation, nil)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to obtain operationURI")
 	}
@@ -51,8 +53,12 @@ func newPackageDownloadRequestFactory(el *logging.ExtensionLogger, appName strin
 	return &drf, nil
 }
 
+func newVersionedPackageDownloadRequestFactory(el *logging.ExtensionLogger, appName string, version string) (*downloadRequestFactory, error) {
+	return newVersionedDownloadRequestFactory(el, appName, version, packageOperation)
+}
+
 func newConfigDownloadRequestFactory(el *logging.ExtensionLogger, appName string) (*downloadRequestFactory, error) {
-	downloadURL, err := getOperationURI(el, appName, configOperation)
+	downloadURL, err := getOperationURI(el, appName, configOperation, nil)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to obtain operationURI")
 	}
@@ -63,6 +69,21 @@ func newConfigDownloadRequestFactory(el *logging.ExtensionLogger, appName string
 	}
 
 	return &drf, nil
+}
+
+func newVersionedConfigDownloadRequestFactory(el *logging.ExtensionLogger, appName string, version string) (*downloadRequestFactory, error) {
+	return newVersionedDownloadRequestFactory(el, appName, version, configOperation)
+}
+
+func newVersionedDownloadRequestFactory(el *logging.ExtensionLogger, appName string, version string, operation string) (*downloadRequestFactory, error) {
+	downloadURL, err := getOperationURI(el, appName, operation, map[string]string{
+		versionQueryParameterName: version,
+	})
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to obtain operationURI")
+	}
+
+	return &downloadRequestFactory{url: downloadURL}, nil
 }
 
 func (u downloadRequestFactory) downloadFile(el *logging.ExtensionLogger, filename string) error {

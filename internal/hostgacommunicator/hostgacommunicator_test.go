@@ -598,39 +598,71 @@ func TestDownloadConfig_SingeCallDownload(t *testing.T) {
 	verifyFileContents(t, filePath, expected)
 }
 
+func TestVersionedDownloadRequestFactories(t *testing.T) {
+	t.Setenv(WireProtocolAddress, "https://foo.bar.com:1568")
+
+	tests := []struct {
+		name      string
+		operation string
+		factory   func(*logging.ExtensionLogger, string, string) (*downloadRequestFactory, error)
+	}{
+		{name: "package", operation: packageOperation, factory: newVersionedPackageDownloadRequestFactory},
+		{name: "config", operation: configOperation, factory: newVersionedConfigDownloadRequestFactory},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			factory, err := test.factory(nopLog(), "myApp", "1.2.3+build")
+			require.NoError(t, err)
+			assert.Equal(t, fmt.Sprintf("https://foo.bar.com:1568/applications/myApp/%s?version=1.2.3%%2Bbuild", test.operation), factory.url)
+		})
+	}
+}
+
 func TestGetOperationUri(t *testing.T) {
 	appName := "myApp"
 	operation := "metadata"
 
 	el := logging.New(nil)
 	os.Setenv(WireProtocolAddress, "10.0.0.1")
-	uri, err := getOperationURI(el, appName, operation)
+	uri, err := getOperationURI(el, appName, operation, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, fmt.Sprintf("http://10.0.0.1:%s/applications/%s/%s", hostGaPluginPort, appName, operation), uri)
 
 	os.Setenv(WireProtocolAddress, "10.0.0.1:1234")
-	uri, err = getOperationURI(el, appName, operation)
+	uri, err = getOperationURI(el, appName, operation, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, fmt.Sprintf("http://10.0.0.1:1234/applications/%s/%s", appName, operation), uri)
 
 	os.Setenv(WireProtocolAddress, "foo.bar.com")
-	uri, err = getOperationURI(el, appName, operation)
+	uri, err = getOperationURI(el, appName, operation, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, fmt.Sprintf("http://foo.bar.com:%s/applications/%s/%s", hostGaPluginPort, appName, operation), uri)
 
 	os.Setenv(WireProtocolAddress, "foo.bar.com:1568")
-	uri, err = getOperationURI(el, appName, operation)
+	uri, err = getOperationURI(el, appName, operation, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, fmt.Sprintf("http://foo.bar.com:1568/applications/%s/%s", appName, operation), uri)
 
 	os.Setenv(WireProtocolAddress, "https://foo.bar.com:1568")
-	uri, err = getOperationURI(el, appName, operation)
+	uri, err = getOperationURI(el, appName, operation, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, fmt.Sprintf("https://foo.bar.com:1568/applications/%s/%s", appName, operation), uri)
 
+	uri, err = getOperationURI(el, appName, operation, map[string]string{"version": "1.2.3"})
+	assert.NoError(t, err)
+	assert.Equal(t, fmt.Sprintf("https://foo.bar.com:1568/applications/%s/%s?version=1.2.3", appName, operation), uri)
+
+	uri, err = getOperationURI(el, appName, operation, map[string]string{
+		"channel": "stable release",
+		"version": "1.2.3+build",
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, fmt.Sprintf("https://foo.bar.com:1568/applications/%s/%s?channel=stable+release&version=1.2.3%%2Bbuild", appName, operation), uri)
+
 	// test fallback address for Wire Server
 	os.Setenv(WireProtocolAddress, "")
-	uri, err = getOperationURI(el, appName, operation)
+	uri, err = getOperationURI(el, appName, operation, nil)
 	assert.NoError(t, err)
 	if isArcAgentPresent(el) {
 		assert.Equal(t, fmt.Sprintf("%s/applications/%s/%s", "https://localhost:40342", appName, operation), uri)
@@ -747,7 +779,7 @@ func TestGetOperationURI_WithEnvironmentVariable(t *testing.T) {
 	defer os.Unsetenv(WireProtocolAddress)
 
 	el := nopLog()
-	uri, err := getOperationURI(el, appName, operation)
+	uri, err := getOperationURI(el, appName, operation, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, fmt.Sprintf("http://%s/applications/%s/%s", expectedHost, appName, operation), uri)
 }
@@ -760,7 +792,7 @@ func TestGetOperationURI_WithoutEnvironmentVariable(t *testing.T) {
 	os.Unsetenv(WireProtocolAddress)
 
 	el := nopLog()
-	uri, err := getOperationURI(el, appName, operation)
+	uri, err := getOperationURI(el, appName, operation, nil)
 	assert.NoError(t, err)
 	// Should either use Arc endpoint or fallback to wire server depending on Arc agent presence
 	// The exact result depends on the test environment, but it should not error
@@ -783,7 +815,7 @@ func TestGetOperationURI_PriorityOrder(t *testing.T) {
 	defer os.Unsetenv(WireProtocolAddress)
 
 	el := nopLog()
-	uri, err := getOperationURI(el, appName, operation)
+	uri, err := getOperationURI(el, appName, operation, nil)
 	assert.NoError(t, err)
 	// Environment variable should take priority
 	assert.Equal(t, fmt.Sprintf("http://%s/applications/%s/%s", expectedHost, appName, operation), uri)
@@ -794,7 +826,7 @@ func TestBuildUriUsingWireProtocolAddress_CompleteURL(t *testing.T) {
 	appName := "testApp"
 	operation := "metadata"
 
-	uri, err := buildUriUsingWireProtocolAddress(baseAddress, appName, operation)
+	uri, err := buildUriUsingWireProtocolAddress(baseAddress, appName, operation, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, "https://complete.example.com:8080/applications/testApp/metadata", uri)
 }
@@ -804,7 +836,7 @@ func TestBuildUriUsingWireProtocolAddress_HostWithPort(t *testing.T) {
 	appName := "testApp"
 	operation := "package"
 
-	uri, err := buildUriUsingWireProtocolAddress(baseAddress, appName, operation)
+	uri, err := buildUriUsingWireProtocolAddress(baseAddress, appName, operation, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, "http://example.com:9090/applications/testApp/package", uri)
 }
@@ -814,7 +846,7 @@ func TestBuildUriUsingWireProtocolAddress_HostWithoutPort(t *testing.T) {
 	appName := "testApp"
 	operation := "config"
 
-	uri, err := buildUriUsingWireProtocolAddress(baseAddress, appName, operation)
+	uri, err := buildUriUsingWireProtocolAddress(baseAddress, appName, operation, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, fmt.Sprintf("http://example.com:%s/applications/testApp/config", hostGaPluginPort), uri)
 }
@@ -824,7 +856,7 @@ func TestBuildUriUsingWireProtocolAddress_IPWithoutPort(t *testing.T) {
 	appName := "testApp"
 	operation := "metadata"
 
-	uri, err := buildUriUsingWireProtocolAddress(baseAddress, appName, operation)
+	uri, err := buildUriUsingWireProtocolAddress(baseAddress, appName, operation, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, fmt.Sprintf("http://192.168.1.100:%s/applications/testApp/metadata", hostGaPluginPort), uri)
 }
@@ -834,7 +866,7 @@ func TestBuildUriUsingWireProtocolAddress_IPWithPort(t *testing.T) {
 	appName := "testApp"
 	operation := "package"
 
-	uri, err := buildUriUsingWireProtocolAddress(baseAddress, appName, operation)
+	uri, err := buildUriUsingWireProtocolAddress(baseAddress, appName, operation, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, "http://10.0.0.1:1234/applications/testApp/package", uri)
 }
@@ -844,7 +876,7 @@ func TestBuildUriUsingWireProtocolAddress_InvalidURL(t *testing.T) {
 	appName := "testApp"
 	operation := "metadata"
 
-	_, err := buildUriUsingWireProtocolAddress(baseAddress, appName, operation)
+	_, err := buildUriUsingWireProtocolAddress(baseAddress, appName, operation, nil)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "Could not parse the HostGA URI")
 }
