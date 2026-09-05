@@ -259,6 +259,20 @@ func Test_getVMAppIncomingCollection_RetriesVersionMismatch(t *testing.T) {
 	require.Equal(t, "2.0.0", incoming[0].Version)
 }
 
+func Test_getVMAppIncomingCollection_AcceptsResolvedVersionWhenVersionUnspecified(t *testing.T) {
+	communicator := &staleMetadataCommunicator{versions: []string{"2.0.0"}}
+	settings := extdeserialization.VmAppProtectedSettings{
+		&extdeserialization.VmAppSetting{
+			ApplicationName: "iggy",
+		},
+	}
+
+	incoming, err := getVMAppIncomingCollection(settings, communicator, nopLog())
+	require.NoError(t, err)
+	require.Equal(t, 1, communicator.calls)
+	require.Equal(t, "2.0.0", incoming[0].Version)
+}
+
 func Test_GetApplicationMetadataWithInvalidRebootBehavior_DefaultsToNone(t *testing.T) {
 	setupTest(t)
 	order := 1

@@ -32,7 +32,7 @@ func getVMAppIncomingCollection(settings extdeserialization.VmAppProtectedSettin
 			if vmAppInfo.Version == "" {
 				return errors.New("HostGA did not return a valid vmAppInfo")
 			}
-			if vmAppInfo.Version != app.Version {
+			if app.Version != "" && vmAppInfo.Version != app.Version {
 				return requesthelper.NewRetryableError(fmt.Errorf("HostGA returned version %q for application %q; expected %q", vmAppInfo.Version, app.ApplicationName, app.Version))
 			}
 			return nil
