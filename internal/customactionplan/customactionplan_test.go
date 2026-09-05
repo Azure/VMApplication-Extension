@@ -61,13 +61,13 @@ var mockCommandExecutorNoError CommandExecutor = func(string, string) (int, erro
 // implements IHostGaCommunicator
 type NoopHostGaComminucator struct{}
 
-func (downloader *NoopHostGaComminucator) DownloadPackage(logger *logging.ExtensionLogger, appName string, dst string) error {
+func (downloader *NoopHostGaComminucator) DownloadPackage(logger *logging.ExtensionLogger, appName string, version string, dst string) error {
 	return nil
 }
-func (downloader *NoopHostGaComminucator) DownloadConfig(logger *logging.ExtensionLogger, appName string, dst string) error {
+func (downloader *NoopHostGaComminucator) DownloadConfig(logger *logging.ExtensionLogger, appName string, version string, dst string) error {
 	return nil
 }
-func (downloader *NoopHostGaComminucator) GetVMAppInfo(logger *logging.ExtensionLogger, appName string) (*hostgacommunicator.VMAppMetadata, error) {
+func (downloader *NoopHostGaComminucator) GetVMAppInfo(logger *logging.ExtensionLogger, appName string, version string) (*hostgacommunicator.VMAppMetadata, error) {
 	return nil, nil
 }
 

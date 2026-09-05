@@ -5,6 +5,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/Azure/VMApplication-Extension/internal/extdeserialization"
 	"github.com/Azure/VMApplication-Extension/internal/hostgacommunicator"
@@ -19,13 +20,16 @@ func getVMAppIncomingCollection(settings extdeserialization.VmAppProtectedSettin
 		if app.ApplicationName == "" {
 			return nil, errors.New("missing application name")
 		}
-		vmAppInfo, err := communicator.GetVMAppInfo(el, app.ApplicationName)
+		vmAppInfo, err := communicator.GetVMAppInfo(el, app.ApplicationName, app.Version)
 		if err != nil {
 			// TODO: ignore errors?
 			return incomingCollection, err
 		}
 		if vmAppInfo.Version == "" {
 			return nil, errors.New("HostGA did not return a valid vmAppInfo")
+		}
+		if vmAppInfo.Version != app.Version {
+			return nil, fmt.Errorf("HostGA returned version %q for application %q; expected %q", vmAppInfo.Version, app.ApplicationName, app.Version)
 		}
 
 		var applicationRebootBehavior packageregistry.RebootBehaviorEnum

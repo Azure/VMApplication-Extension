@@ -81,18 +81,20 @@ func (e *DownloadConfigError) Error() string {
 }
 
 type IHostGaCommunicator interface {
-	DownloadPackage(el *logging.ExtensionLogger, appName string, dst string) error
-	DownloadConfig(el *logging.ExtensionLogger, appName string, dst string) error
-	GetVMAppInfo(el *logging.ExtensionLogger, appName string) (*VMAppMetadata, error)
+	DownloadPackage(el *logging.ExtensionLogger, appName string, version string, dst string) error
+	DownloadConfig(el *logging.ExtensionLogger, appName string, version string, dst string) error
+	GetVMAppInfo(el *logging.ExtensionLogger, appName string, version string) (*VMAppMetadata, error)
 }
 
 // HostGaCommunicator provides methods for retrieving application metadata and packages
 // from the HostGaPlugin
 type HostGaCommunicator struct{}
 
+var _ IHostGaCommunicator = (*HostGaCommunicator)(nil)
+
 // GetVMAppInfo returns the metadata for the application
-func (*HostGaCommunicator) GetVMAppInfo(el *logging.ExtensionLogger, appName string) (*VMAppMetadata, error) {
-	requestManager, isArc, err := getMetadataRequestManager(el, appName)
+func (*HostGaCommunicator) GetVMAppInfo(el *logging.ExtensionLogger, appName string, version string) (*VMAppMetadata, error) {
+	requestManager, isArc, err := getMetadataRequestManager(el, appName, version)
 	if err != nil {
 		return nil, &HostGaCommunicatorGetVMAppInfoError{
 			errorMessage: fmt.Sprintf("Could not create the request manager: %v", err),
@@ -135,8 +137,14 @@ func (*HostGaCommunicator) GetVMAppInfo(el *logging.ExtensionLogger, appName str
 // DownloadPackage downloads the application package through HostGaPlugin to the specified
 // file. If the download fails, it automatically retrieves at the last received bytes
 // and rebuilds the file from downloaded parts
-func (*HostGaCommunicator) DownloadPackage(el *logging.ExtensionLogger, appName string, dst string) error {
-	requestFactory, err := newPackageDownloadRequestFactory(el, appName)
+func (*HostGaCommunicator) DownloadPackage(el *logging.ExtensionLogger, appName string, version string, dst string) error {
+	var requestFactory *downloadRequestFactory
+	var err error
+	if isArcAgentPresent(el) {
+		requestFactory, err = newPackageDownloadRequestFactory(el, appName)
+	} else {
+		requestFactory, err = newVersionedPackageDownloadRequestFactory(el, appName, version)
+	}
 	if err != nil {
 		return &DownloadPackageError{
 			errorMessage: fmt.Sprintf("Could not create the request factory: %v", err),
@@ -157,8 +165,14 @@ func (*HostGaCommunicator) DownloadPackage(el *logging.ExtensionLogger, appName 
 // DownloadConfig downloads the application config through HostGaPlugin to the specified
 // file. If the download fails, it automatically retrieves at the last received bytes
 // and rebuilds the file from downloaded parts
-func (*HostGaCommunicator) DownloadConfig(el *logging.ExtensionLogger, appName string, dst string) error {
-	requestFactory, err := newConfigDownloadRequestFactory(el, appName)
+func (*HostGaCommunicator) DownloadConfig(el *logging.ExtensionLogger, appName string, version string, dst string) error {
+	var requestFactory *downloadRequestFactory
+	var err error
+	if isArcAgentPresent(el) {
+		requestFactory, err = newConfigDownloadRequestFactory(el, appName)
+	} else {
+		requestFactory, err = newVersionedConfigDownloadRequestFactory(el, appName, version)
+	}
 	if err != nil {
 		return &DownloadConfigError{
 			errorMessage: fmt.Sprintf("Could not create the request factory: %v", err),
