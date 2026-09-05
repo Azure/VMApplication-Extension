@@ -16,6 +16,7 @@ import (
 
 	"github.com/Azure/VMApplication-Extension/internal/actionplan"
 	"github.com/Azure/VMApplication-Extension/internal/extdeserialization"
+	"github.com/Azure/VMApplication-Extension/internal/requesthelper"
 	"github.com/Azure/VMApplication-Extension/pkg/utils"
 
 	"github.com/Azure/VMApplication-Extension/internal/hostgacommunicator"
@@ -60,6 +61,21 @@ func (communicator *NoopHostGaCommunicator) SetupVMAppInfo(appName string, versi
 		UpdateCommand:      "",
 		Version:            version,
 	}
+}
+
+type staleMetadataCommunicator struct {
+	NoopHostGaCommunicator
+	versions []string
+	calls    int
+}
+
+func (communicator *staleMetadataCommunicator) GetVMAppInfo(el *logging.ExtensionLogger, appName string, version string) (*hostgacommunicator.VMAppMetadata, error) {
+	metadata := &hostgacommunicator.VMAppMetadata{
+		ApplicationName: appName,
+		Version:         communicator.versions[communicator.calls],
+	}
+	communicator.calls++
+	return metadata, nil
 }
 
 var noopHostGaCommunicator = new(NoopHostGaCommunicator)
@@ -222,6 +238,25 @@ func Test_getVMPackageData_noVersion(t *testing.T) {
 	ext := createTestVMExtension(t, vmApplications)
 	err := customEnable(ext, &hostGaCommunicator, 0)
 	require.Error(t, err)
+}
+
+func Test_getVMAppIncomingCollection_RetriesVersionMismatch(t *testing.T) {
+	originalSleep := requesthelper.ActualSleep
+	requesthelper.ActualSleep = func(time.Duration) {}
+	t.Cleanup(func() { requesthelper.ActualSleep = originalSleep })
+
+	communicator := &staleMetadataCommunicator{versions: []string{"1.0.0", "2.0.0"}}
+	settings := extdeserialization.VmAppProtectedSettings{
+		&extdeserialization.VmAppSetting{
+			ApplicationName: "iggy",
+			Version:         "2.0.0",
+		},
+	}
+
+	incoming, err := getVMAppIncomingCollection(settings, communicator, nopLog())
+	require.NoError(t, err)
+	require.Equal(t, 2, communicator.calls)
+	require.Equal(t, "2.0.0", incoming[0].Version)
 }
 
 func Test_GetApplicationMetadataWithInvalidRebootBehavior_DefaultsToNone(t *testing.T) {
