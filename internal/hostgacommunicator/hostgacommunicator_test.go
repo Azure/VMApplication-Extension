@@ -656,6 +656,7 @@ func TestGetOperationUri(t *testing.T) {
 
 	uri, err = getOperationURI(el, appName, operation, map[string]string{
 		"channel": "stable release",
+		"empty":   "",
 		"version": "1.2.3+build",
 	})
 	assert.NoError(t, err)

@@ -256,6 +256,9 @@ func buildUriUsingWireProtocolAddress(baseAddress string, appName string, operat
 func appendQueryParams(uri *url.URL, queryParams map[string]string) {
 	query := uri.Query()
 	for key, value := range queryParams {
+		if value == "" {
+			continue
+		}
 		query.Set(key, value)
 	}
 	uri.RawQuery = query.Encode()
