@@ -17,6 +17,23 @@ import (
 // SleepFunc pauses the execution for at least duration d.
 type SleepFunc func(d time.Duration)
 
+type retryableError struct {
+	err error
+}
+
+func (e *retryableError) Error() string {
+	return e.err.Error()
+}
+
+func (e *retryableError) Unwrap() error {
+	return e.err
+}
+
+// NewRetryableError marks an error as safe to retry.
+func NewRetryableError(err error) error {
+	return &retryableError{err: err}
+}
+
 var (
 	// ActualSleep uses actual time to pause the execution.
 	ActualSleep SleepFunc = time.Sleep
@@ -29,6 +46,32 @@ const (
 	expRetryK = time.Second * 3
 	expRetryM = 2
 )
+
+// WithRetriesOnError retries an operation only when its error was marked by
+// NewRetryableError.
+func WithRetriesOnError(el *logging.ExtensionLogger, sf SleepFunc, operation func() error) error {
+	var lastErr error
+
+	for n := range expRetryN {
+		lastErr = operation()
+		if lastErr == nil {
+			return nil
+		}
+
+		var retryableErr *retryableError
+		if !errors.As(lastErr, &retryableErr) {
+			return lastErr
+		}
+
+		el.Warn("Retryable error: %v", lastErr)
+		if n != expRetryN-1 {
+			slp := expRetryK * time.Duration(int(math.Pow(float64(expRetryM), float64(n))))
+			sf(slp)
+		}
+	}
+
+	return lastErr
+}
 
 // retryRequest is a shared function for retrying HTTP requests with exponential backoff.
 func retryRequest(

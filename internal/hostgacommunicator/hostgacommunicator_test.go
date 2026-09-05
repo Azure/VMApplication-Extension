@@ -26,7 +26,8 @@ import (
 )
 
 const (
-	myAppName = "chipmunkdetector"
+	myAppName    = "chipmunkdetector"
+	myAppVersion = "1.0.0"
 )
 
 var testDirPath string
@@ -50,7 +51,7 @@ func cleanupTestDir() {
 func TestGetVmAppInfo_InvalidUri(t *testing.T) {
 	os.Setenv(WireProtocolAddress, "h%t!p:notgoingtohappen!")
 	hgc := &HostGaCommunicator{}
-	_, err := hgc.GetVMAppInfo(nopLog(), myAppName)
+	_, err := hgc.GetVMAppInfo(nopLog(), myAppName, myAppVersion)
 	require.NotNil(t, err, "did not fail")
 	_, ok := err.(*HostGaCommunicatorGetVMAppInfoError)
 	require.True(t, ok, "expected error to be of type *HostGaCommunicatorGetVMAppInfoError")
@@ -66,7 +67,7 @@ func TestGetVmAppInfo_RequestFailed(t *testing.T) {
 
 	os.Setenv(WireProtocolAddress, srv.URL)
 	hgc := &HostGaCommunicator{}
-	_, err := hgc.GetVMAppInfo(nopLog(), myAppName)
+	_, err := hgc.GetVMAppInfo(nopLog(), myAppName, myAppVersion)
 	require.NotNil(t, err, "did not fail")
 	_, ok := err.(*HostGaCommunicatorGetVMAppInfoError)
 	require.True(t, ok, "expected error to be of type *HostGaCommunicatorGetVMAppInfoError")
@@ -84,7 +85,7 @@ func TestGetVmAppInfo_CouldNotDecodeResponse(t *testing.T) {
 
 	os.Setenv(WireProtocolAddress, srv.URL)
 	hgc := &HostGaCommunicator{}
-	_, err := hgc.GetVMAppInfo(nopLog(), myAppName)
+	_, err := hgc.GetVMAppInfo(nopLog(), myAppName, myAppVersion)
 	require.NotNil(t, err, "did not fail")
 	_, ok := err.(*HostGaCommunicatorGetVMAppInfoError)
 	require.True(t, ok, "expected error to be of type *HostGaCommunicatorGetVMAppInfoError")
@@ -110,7 +111,7 @@ func TestGetVmAppInfo_MissingProperties(t *testing.T) {
 
 	os.Setenv(WireProtocolAddress, srv.URL)
 	hgc := &HostGaCommunicator{}
-	actual, err := hgc.GetVMAppInfo(nopLog(), myAppName)
+	actual, err := hgc.GetVMAppInfo(nopLog(), myAppName, myAppVersion)
 	require.Nil(t, err, "request failed")
 	require.Equal(t, expected.ApplicationName, actual.ApplicationName)
 	require.Equal(t, expected.Version, actual.Version)
@@ -138,7 +139,7 @@ func TestGetVmAppInfo_ValidResponse(t *testing.T) {
 
 	os.Setenv(WireProtocolAddress, srv.URL)
 	hgc := &HostGaCommunicator{}
-	actual, err := hgc.GetVMAppInfo(nopLog(), myAppName)
+	actual, err := hgc.GetVMAppInfo(nopLog(), myAppName, myAppVersion)
 	require.Nil(t, err, "request failed")
 	require.Equal(t, expected.ApplicationName, actual.ApplicationName)
 	require.Equal(t, expected.Version, actual.Version)
@@ -191,7 +192,7 @@ func TestOperations_ImmediateCloseTransportError_RetriedByRequestHelper(t *testi
 
 	t.Run("metadata", func(t *testing.T) {
 		runWithImmediateClose(t, 7, func(hgc *HostGaCommunicator) error {
-			_, opErr := hgc.GetVMAppInfo(nopLog(), myAppName)
+			_, opErr := hgc.GetVMAppInfo(nopLog(), myAppName, myAppVersion)
 			_, ok := opErr.(*HostGaCommunicatorGetVMAppInfoError)
 			require.True(t, ok)
 			require.Contains(t, opErr.Error(), MetadataRequestFailedWithRetries.ToString())
@@ -202,7 +203,7 @@ func TestOperations_ImmediateCloseTransportError_RetriedByRequestHelper(t *testi
 	t.Run("package", func(t *testing.T) {
 		runWithImmediateClose(t, 7, func(hgc *HostGaCommunicator) error {
 			dst := path.Join(testDirPath, "ImmediateClosePackage.bin")
-			opErr := hgc.DownloadPackage(nopLog(), myAppName, dst)
+			opErr := hgc.DownloadPackage(nopLog(), myAppName, myAppVersion, dst)
 			_, ok := opErr.(*DownloadPackageError)
 			require.True(t, ok)
 			require.Contains(t, opErr.Error(), DownloadPackageFileError.ToString())
@@ -214,7 +215,7 @@ func TestOperations_ImmediateCloseTransportError_RetriedByRequestHelper(t *testi
 	t.Run("config", func(t *testing.T) {
 		runWithImmediateClose(t, 7, func(hgc *HostGaCommunicator) error {
 			dst := path.Join(testDirPath, "ImmediateCloseConfig.bin")
-			opErr := hgc.DownloadConfig(nopLog(), myAppName, dst)
+			opErr := hgc.DownloadConfig(nopLog(), myAppName, myAppVersion, dst)
 			_, ok := opErr.(*DownloadConfigError)
 			require.True(t, ok)
 			require.Contains(t, opErr.Error(), DownloadConfigFileError.ToString())
@@ -268,7 +269,7 @@ func TestOperations_TruncatedTransportResponse_RetriedByRequestHelper(t *testing
 
 	t.Run("metadata", func(t *testing.T) {
 		runWithTruncatedResponse(t, 7, func(hgc *HostGaCommunicator) error {
-			_, opErr := hgc.GetVMAppInfo(nopLog(), myAppName)
+			_, opErr := hgc.GetVMAppInfo(nopLog(), myAppName, myAppVersion)
 			_, ok := opErr.(*HostGaCommunicatorGetVMAppInfoError)
 			require.True(t, ok)
 			require.Contains(t, opErr.Error(), MetadataRequestFailedWithRetries.ToString())
@@ -285,7 +286,7 @@ func TestOperations_TruncatedTransportResponse_RetriedByRequestHelper(t *testing
 	t.Run("package", func(t *testing.T) {
 		runWithTruncatedResponse(t, 7, func(hgc *HostGaCommunicator) error {
 			dst := path.Join(testDirPath, "TruncatedPackage.bin")
-			opErr := hgc.DownloadPackage(nopLog(), myAppName, dst)
+			opErr := hgc.DownloadPackage(nopLog(), myAppName, myAppVersion, dst)
 			_, ok := opErr.(*DownloadPackageError)
 			require.True(t, ok)
 			require.Contains(t, opErr.Error(), DownloadPackageFileError.ToString())
@@ -303,7 +304,7 @@ func TestOperations_TruncatedTransportResponse_RetriedByRequestHelper(t *testing
 	t.Run("config", func(t *testing.T) {
 		runWithTruncatedResponse(t, 7, func(hgc *HostGaCommunicator) error {
 			dst := path.Join(testDirPath, "TruncatedConfig.bin")
-			opErr := hgc.DownloadConfig(nopLog(), myAppName, dst)
+			opErr := hgc.DownloadConfig(nopLog(), myAppName, myAppVersion, dst)
 			_, ok := opErr.(*DownloadConfigError)
 			require.True(t, ok)
 			require.Contains(t, opErr.Error(), DownloadConfigFileError.ToString())
@@ -338,7 +339,7 @@ func TestDownloadPackage_CannotRemoveExistingFile(t *testing.T) {
 
 	os.Setenv(WireProtocolAddress, srv.URL)
 	hgc := &HostGaCommunicator{}
-	err = hgc.DownloadPackage(nopLog(), myAppName, filePath)
+	err = hgc.DownloadPackage(nopLog(), myAppName, myAppVersion, filePath)
 	require.NotNil(t, err, "did not fail")
 	_, ok := err.(*DownloadPackageError)
 	require.True(t, ok, "expected error to be of type *DownloadPackageError")
@@ -349,7 +350,7 @@ func TestDownloadPackage_CannotRemoveExistingFile(t *testing.T) {
 func TestDownloadPackage_InvalidUri(t *testing.T) {
 	os.Setenv(WireProtocolAddress, "htt!p:notgoingtohappen!")
 	hgc := &HostGaCommunicator{}
-	err := hgc.DownloadPackage(nopLog(), myAppName, "somepath")
+	err := hgc.DownloadPackage(nopLog(), myAppName, myAppVersion, "somepath")
 	require.NotNil(t, err, "did not fail")
 	_, ok := err.(*DownloadPackageError)
 	require.True(t, ok, "expected error to be of type *DownloadPackageError")
@@ -366,7 +367,7 @@ func TestDownloadPackage_InvalidPath(t *testing.T) {
 
 	os.Setenv(WireProtocolAddress, srv.URL)
 	hgc := &HostGaCommunicator{}
-	err := hgc.DownloadPackage(nopLog(), myAppName, filePath)
+	err := hgc.DownloadPackage(nopLog(), myAppName, myAppVersion, filePath)
 	require.NotNil(t, err, "did not fail")
 	_, ok := err.(*DownloadPackageError)
 	require.True(t, ok, "expected error to be of type *DownloadPackageError")
@@ -389,7 +390,7 @@ func TestDownloadPackage_SingeCallDownload(t *testing.T) {
 
 	os.Setenv(WireProtocolAddress, srv.URL)
 	hgc := &HostGaCommunicator{}
-	err := hgc.DownloadPackage(nopLog(), myAppName, filePath)
+	err := hgc.DownloadPackage(nopLog(), myAppName, myAppVersion, filePath)
 	require.Nil(t, err, "Download failed")
 	verifyFileContents(t, filePath, expected)
 }
@@ -419,7 +420,7 @@ func TestDownloadPackage_TooManyTries(t *testing.T) {
 
 	os.Setenv(WireProtocolAddress, srv.URL)
 	hgc := &HostGaCommunicator{}
-	err := hgc.DownloadPackage(nopLog(), myAppName, filePath)
+	err := hgc.DownloadPackage(nopLog(), myAppName, myAppVersion, filePath)
 	require.NotNil(t, err, "did not fail")
 	_, ok := err.(*DownloadPackageError)
 	require.True(t, ok, "expected error to be of type *DownloadPackageError")
@@ -451,7 +452,7 @@ func TestDownloadPackage_IntermediateCallFails(t *testing.T) {
 
 	os.Setenv(WireProtocolAddress, srv.URL)
 	hgc := &HostGaCommunicator{}
-	err := hgc.DownloadPackage(nopLog(), myAppName, filePath)
+	err := hgc.DownloadPackage(nopLog(), myAppName, myAppVersion, filePath)
 	require.NotNil(t, err, "did not fail")
 	_, ok := err.(*DownloadPackageError)
 	require.True(t, ok, "expected error to be of type *DownloadPackageError")
@@ -489,7 +490,7 @@ func TestDownloadPackage_MultipleCallDownload(t *testing.T) {
 
 	os.Setenv(WireProtocolAddress, srv.URL)
 	hgc := &HostGaCommunicator{}
-	err := hgc.DownloadPackage(nopLog(), myAppName, filePath)
+	err := hgc.DownloadPackage(nopLog(), myAppName, myAppVersion, filePath)
 	require.Nil(t, err, "Download failed")
 	require.Equal(t, expectedCallCount, callCount)
 	verifyFileContents(t, filePath, expected)
@@ -544,7 +545,7 @@ func TestDownloadPackage_UnexpectedEOFIsRecoverable(t *testing.T) {
 
 	os.Setenv(WireProtocolAddress, srv.URL)
 	hgc := &HostGaCommunicator{}
-	err := hgc.DownloadPackage(nopLog(), myAppName, filePath)
+	err := hgc.DownloadPackage(nopLog(), myAppName, myAppVersion, filePath)
 	require.NoError(t, err, "Download should recover from io.ErrUnexpectedEOF and succeed")
 	require.Equal(t, 2, callCount, "Expected one retry after interrupted download")
 	verifyFileContents(t, filePath, expected)
@@ -553,7 +554,7 @@ func TestDownloadPackage_UnexpectedEOFIsRecoverable(t *testing.T) {
 func TestDownloadConfig_InvalidUri(t *testing.T) {
 	os.Setenv(WireProtocolAddress, "htt!p:notgoingtohappen!")
 	hgc := &HostGaCommunicator{}
-	err := hgc.DownloadConfig(nopLog(), myAppName, "somepath")
+	err := hgc.DownloadConfig(nopLog(), myAppName, myAppVersion, "somepath")
 	require.NotNil(t, err, "did not fail")
 	_, ok := err.(*DownloadConfigError)
 	require.True(t, ok, "expected error to be of type *DownloadConfigError")
@@ -570,7 +571,7 @@ func TestDownloadConfig_InvalidPath(t *testing.T) {
 
 	os.Setenv(WireProtocolAddress, srv.URL)
 	hgc := &HostGaCommunicator{}
-	err := hgc.DownloadConfig(nopLog(), myAppName, filePath)
+	err := hgc.DownloadConfig(nopLog(), myAppName, myAppVersion, filePath)
 	require.NotNil(t, err, "did not fail")
 	_, ok := err.(*DownloadConfigError)
 	require.True(t, ok, "expected error to be of type *DownloadConfigError")
@@ -593,9 +594,30 @@ func TestDownloadConfig_SingeCallDownload(t *testing.T) {
 
 	os.Setenv(WireProtocolAddress, srv.URL)
 	hgc := &HostGaCommunicator{}
-	err := hgc.DownloadConfig(nopLog(), myAppName, filePath)
+	err := hgc.DownloadConfig(nopLog(), myAppName, myAppVersion, filePath)
 	require.Nil(t, err, "Download failed")
 	verifyFileContents(t, filePath, expected)
+}
+
+func TestVersionedDownloadRequestFactories(t *testing.T) {
+	t.Setenv(WireProtocolAddress, "https://foo.bar.com:1568")
+
+	tests := []struct {
+		name      string
+		operation string
+		factory   func(*logging.ExtensionLogger, string, string) (*downloadRequestFactory, error)
+	}{
+		{name: "package", operation: packageOperation, factory: newVersionedPackageDownloadRequestFactory},
+		{name: "config", operation: configOperation, factory: newVersionedConfigDownloadRequestFactory},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			factory, err := test.factory(nopLog(), "myApp", "1.2.3+build")
+			require.NoError(t, err)
+			assert.Equal(t, fmt.Sprintf("https://foo.bar.com:1568/applications/myApp/%s?version=1.2.3%%2Bbuild", test.operation), factory.url)
+		})
+	}
 }
 
 func TestGetOperationUri(t *testing.T) {
@@ -604,33 +626,45 @@ func TestGetOperationUri(t *testing.T) {
 
 	el := logging.New(nil)
 	os.Setenv(WireProtocolAddress, "10.0.0.1")
-	uri, err := getOperationURI(el, appName, operation)
+	uri, err := getOperationURI(el, appName, operation, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, fmt.Sprintf("http://10.0.0.1:%s/applications/%s/%s", hostGaPluginPort, appName, operation), uri)
 
 	os.Setenv(WireProtocolAddress, "10.0.0.1:1234")
-	uri, err = getOperationURI(el, appName, operation)
+	uri, err = getOperationURI(el, appName, operation, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, fmt.Sprintf("http://10.0.0.1:1234/applications/%s/%s", appName, operation), uri)
 
 	os.Setenv(WireProtocolAddress, "foo.bar.com")
-	uri, err = getOperationURI(el, appName, operation)
+	uri, err = getOperationURI(el, appName, operation, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, fmt.Sprintf("http://foo.bar.com:%s/applications/%s/%s", hostGaPluginPort, appName, operation), uri)
 
 	os.Setenv(WireProtocolAddress, "foo.bar.com:1568")
-	uri, err = getOperationURI(el, appName, operation)
+	uri, err = getOperationURI(el, appName, operation, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, fmt.Sprintf("http://foo.bar.com:1568/applications/%s/%s", appName, operation), uri)
 
 	os.Setenv(WireProtocolAddress, "https://foo.bar.com:1568")
-	uri, err = getOperationURI(el, appName, operation)
+	uri, err = getOperationURI(el, appName, operation, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, fmt.Sprintf("https://foo.bar.com:1568/applications/%s/%s", appName, operation), uri)
 
+	uri, err = getOperationURI(el, appName, operation, map[string]string{"version": "1.2.3"})
+	assert.NoError(t, err)
+	assert.Equal(t, fmt.Sprintf("https://foo.bar.com:1568/applications/%s/%s?version=1.2.3", appName, operation), uri)
+
+	uri, err = getOperationURI(el, appName, operation, map[string]string{
+		"channel": "stable release",
+		"empty":   "",
+		"version": "1.2.3+build",
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, fmt.Sprintf("https://foo.bar.com:1568/applications/%s/%s?channel=stable+release&version=1.2.3%%2Bbuild", appName, operation), uri)
+
 	// test fallback address for Wire Server
 	os.Setenv(WireProtocolAddress, "")
-	uri, err = getOperationURI(el, appName, operation)
+	uri, err = getOperationURI(el, appName, operation, nil)
 	assert.NoError(t, err)
 	if isArcAgentPresent(el) {
 		assert.Equal(t, fmt.Sprintf("%s/applications/%s/%s", "https://localhost:40342", appName, operation), uri)
@@ -668,7 +702,7 @@ func TestGetGetVmAppInfo(t *testing.T) {
 
 	os.Setenv(WireProtocolAddress, srv.URL)
 	hgc := &HostGaCommunicator{}
-	vmAppMetadata, err := hgc.GetVMAppInfo(nopLog(), "advancedsettingsapp")
+	vmAppMetadata, err := hgc.GetVMAppInfo(nopLog(), "advancedsettingsapp", "3.1415926535897933")
 	assert.NoError(t, err)
 	assert.Equal(t, "flarg.exe", vmAppMetadata.PackageFileName)
 	assert.Equal(t, "flarg.cfg", vmAppMetadata.ConfigFileName)
@@ -747,7 +781,7 @@ func TestGetOperationURI_WithEnvironmentVariable(t *testing.T) {
 	defer os.Unsetenv(WireProtocolAddress)
 
 	el := nopLog()
-	uri, err := getOperationURI(el, appName, operation)
+	uri, err := getOperationURI(el, appName, operation, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, fmt.Sprintf("http://%s/applications/%s/%s", expectedHost, appName, operation), uri)
 }
@@ -760,7 +794,7 @@ func TestGetOperationURI_WithoutEnvironmentVariable(t *testing.T) {
 	os.Unsetenv(WireProtocolAddress)
 
 	el := nopLog()
-	uri, err := getOperationURI(el, appName, operation)
+	uri, err := getOperationURI(el, appName, operation, nil)
 	assert.NoError(t, err)
 	// Should either use Arc endpoint or fallback to wire server depending on Arc agent presence
 	// The exact result depends on the test environment, but it should not error
@@ -783,7 +817,7 @@ func TestGetOperationURI_PriorityOrder(t *testing.T) {
 	defer os.Unsetenv(WireProtocolAddress)
 
 	el := nopLog()
-	uri, err := getOperationURI(el, appName, operation)
+	uri, err := getOperationURI(el, appName, operation, nil)
 	assert.NoError(t, err)
 	// Environment variable should take priority
 	assert.Equal(t, fmt.Sprintf("http://%s/applications/%s/%s", expectedHost, appName, operation), uri)
@@ -794,7 +828,7 @@ func TestBuildUriUsingWireProtocolAddress_CompleteURL(t *testing.T) {
 	appName := "testApp"
 	operation := "metadata"
 
-	uri, err := buildUriUsingWireProtocolAddress(baseAddress, appName, operation)
+	uri, err := buildUriUsingWireProtocolAddress(baseAddress, appName, operation, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, "https://complete.example.com:8080/applications/testApp/metadata", uri)
 }
@@ -804,7 +838,7 @@ func TestBuildUriUsingWireProtocolAddress_HostWithPort(t *testing.T) {
 	appName := "testApp"
 	operation := "package"
 
-	uri, err := buildUriUsingWireProtocolAddress(baseAddress, appName, operation)
+	uri, err := buildUriUsingWireProtocolAddress(baseAddress, appName, operation, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, "http://example.com:9090/applications/testApp/package", uri)
 }
@@ -814,7 +848,7 @@ func TestBuildUriUsingWireProtocolAddress_HostWithoutPort(t *testing.T) {
 	appName := "testApp"
 	operation := "config"
 
-	uri, err := buildUriUsingWireProtocolAddress(baseAddress, appName, operation)
+	uri, err := buildUriUsingWireProtocolAddress(baseAddress, appName, operation, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, fmt.Sprintf("http://example.com:%s/applications/testApp/config", hostGaPluginPort), uri)
 }
@@ -824,7 +858,7 @@ func TestBuildUriUsingWireProtocolAddress_IPWithoutPort(t *testing.T) {
 	appName := "testApp"
 	operation := "metadata"
 
-	uri, err := buildUriUsingWireProtocolAddress(baseAddress, appName, operation)
+	uri, err := buildUriUsingWireProtocolAddress(baseAddress, appName, operation, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, fmt.Sprintf("http://192.168.1.100:%s/applications/testApp/metadata", hostGaPluginPort), uri)
 }
@@ -834,7 +868,7 @@ func TestBuildUriUsingWireProtocolAddress_IPWithPort(t *testing.T) {
 	appName := "testApp"
 	operation := "package"
 
-	uri, err := buildUriUsingWireProtocolAddress(baseAddress, appName, operation)
+	uri, err := buildUriUsingWireProtocolAddress(baseAddress, appName, operation, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, "http://10.0.0.1:1234/applications/testApp/package", uri)
 }
@@ -844,7 +878,7 @@ func TestBuildUriUsingWireProtocolAddress_InvalidURL(t *testing.T) {
 	appName := "testApp"
 	operation := "metadata"
 
-	_, err := buildUriUsingWireProtocolAddress(baseAddress, appName, operation)
+	_, err := buildUriUsingWireProtocolAddress(baseAddress, appName, operation, nil)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "Could not parse the HostGA URI")
 }
