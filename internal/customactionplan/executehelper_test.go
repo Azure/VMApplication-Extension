@@ -29,16 +29,16 @@ type mockHostGaCommunicator struct {
 	DownloadConfigCount  int
 }
 
-func (mockCommunicator *mockHostGaCommunicator) GetVMAppInfo(el *logging.ExtensionLogger, appName string) (*hostgacommunicator.VMAppMetadata, error) {
+func (mockCommunicator *mockHostGaCommunicator) GetVMAppInfo(el *logging.ExtensionLogger, appName string, version string) (*hostgacommunicator.VMAppMetadata, error) {
 	return &hostgacommunicator.VMAppMetadata{}, nil
 }
 
-func (mockCommunicator *mockHostGaCommunicator) DownloadPackage(el *logging.ExtensionLogger, appName string, dst string) error {
+func (mockCommunicator *mockHostGaCommunicator) DownloadPackage(el *logging.ExtensionLogger, appName string, version string, dst string) error {
 	mockCommunicator.DownloadPackageCount++
 	return copyFile(mockCommunicator.pkgFileSourcePath, dst)
 }
 
-func (mockCommunicator *mockHostGaCommunicator) DownloadConfig(el *logging.ExtensionLogger, appName string, dst string) error {
+func (mockCommunicator *mockHostGaCommunicator) DownloadConfig(el *logging.ExtensionLogger, appName string, version string, dst string) error {
 	mockCommunicator.DownloadConfigCount++
 	return copyFile(mockCommunicator.configFileSourcePath, dst)
 }

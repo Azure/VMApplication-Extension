@@ -15,7 +15,8 @@ import (
 )
 
 const (
-	metadataOperation = "metadata"
+	metadataOperation         = "metadata"
+	versionQueryParameterName = "version"
 )
 
 var (
@@ -77,8 +78,10 @@ type metadataRequestFactory struct {
 	url string
 }
 
+var _ requesthelper.RequestFactory = (*metadataRequestFactory)(nil)
+
 func newMetadataRequestFactory(el *logging.ExtensionLogger, appName string) (*metadataRequestFactory, error) {
-	url, err := getOperationURI(el, appName, metadataOperation)
+	url, err := getOperationURI(el, appName, metadataOperation, nil)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to obtain operationURI")
 	}
@@ -91,13 +94,40 @@ func (u metadataRequestFactory) GetRequest() (*http.Request, error) {
 	return http.NewRequest("GET", u.url, nil)
 }
 
-func getMetadataRequestManager(el *logging.ExtensionLogger, appName string) (*requesthelper.RequestManager, bool, error) {
-	factory, err := newMetadataRequestFactory(el, appName)
+func getMetadataRequestManager(el *logging.ExtensionLogger, appName string, version string) (*requesthelper.RequestManager, bool, error) {
+	isArc := isArcAgentPresent(el)
+	var factory requesthelper.RequestFactory
+	var err error
+	if isArc {
+		factory, err = newMetadataRequestFactory(el, appName)
+	} else {
+		factory, err = newVersionedMetadataRequestFactory(el, appName, version)
+	}
 	if err != nil {
 		return nil, false, errors.Wrapf(err, "failed to create request factory")
 	}
 
-	isArc := isArcAgentPresent(el)
-
 	return requesthelper.GetRequestManager(factory, metadataRequestTimeout), isArc, nil
+}
+
+type versionedMetadataRequestFactory struct {
+	url string
+}
+
+var _ requesthelper.RequestFactory = (*versionedMetadataRequestFactory)(nil)
+
+func newVersionedMetadataRequestFactory(el *logging.ExtensionLogger, appName string, version string) (*versionedMetadataRequestFactory, error) {
+	queryParameters := map[string]string{
+		versionQueryParameterName: version,
+	}
+	url, err := getOperationURI(el, appName, metadataOperation, queryParameters)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to obtain operationURI")
+	}
+
+	return &versionedMetadataRequestFactory{url}, nil
+}
+
+func (u versionedMetadataRequestFactory) GetRequest() (*http.Request, error) {
+	return http.NewRequest("GET", u.url, nil)
 }

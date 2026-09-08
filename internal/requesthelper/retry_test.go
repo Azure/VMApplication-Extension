@@ -4,6 +4,7 @@
 package requesthelper_test
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -187,6 +188,33 @@ func TestWithRetries_readLoopPeekFailIsRetried(t *testing.T) {
 	require.EqualError(t, err, "Get \"http://test\": readLoopPeekFailLocked: %!w(<nil>)")
 	require.EqualValues(t, 7, ed.calls, "calls exactly expRetryN times")
 	require.Equal(t, sleepSchedule, []time.Duration(*sr))
+}
+
+func TestWithRetriesOnError_retriesMarkedError(t *testing.T) {
+	calls := 0
+	sr := new(sleepRecorder)
+	err := requesthelper.WithRetriesOnError(nopLog(), sr.Sleep, func() error {
+		calls++
+		if calls < 3 {
+			return requesthelper.NewRetryableError(errors.New("stale response"))
+		}
+		return nil
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 3, calls)
+	require.Equal(t, sleepSchedule[:2], []time.Duration(*sr))
+}
+
+func TestWithRetriesOnError_doesNotRetryUnmarkedError(t *testing.T) {
+	calls := 0
+	err := requesthelper.WithRetriesOnError(nopLog(), NoSleep, func() error {
+		calls++
+		return errors.New("permanent error")
+	})
+
+	require.EqualError(t, err, "permanent error")
+	require.Equal(t, 1, calls)
 }
 
 func TestWithRetries_failingBadStatusCode_validateSleeps(t *testing.T) {

@@ -81,18 +81,20 @@ func (e *DownloadConfigError) Error() string {
 }
 
 type IHostGaCommunicator interface {
-	DownloadPackage(el *logging.ExtensionLogger, appName string, dst string) error
-	DownloadConfig(el *logging.ExtensionLogger, appName string, dst string) error
-	GetVMAppInfo(el *logging.ExtensionLogger, appName string) (*VMAppMetadata, error)
+	DownloadPackage(el *logging.ExtensionLogger, appName string, version string, dst string) error
+	DownloadConfig(el *logging.ExtensionLogger, appName string, version string, dst string) error
+	GetVMAppInfo(el *logging.ExtensionLogger, appName string, version string) (*VMAppMetadata, error)
 }
 
 // HostGaCommunicator provides methods for retrieving application metadata and packages
 // from the HostGaPlugin
 type HostGaCommunicator struct{}
 
+var _ IHostGaCommunicator = (*HostGaCommunicator)(nil)
+
 // GetVMAppInfo returns the metadata for the application
-func (*HostGaCommunicator) GetVMAppInfo(el *logging.ExtensionLogger, appName string) (*VMAppMetadata, error) {
-	requestManager, isArc, err := getMetadataRequestManager(el, appName)
+func (*HostGaCommunicator) GetVMAppInfo(el *logging.ExtensionLogger, appName string, version string) (*VMAppMetadata, error) {
+	requestManager, isArc, err := getMetadataRequestManager(el, appName, version)
 	if err != nil {
 		return nil, &HostGaCommunicatorGetVMAppInfoError{
 			errorMessage: fmt.Sprintf("Could not create the request manager: %v", err),
@@ -135,8 +137,14 @@ func (*HostGaCommunicator) GetVMAppInfo(el *logging.ExtensionLogger, appName str
 // DownloadPackage downloads the application package through HostGaPlugin to the specified
 // file. If the download fails, it automatically retrieves at the last received bytes
 // and rebuilds the file from downloaded parts
-func (*HostGaCommunicator) DownloadPackage(el *logging.ExtensionLogger, appName string, dst string) error {
-	requestFactory, err := newPackageDownloadRequestFactory(el, appName)
+func (*HostGaCommunicator) DownloadPackage(el *logging.ExtensionLogger, appName string, version string, dst string) error {
+	var requestFactory *downloadRequestFactory
+	var err error
+	if isArcAgentPresent(el) {
+		requestFactory, err = newPackageDownloadRequestFactory(el, appName)
+	} else {
+		requestFactory, err = newVersionedPackageDownloadRequestFactory(el, appName, version)
+	}
 	if err != nil {
 		return &DownloadPackageError{
 			errorMessage: fmt.Sprintf("Could not create the request factory: %v", err),
@@ -157,8 +165,14 @@ func (*HostGaCommunicator) DownloadPackage(el *logging.ExtensionLogger, appName 
 // DownloadConfig downloads the application config through HostGaPlugin to the specified
 // file. If the download fails, it automatically retrieves at the last received bytes
 // and rebuilds the file from downloaded parts
-func (*HostGaCommunicator) DownloadConfig(el *logging.ExtensionLogger, appName string, dst string) error {
-	requestFactory, err := newConfigDownloadRequestFactory(el, appName)
+func (*HostGaCommunicator) DownloadConfig(el *logging.ExtensionLogger, appName string, version string, dst string) error {
+	var requestFactory *downloadRequestFactory
+	var err error
+	if isArcAgentPresent(el) {
+		requestFactory, err = newConfigDownloadRequestFactory(el, appName)
+	} else {
+		requestFactory, err = newVersionedConfigDownloadRequestFactory(el, appName, version)
+	}
 	if err != nil {
 		return &DownloadConfigError{
 			errorMessage: fmt.Sprintf("Could not create the request factory: %v", err),
@@ -176,10 +190,10 @@ func (*HostGaCommunicator) DownloadConfig(el *logging.ExtensionLogger, appName s
 	return nil
 }
 
-func getOperationURI(el *logging.ExtensionLogger, appName string, operation string) (string, error) {
+func getOperationURI(el *logging.ExtensionLogger, appName string, operation string, queryParameters map[string]string) (string, error) {
 	baseAddress := os.Getenv(WireProtocolAddress)
 	if baseAddress != "" {
-		return buildUriUsingWireProtocolAddress(baseAddress, appName, operation)
+		return buildUriUsingWireProtocolAddress(baseAddress, appName, operation, queryParameters)
 	}
 
 	var baseEndpoint string
@@ -193,14 +207,19 @@ func getOperationURI(el *logging.ExtensionLogger, appName string, operation stri
 		baseEndpoint = wireServerFallbackAddress
 	}
 
-	uri, _ := url.Parse(baseEndpoint)
+	uri, err := url.Parse(baseEndpoint)
+	if err != nil {
+		return "", err
+	}
+
+	appendQueryParams(uri, queryParameters)
 	// For both Arc and Azure, use the same path structure
 	uri.Path = fmt.Sprintf("applications/%s/%s", appName, operation)
 
 	return uri.String(), nil
 }
 
-func buildUriUsingWireProtocolAddress(baseAddress string, appName string, operation string) (string, error) {
+func buildUriUsingWireProtocolAddress(baseAddress string, appName string, operation string, queryParameters map[string]string) (string, error) {
 	uri, err := url.Parse(baseAddress)
 	if err != nil {
 		// ip with port 10.0.0.1:1234 will fail otherwise
@@ -229,5 +248,18 @@ func buildUriUsingWireProtocolAddress(baseAddress string, appName string, operat
 		uri.Scheme = "http"
 	}
 
+	appendQueryParams(uri, queryParameters)
+
 	return uri.String(), nil
+}
+
+func appendQueryParams(uri *url.URL, queryParams map[string]string) {
+	query := uri.Query()
+	for key, value := range queryParams {
+		if value == "" {
+			continue
+		}
+		query.Set(key, value)
+	}
+	uri.RawQuery = query.Encode()
 }
