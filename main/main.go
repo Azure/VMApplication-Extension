@@ -140,7 +140,7 @@ func getExtensionAndRun(arguments []string) error {
 					}
 				}
 				ext.ExtensionLogger.Error(enableError.Error())
-				ext.ExtensionEvents.LogErrorEvent("Enable Failed", enableError.Error())
+				ext.ExtensionEvents.LogErrorEvent("Enable Failed", "redacting actual error for security reasons")
 				// try to save status file
 				statusMessage := enableError.Error()
 				err := reportStatusWrapper(ext, requestedSequenceNumber, status.StatusError, vmextensionhelper.EnableOperation.ToStatusName(), statusMessage)
