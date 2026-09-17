@@ -431,6 +431,9 @@ func TestDownloadPackage_TooManyTries(t *testing.T) {
 func TestDownloadPackage_IntermediateCallFails(t *testing.T) {
 	failAtCallCount := 5
 	chunk := "This is doomed to fail."
+	origSleep := requesthelper.ActualSleep
+	requesthelper.ActualSleep = func(time.Duration) {}
+	defer func() { requesthelper.ActualSleep = origSleep }()
 
 	createTestDir(t)
 	defer cleanupTestDir()
