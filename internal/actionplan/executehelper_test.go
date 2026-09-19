@@ -4,8 +4,8 @@
 package actionplan
 
 import (
+	"encoding/json"
 	"io"
-	"io/ioutil"
 	"os"
 	"path"
 	"testing"
@@ -66,11 +66,11 @@ func newMockHostGaCommunicator(packageFileContent, configFileContent []byte) (*m
 	if err != nil {
 		return nil, err
 	}
-	err = ioutil.WriteFile(pkgFile, packageFileContent, constants.FilePermissions_UserOnly_ReadWriteExecute)
+	err = os.WriteFile(pkgFile, packageFileContent, constants.FilePermissions_UserOnly_ReadWriteExecute)
 	if err != nil {
 		return nil, err
 	}
-	err = ioutil.WriteFile(configFile, configFileContent, constants.FilePermissions_UserOnly_ReadWriteExecute)
+	err = os.WriteFile(configFile, configFileContent, constants.FilePermissions_UserOnly_ReadWriteExecute)
 	if err != nil {
 		return nil, err
 	}
@@ -149,6 +149,7 @@ func cleanTest() {
 func TestExecuteHelper(t *testing.T) {
 	initTest(t)
 	defer cleanTest()
+	downloadDir := vmAppPackageCurrent.GetWorkingDirectory(&handlerEnvironment)
 	action := action{vmAppPackageCurrent, false, packageregistry.Install}
 	err := actionPlan.executeHelper(packageRegistry, commandHandler, packageregistry.CurrentPackageRegistry{}, &action, extensionEventManager)
 	assert.NoError(t, err)
@@ -164,10 +165,64 @@ func TestExecuteHelper(t *testing.T) {
 	assert.EqualValues(t, vmAppPackageCurrent.InstallCommand, commandHandler.Result[0].command, "1st command should be install")
 	assert.EqualValues(t, vmAppPackageCurrent.RemoveCommand, commandHandler.Result[1].command, "2nd command should be remove")
 	assert.Equal(t, 2, len(commandHandler.Result), "only 2 commands should be executed")
-	_, err = os.Stat(vmAppPackageCurrent.DownloadDir)
-	assert.Error(t, err, "downloadDir should be deleted")
-	_, ok := err.(*os.PathError)
-	assert.True(t, ok, "downloadDir should be deleted")
+	_, err = os.Stat(downloadDir)
+	assert.True(t, os.IsNotExist(err), "downloadDir should be deleted")
+}
+
+func TestExecuteHelper_RemoveForUpdateDoesNotDownloadOutgoingPackage(t *testing.T) {
+	initTest(t)
+	defer cleanTest()
+
+	outgoingPackage := vmAppPackageCurrent
+	outgoingPackage.DownloadDir = outgoingPackage.GetWorkingDirectory(&handlerEnvironment)
+	err := os.MkdirAll(outgoingPackage.DownloadDir, constants.FilePermissions_UserOnly_ReadWriteExecute)
+	assert.NoError(t, err)
+	err = os.WriteFile(path.Join(outgoingPackage.DownloadDir, outgoingPackage.PackageFileName), []byte("cached outgoing package"), constants.FilePermissions_UserOnly_ReadWriteExecute)
+	assert.NoError(t, err)
+	err = os.WriteFile(path.Join(outgoingPackage.DownloadDir, outgoingPackage.ConfigFileName), []byte("cached outgoing config"), constants.FilePermissions_UserOnly_ReadWriteExecute)
+	assert.NoError(t, err)
+	outgoingPackage.PackageFileMD5Checksum, err = getMD5CheckSum(path.Join(outgoingPackage.DownloadDir, outgoingPackage.PackageFileName))
+	assert.NoError(t, err)
+	outgoingPackage.ConfigFileMD5Checksum, err = getMD5CheckSum(path.Join(outgoingPackage.DownloadDir, outgoingPackage.ConfigFileName))
+	assert.NoError(t, err)
+
+	cachedFilesFound := false
+	removeCommandHandler := NewCommandHandlerMock(func(command string, workingDir string) (int, error) {
+		_, packageErr := os.Stat(path.Join(workingDir, outgoingPackage.PackageFileName))
+		if packageErr != nil {
+			return -1, packageErr
+		}
+		_, configErr := os.Stat(path.Join(workingDir, outgoingPackage.ConfigFileName))
+		if configErr != nil {
+			return -1, configErr
+		}
+		cachedFilesFound = true
+		return 0, nil
+	})
+	action := action{outgoingPackage, false, packageregistry.RemoveForUpdate}
+	err = actionPlan.executeHelper(packageRegistry, removeCommandHandler, packageregistry.CurrentPackageRegistry{}, &action, extensionEventManager)
+
+	assert.NoError(t, err)
+	assert.True(t, cachedFilesFound, "remove command should use the cached outgoing package")
+	assert.EqualValues(t, 0, mhgCommunicator.DownloadPackageCount, "outgoing package should not be downloaded during upgrade")
+	assert.EqualValues(t, 0, mhgCommunicator.DownloadConfigCount, "outgoing config should not be downloaded during upgrade")
+	assert.Len(t, removeCommandHandler.Result, 1, "only the remove command should be executed")
+	assert.EqualValues(t, outgoingPackage.RemoveCommand, removeCommandHandler.Result[0].command)
+	_, err = os.Stat(outgoingPackage.DownloadDir)
+	assert.True(t, os.IsNotExist(err), "downloadDir should be deleted")
+
+	// ensure no checksum warning events are emitted
+	eventFiles, err := os.ReadDir(handlerEnvironment.EventsFolder)
+	assert.NoError(t, err)
+	for _, eventFile := range eventFiles {
+		eventJSON, readErr := os.ReadFile(path.Join(handlerEnvironment.EventsFolder, eventFile.Name()))
+		assert.NoError(t, readErr)
+		var event struct {
+			EventLevel string `json:"EventLevel"`
+		}
+		assert.NoError(t, json.Unmarshal(eventJSON, &event))
+		assert.NotEqual(t, "Warning", event.EventLevel, "successful checksum verification should not emit a warning event")
+	}
 }
 
 func TestDeletedApp(t *testing.T) {
