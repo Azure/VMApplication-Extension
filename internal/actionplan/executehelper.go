@@ -51,14 +51,17 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 	}
 
 	var commandToExecute string
-	var isDeleteOperation = false
+	var shouldRemoveFromRegistry = false
+	var isRemoveOperation = false
 	switch act.actionToPerform {
 	case packageregistry.Install:
 		commandToExecute = vmAppPackageCurrent.InstallCommand
 	case packageregistry.RemoveForUpdate:
+		isRemoveOperation = true
 		commandToExecute = vmAppPackageCurrent.RemoveCommand
 	case packageregistry.Remove:
-		isDeleteOperation = true
+		shouldRemoveFromRegistry = true
+		isRemoveOperation = true
 		commandToExecute = vmAppPackageCurrent.RemoveCommand
 	case packageregistry.Update:
 		commandToExecute = vmAppPackageCurrent.UpdateCommand
@@ -80,7 +83,7 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 
 	// try to execute only if you have a valid command to execute
 	if errorMessageToReturn == nil {
-		if !isDeleteOperation {
+		if !isRemoveOperation {
 			if vmAppPackageCurrent.IsDeleted {
 				// application is marked as deleted. Provide a friendly error message to the customer
 				actionPlan.logger.Error("The application %v, version %v has been deleted in the repository", appName, version)
@@ -99,7 +102,7 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 				if err == nil {
 					// download packages
 					downloadPackageFileName := path.Join(downloadPath, vmAppPackageCurrent.PackageFileName)
-					if err := actionPlan.hostGaCommunicator.DownloadPackage(actionPlan.logger, vmAppPackageCurrent.ApplicationName, downloadPackageFileName); err != nil {
+					if err := actionPlan.hostGaCommunicator.DownloadPackage(actionPlan.logger, vmAppPackageCurrent.ApplicationName, vmAppPackageCurrent.Version, downloadPackageFileName); err != nil {
 						actionPlan.logger.Error("Failed to download package for application %v, version %v. Error: %v", appName, version, err.Error())
 						errorMessageToReturn = extensionerrors.CombineErrors(errorMessageToReturn, errors.Wrapf(err, "failed to download package file %s", downloadPackageFileName))
 					}
@@ -114,7 +117,7 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 					// download configuration
 					if vmAppPackageCurrent.ConfigExists {
 						downloadConfigFileName := path.Join(downloadPath, vmAppPackageCurrent.ConfigFileName)
-						if err := actionPlan.hostGaCommunicator.DownloadConfig(actionPlan.logger, vmAppPackageCurrent.ApplicationName, downloadConfigFileName); err != nil {
+						if err := actionPlan.hostGaCommunicator.DownloadConfig(actionPlan.logger, vmAppPackageCurrent.ApplicationName, vmAppPackageCurrent.Version, downloadConfigFileName); err != nil {
 							actionPlan.logger.Error("Failed to download config for application %v, version %v. Error: %v", appName, version, err.Error())
 							errorMessageToReturn = extensionerrors.CombineErrors(errorMessageToReturn, errors.Wrapf(err, "failed to download config file %s", downloadConfigFileName))
 						}
@@ -129,7 +132,7 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 				}
 			}
 		} else {
-			// this is a delete operation, refrain from downloading anything just load existing packages
+			// use the existing package files for remove operations
 			// verify checksum
 			packageFilePath := path.Join(vmAppPackageCurrent.DownloadDir, vmAppPackageCurrent.PackageFileName)
 			downloadPath := vmAppPackageCurrent.GetWorkingDirectory(actionPlan.environment)
@@ -221,9 +224,11 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 		signal.Stop(interruptSignal)
 	}
 
-	if isDeleteOperation {
+	if shouldRemoveFromRegistry {
 		delete(registry, appName)
-		// also cleanup directory
+	}
+
+	if isRemoveOperation {
 		deleteErr := os.RemoveAll(vmAppPackageCurrent.DownloadDir)
 		errorMessageToReturn = extensionerrors.CombineErrors(errorMessageToReturn, deleteErr)
 	}
