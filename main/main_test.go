@@ -1,4 +1,4 @@
-﻿// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
 package main
@@ -614,6 +614,140 @@ func Test_uninstall_uninstallApps(t *testing.T) {
 
 	err := doVmAppUninstallCallback(ext, &hostGaCommunicator)
 	require.NoError(t, err)
+}
+
+func Test_uninstall_twoApps_removeFirstThenUninstallSecond(t *testing.T) {
+	setupTest(t)
+	oldArgs := os.Args
+	defer func() { os.Args = oldArgs }()
+
+	package1Marker := path.Join(maintestdir, "package1_removed")
+	package2Marker := path.Join(maintestdir, "package2_removed")
+	package1Quotes := fmt.Sprintf("\"%v\"", package1Marker)
+	package2Quotes := fmt.Sprintf("\"%v\"", package2Marker)
+
+	// Step 0: Initial state - 2 applications installed on the VM
+	reg := packageregistry.CurrentPackageRegistry{
+		"package1": &packageregistry.VMAppPackageCurrent{
+			ApplicationName:    "package1",
+			DirectDownloadOnly: false,
+			InstallCommand:     "dontcare",
+			RemoveCommand:      "echo removed > " + package1Quotes,
+			UpdateCommand:      "dontcare",
+			Version:            "1.2.3.1",
+		},
+		"package2": &packageregistry.VMAppPackageCurrent{
+			ApplicationName:    "package2",
+			DirectDownloadOnly: false,
+			InstallCommand:     "dontcare",
+			RemoveCommand:      "echo removed > " + package2Quotes,
+			UpdateCommand:      "dontcare",
+			Version:            "1.2.3.2",
+		},
+	}
+
+	ext := createTestVMExtension(t, nil)
+	pkgHndlr, err := packageregistry.New(nopLog(), ext.HandlerEnv, time.Second)
+	require.NoError(t, err)
+	err = pkgHndlr.WriteToDisk(reg)
+	require.NoError(t, err)
+	pkgHndlr.Close()
+
+	// Step 1: User removes package1 from Portal. Incoming settings now only contains package2.
+	order := 1
+	incomingSettings := []extdeserialization.VmAppSetting{
+		{
+			ApplicationName: "package2",
+			Version:         "1.2.3.2",
+			Order:           &order,
+		},
+	}
+	ext.GetSettings = func() (*handlersettings.HandlerSettings, error) {
+		return createSettings(incomingSettings), nil
+	}
+
+	oldGetVMExtFunc := getExtensionInstanceFunc
+	getExtensionInstanceFunc = func() (*vmextension.VMExtension, error) {
+		return ext, nil
+	}
+	defer func() { getExtensionInstanceFunc = oldGetVMExtFunc }()
+
+	oldCallExtDoFunc := callExtDoFunc
+	extDoCalled := false
+	callExtDoFunc = func(ext *vmextension.VMExtension) {
+		extDoCalled = true
+	}
+	defer func() { callExtDoFunc = oldCallExtDoFunc }()
+
+	noopCommunicator := &NoopHostGaCommunicator{}
+	noopCommunicator.SetupVMAppInfo("package2", "1.2.3.2", "")
+
+	// Run enable for Step 1
+	err = customEnable(ext, noopCommunicator, 1)
+	require.NoError(t, err)
+
+	// Verify package1 uninstall script executed and package1 was removed from registry
+	require.True(t, fileExists(package1Marker), "Package1 remove command did not run")
+	require.False(t, fileExists(package2Marker), "Package2 remove command ran unexpectedly")
+
+	pkgHndlr, err = packageregistry.New(nopLog(), ext.HandlerEnv, time.Second)
+	require.NoError(t, err)
+	packages, err := pkgHndlr.GetExistingPackages()
+	require.NoError(t, err)
+	pkgHndlr.Close()
+
+	require.Len(t, packages, 1, "Expected only 1 package remaining in registry")
+	require.Contains(t, packages, "package2", "Expected package2 to still be in registry")
+	require.NotContains(t, packages, "package1", "Expected package1 to be removed from registry")
+
+	// Step 2: User removes package2 from Portal.
+	// Since 0 apps remain, Azure deprovisions extension and executes "vm-application-manager uninstall".
+	extDoCalled = false
+	err = getExtensionAndRun([]string{"vm-application-manager", vmextension.UninstallOperation.ToString()})
+	require.NoError(t, err)
+
+	// Verify package2 uninstall script executed
+	require.True(t, fileExists(package2Marker), "Package2 remove command was not executed during extension uninstall")
+
+	// Verify package registry is now completely empty
+	pkgHndlr, err = packageregistry.New(nopLog(), ext.HandlerEnv, time.Second)
+	require.NoError(t, err)
+	packages, err = pkgHndlr.GetExistingPackages()
+	require.NoError(t, err)
+	pkgHndlr.Close()
+
+	require.Len(t, packages, 0, "Expected registry to be empty after uninstall")
+	require.True(t, extDoCalled, "Expected callExtDoFunc to be called during uninstall")
+}
+
+func Test_uninstall_getExtensionAndRun_uninstallError(t *testing.T) {
+	setupTest(t)
+	oldArgs := os.Args
+	defer func() { os.Args = oldArgs }()
+
+	ext := createTestVMExtension(t, nil)
+	oldGetVMExtFunc := getExtensionInstanceFunc
+	getExtensionInstanceFunc = func() (*vmextension.VMExtension, error) {
+		return ext, nil
+	}
+	defer func() { getExtensionInstanceFunc = oldGetVMExtFunc }()
+
+	oldCustomUninstallFunc := customUninstallFunc
+	customUninstallFunc = func(ext *vmextension.VMExtension, hostgaCommunicator hostgacommunicator.IHostGaCommunicator) error {
+		return errors.New("simulated uninstall error")
+	}
+	defer func() { customUninstallFunc = oldCustomUninstallFunc }()
+
+	extDoCalled := false
+	oldCallExtDoFunc := callExtDoFunc
+	callExtDoFunc = func(ext *vmextension.VMExtension) {
+		extDoCalled = true
+	}
+	defer func() { callExtDoFunc = oldCallExtDoFunc }()
+
+	err := getExtensionAndRun([]string{"vm-application-manager", vmextension.UninstallOperation.ToString()})
+	require.NoError(t, err, "Uninstall should succeed best-effort even if customUninstall reports an error")
+	require.True(t, extDoCalled, "Expected callExtDoFunc to be called even on customUninstall error")
 }
 
 func fileExists(filePath string) bool {

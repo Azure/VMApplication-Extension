@@ -1,4 +1,4 @@
-﻿// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
 package main
@@ -29,6 +29,8 @@ var (
 	ExtensionVersion               = "1.0.10" // should be assigned at compile time, do not edit in code
 	getExtensionInstanceFunc       = getVMExtension
 	customEnableFunc               = customEnable
+	customUninstallFunc            = customUninstall
+	callExtDoFunc                  = callExtDo
 	setSequenceNumberFunc          = seqno.SetSequenceNumber
 	buildExtensionFromInitInfoFunc = vmextensionhelper.GetVMExtension
 )
@@ -77,6 +79,7 @@ func getExtensionAndRun(arguments []string) error {
 		ext.ExtensionEvents.LogCriticalEvent("ExtensionError", "vm-application-manager requires an argument")
 		return errors.Errorf("vm-application-manager requires an argument")
 	}
+	os.Args = arguments
 	command := arguments[1]
 
 	if command == vmextensionhelper.UpdateOperation.ToString() {
@@ -149,8 +152,19 @@ func getExtensionAndRun(arguments []string) error {
 				}
 			}
 		}
+	} else if command == vmextensionhelper.UninstallOperation.ToString() {
+		// Remove all applications before calling ext.Do() so that DataFolder and application
+		// packages/scripts are preserved while the remove commands execute.
+		hostgaCommunicator := hostgacommunicator.HostGaCommunicator{}
+		uninstallError := customUninstallFunc(ext, &hostgaCommunicator)
+		if uninstallError != nil {
+			msg := fmt.Sprintf("Failed to remove applications during uninstall: %v", uninstallError)
+			ext.ExtensionLogger.Error(msg)
+			ext.ExtensionEvents.LogErrorEvent("Uninstall Failed", msg)
+		}
+		callExtDoFunc(ext)
 	} else {
-		ext.Do()
+		callExtDoFunc(ext)
 	}
 	return nil
 }
@@ -165,7 +179,7 @@ func getVMExtension() (*vmextensionhelper.VMExtension, error) {
 		return nil, err
 	}
 
-	ii.UninstallCallback = nil // no need to do any special handling on uninstall, so we can set the callback to nil
+	ii.UninstallCallback = nil // applications are removed prior to platform uninstall in customUninstall to ensure DataFolder is preserved while uninstall scripts run
 	ii.UpdateCallback = vmAppUpdateCallback
 	ii.InstallCallback = vmAppInstallCallback
 	ii.LogFileNamePattern = fmt.Sprintf("VmAppExt_%v_%%v.log", ExtensionVersion)
@@ -359,10 +373,13 @@ func reportStatusWrapper(ext *vmextensionhelper.VMExtension, requestedSequenceNu
 	return err
 }
 
-func vmAppUninstallCallback(ext *vmextensionhelper.VMExtension) error {
+func callExtDo(ext *vmextensionhelper.VMExtension) {
+	ext.Do()
+}
+
+func customUninstall(ext *vmextensionhelper.VMExtension, hostgaCommunicator hostgacommunicator.IHostGaCommunicator) error {
 	ext.ExtensionEvents.LogInformationalEvent("Uninstalling", "VmApplications extension - removing all applications for uninstall")
-	hostGaCommunicator := hostgacommunicator.HostGaCommunicator{}
-	err := doVmAppUninstallCallback(ext, &hostGaCommunicator)
+	err := doVmAppUninstallCallback(ext, hostgaCommunicator)
 	if err == nil {
 		ext.ExtensionEvents.LogInformationalEvent("Completed", "VmApplications extension uninstalled. Result=Success")
 	} else {
@@ -371,6 +388,11 @@ func vmAppUninstallCallback(ext *vmextensionhelper.VMExtension) error {
 			fmt.Sprintf("VmApplications extension uninstall finished. Result=Failure;Reason=%v", err.Error()))
 	}
 	return err
+}
+
+func vmAppUninstallCallback(ext *vmextensionhelper.VMExtension) error {
+	hostGaCommunicator := hostgacommunicator.HostGaCommunicator{}
+	return customUninstall(ext, &hostGaCommunicator)
 }
 
 func doVmAppUninstallCallback(ext *vmextensionhelper.VMExtension, hostGaCommunicator hostgacommunicator.IHostGaCommunicator) error {
