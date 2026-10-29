@@ -184,7 +184,7 @@ func WithRetries(el *logging.ExtensionLogger, rm *RequestManager, sf SleepFunc) 
 		return response, nil
 	}
 
-	// try to make the fallback request
+	el.Info("WithRetries: primary request failed; attempting fallback request")
 	fallbackResponse, fallbackErr := retryRequest(
 		el,
 		sf,
@@ -193,10 +193,9 @@ func WithRetries(el *logging.ExtensionLogger, rm *RequestManager, sf SleepFunc) 
 		"",
 	)
 	if errors.Is(fallbackErr, errors.ErrUnsupported) {
-		// if fallback request is unsupported, return the original response and error
+		el.Info("WithRetries: fallback request is unsupported; returning original error")
 		return response, err
 	}
-	el.Info("Fallback request was attempted after the primary request failed")
 	return fallbackResponse, fallbackErr
 }
 

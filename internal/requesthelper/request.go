@@ -1,4 +1,4 @@
-﻿// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
 package requesthelper
@@ -64,14 +64,7 @@ func (rm *RequestManager) MakeRequest() (*http.Response, error) {
 // For versioned metadata requests, it uses the base URL without adding the version query parameter.
 // The caller is responsible for closing the response body.
 func (rm *RequestManager) MakeFallbackRequest() (*http.Response, error) {
-	fallbackRequest, err := rm.requestFactory.GetFallbackRequest()
-	if err != nil {
-		// return early if fallback request is not implemented or fails to be created
-		return nil, err
-	}
-	return rm.makeRequest(func() (*http.Request, error) {
-		return fallbackRequest, nil
-	})
+	return rm.makeRequest(rm.requestFactory.GetFallbackRequest)
 }
 
 func (rm *RequestManager) makeRequest(getRequest func() (*http.Request, error)) (*http.Response, error) {
