@@ -170,14 +170,33 @@ func isTransientTransportError(err error) bool {
 // closed on failures). If the retries do not succeed, the last error is returned.
 //
 // It sleeps in exponentially increasing durations between retries.
+// If the primary request fails, it tries the fallback with the same retry policy.
+// When fallback is unsupported, it returns the original error.
 func WithRetries(el *logging.ExtensionLogger, rm *RequestManager, sf SleepFunc) (*http.Response, error) {
-	return retryRequest(
+	response, err := retryRequest(
 		el,
 		sf,
 		rm.MakeRequest,
 		"error: %v",
 		"",
 	)
+	if err == nil {
+		return response, nil
+	}
+
+	// try to make the fallback request
+	fallbackResponse, fallbackErr := retryRequest(
+		el,
+		sf,
+		rm.MakeFallbackRequest,
+		"error: %v",
+		"",
+	)
+	if errors.Is(fallbackErr, errors.ErrUnsupported) {
+		// if fallback request is unsupported, return the original response and error
+		return response, err
+	}
+	return fallbackResponse, fallbackErr
 }
 
 func isTransientHTTPStatusCode(statusCode int) bool {

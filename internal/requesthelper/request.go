@@ -14,6 +14,9 @@ import (
 type RequestFactory interface {
 	// GetRequest returns a new GET request for the resource.
 	GetRequest() (*http.Request, error)
+
+	// GetFallbackRequest returns a new GET request for the secondary resource.
+	GetFallbackRequest() (*http.Request, error)
 }
 
 // RequestManager provides an abstraction for http requests
@@ -52,7 +55,25 @@ func getHTTPClient(timeout time.Duration) *http.Client {
 // if it is 200 OK and then returns the response body. It issues a new request
 // every time called. It is caller's responsibility to close the response body.
 func (rm *RequestManager) MakeRequest() (*http.Response, error) {
-	req, err := rm.requestFactory.GetRequest()
+	return rm.makeRequest(rm.requestFactory.GetRequest)
+}
+
+// MakeFallbackRequest issues a new request using a fallback uri.
+// For versioned metadata requests, it uses the base URL without adding the version query parameter.
+// The caller is responsible for closing the response body.
+func (rm *RequestManager) MakeFallbackRequest() (*http.Response, error) {
+	fallbackRequest, err := rm.requestFactory.GetFallbackRequest()
+	if err != nil {
+		// return early if fallback request is not implemented or fails to be created
+		return nil, err
+	}
+	return rm.makeRequest(func() (*http.Request, error) {
+		return fallbackRequest, nil
+	})
+}
+
+func (rm *RequestManager) makeRequest(getRequest func() (*http.Request, error)) (*http.Response, error) {
+	req, err := getRequest()
 	if err != nil {
 		return nil, err
 	}

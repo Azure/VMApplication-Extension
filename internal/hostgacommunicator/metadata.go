@@ -1,9 +1,10 @@
-﻿// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
 package hostgacommunicator
 
 import (
+	stderrors "errors"
 	"net/http"
 	"strconv"
 	"time"
@@ -94,6 +95,11 @@ func (u metadataRequestFactory) GetRequest() (*http.Request, error) {
 	return http.NewRequest("GET", u.url, nil)
 }
 
+// with metadataRequestFactory, there is no fallback request implemented, so this always returns an error.
+func (u metadataRequestFactory) GetFallbackRequest() (*http.Request, error) {
+	return nil, errors.Wrap(stderrors.ErrUnsupported, "metadataRequestFactory does not implement a fallback request")
+}
+
 func getMetadataRequestManager(el *logging.ExtensionLogger, appName string, version string) (*requesthelper.RequestManager, bool, error) {
 	isArc := isArcAgentPresent(el)
 	var factory requesthelper.RequestFactory
@@ -111,23 +117,32 @@ func getMetadataRequestManager(el *logging.ExtensionLogger, appName string, vers
 }
 
 type versionedMetadataRequestFactory struct {
-	url string
+	url                  string
+	vmAppMetadataVersion string
 }
 
 var _ requesthelper.RequestFactory = (*versionedMetadataRequestFactory)(nil)
 
 func newVersionedMetadataRequestFactory(el *logging.ExtensionLogger, appName string, version string) (*versionedMetadataRequestFactory, error) {
-	queryParameters := map[string]string{
-		versionQueryParameterName: version,
-	}
-	url, err := getOperationURI(el, appName, metadataOperation, queryParameters)
+	url, err := getOperationURI(el, appName, metadataOperation, nil)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to obtain operationURI")
 	}
 
-	return &versionedMetadataRequestFactory{url}, nil
+	return &versionedMetadataRequestFactory{url: url, vmAppMetadataVersion: version}, nil
 }
 
 func (u versionedMetadataRequestFactory) GetRequest() (*http.Request, error) {
-	return http.NewRequest("GET", u.url, nil)
+	req, err := http.NewRequest(http.MethodGet, u.url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	appendQueryParams(req.URL, map[string]string{versionQueryParameterName: u.vmAppMetadataVersion})
+	return req, nil
+}
+
+// GetFallbackRequest returns a new request using the base URL without adding the version query parameter.
+func (u versionedMetadataRequestFactory) GetFallbackRequest() (*http.Request, error) {
+	return http.NewRequest(http.MethodGet, u.url, nil)
 }

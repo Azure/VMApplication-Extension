@@ -1,9 +1,10 @@
-﻿// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
 package requesthelper
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -22,6 +23,10 @@ type mockRequestFactory struct {
 
 func (m *mockRequestFactory) GetRequest() (*http.Request, error) {
 	return http.NewRequest("GET", m.url, nil)
+}
+
+func (*mockRequestFactory) GetFallbackRequest() (*http.Request, error) {
+	return nil, errors.ErrUnsupported
 }
 
 func TestArcAuthHandler_MakeArcRequest_Success(t *testing.T) {
