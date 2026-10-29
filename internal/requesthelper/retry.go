@@ -189,8 +189,8 @@ func WithRetries(el *logging.ExtensionLogger, rm *RequestManager, sf SleepFunc) 
 		el,
 		sf,
 		rm.MakeFallbackRequest,
-		"error: %v",
-		"",
+		"Fallback request error: %v",
+		"Fallback request: ",
 	)
 	if errors.Is(fallbackErr, errors.ErrUnsupported) {
 		el.Info("WithRetries: fallback request is unsupported; returning original error")
