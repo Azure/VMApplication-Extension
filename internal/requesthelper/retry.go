@@ -183,20 +183,18 @@ func WithRetries(el *logging.ExtensionLogger, rm *RequestManager, sf SleepFunc) 
 	if err == nil {
 		return response, nil
 	}
-
+	if _, ok := rm.requestFactory.(RequestFactoryWithFallback); !ok {
+		// Fallback is not supported, return the original error
+		return response, err
+	}
 	el.Info("WithRetries: primary request failed; attempting fallback request")
-	fallbackResponse, fallbackErr := retryRequest(
+	return retryRequest(
 		el,
 		sf,
 		rm.MakeFallbackRequest,
 		"Fallback request error: %v",
 		"Fallback request: ",
 	)
-	if errors.Is(fallbackErr, errors.ErrUnsupported) {
-		el.Info("WithRetries: fallback request is unsupported; returning original error")
-		return response, err
-	}
-	return fallbackResponse, fallbackErr
 }
 
 func isTransientHTTPStatusCode(statusCode int) bool {

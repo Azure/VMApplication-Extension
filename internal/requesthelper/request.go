@@ -4,20 +4,25 @@
 package requesthelper
 
 import (
+	stderrors "errors"
 	"fmt"
 	"net"
 	"net/http"
 	"time"
+
+	"github.com/pkg/errors"
 )
 
 // RequestFactory describes a method to create HTTP requests.
 type RequestFactory interface {
 	// GetRequest returns a new GET request for the resource.
 	GetRequest() (*http.Request, error)
+}
 
-	// GetFallbackRequest returns a new GET request to use after the primary request fails
-	// or exhausts retries. Implementations without a fallback return an error wrapping
-	// errors.ErrUnsupported.
+// RequestFactoryWithFallback extends RequestFactory with optional fallback support.
+type RequestFactoryWithFallback interface {
+	RequestFactory
+	// GetFallbackRequest returns a new GET request to use after the primary request fails.
 	GetFallbackRequest() (*http.Request, error)
 }
 
@@ -64,7 +69,11 @@ func (rm *RequestManager) MakeRequest() (*http.Response, error) {
 // For versioned metadata requests, it uses the base URL without adding the version query parameter.
 // The caller is responsible for closing the response body.
 func (rm *RequestManager) MakeFallbackRequest() (*http.Response, error) {
-	return rm.makeRequest(rm.requestFactory.GetFallbackRequest)
+	rf, ok := rm.requestFactory.(RequestFactoryWithFallback)
+	if !ok {
+		return nil, errors.Wrapf(stderrors.ErrUnsupported, "%T does not implement a fallback request", rm.requestFactory)
+	}
+	return rm.makeRequest(rf.GetFallbackRequest)
 }
 
 func (rm *RequestManager) makeRequest(getRequest func() (*http.Request, error)) (*http.Response, error) {

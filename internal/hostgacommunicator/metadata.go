@@ -4,7 +4,6 @@
 package hostgacommunicator
 
 import (
-	stderrors "errors"
 	"net/http"
 	"strconv"
 	"time"
@@ -95,11 +94,6 @@ func (u metadataRequestFactory) GetRequest() (*http.Request, error) {
 	return http.NewRequest("GET", u.url, nil)
 }
 
-// with metadataRequestFactory, there is no fallback request implemented, so this always returns an error.
-func (u metadataRequestFactory) GetFallbackRequest() (*http.Request, error) {
-	return nil, errors.Wrap(stderrors.ErrUnsupported, "metadataRequestFactory does not implement a fallback request")
-}
-
 func getMetadataRequestManager(el *logging.ExtensionLogger, appName string, version string) (*requesthelper.RequestManager, bool, error) {
 	isArc := isArcAgentPresent(el)
 	var factory requesthelper.RequestFactory
@@ -121,7 +115,7 @@ type versionedMetadataRequestFactory struct {
 	vmAppMetadataVersion string
 }
 
-var _ requesthelper.RequestFactory = (*versionedMetadataRequestFactory)(nil)
+var _ requesthelper.RequestFactoryWithFallback = (*versionedMetadataRequestFactory)(nil)
 
 func newVersionedMetadataRequestFactory(el *logging.ExtensionLogger, appName string, version string) (*versionedMetadataRequestFactory, error) {
 	url, err := getOperationURI(el, appName, metadataOperation, nil)

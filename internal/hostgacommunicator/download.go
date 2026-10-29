@@ -4,7 +4,6 @@
 package hostgacommunicator
 
 import (
-	stderrors "errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -208,8 +207,4 @@ func (u downloadRequestFactory) GetRequest() (*http.Request, error) {
 	r.Header.Set(rangeHeaderName, rangeHeaderValue)
 
 	return r, nil
-}
-
-func (u downloadRequestFactory) GetFallbackRequest() (*http.Request, error) {
-	return nil, errors.Wrap(stderrors.ErrUnsupported, "downloadRequestFactory does not implement a fallback request")
 }

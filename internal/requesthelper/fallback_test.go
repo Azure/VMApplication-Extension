@@ -15,36 +15,41 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func (*badDownloader) GetFallbackRequest() (*http.Request, error) {
-	return nil, errors.ErrUnsupported
+func TestMakeFallbackRequest_withoutFallbackInterface(t *testing.T) {
+	factory := new(badDownloader)
+	require.NotImplements(t, (*requesthelper.RequestFactoryWithFallback)(nil), factory)
+	rm := requesthelper.GetRequestManager(factory, testRequestTimeout)
+
+	resp, err := rm.MakeFallbackRequest()
+
+	require.ErrorIs(t, err, errors.ErrUnsupported)
+	require.Contains(t, err.Error(), "*requesthelper_test.badDownloader")
+	require.Nil(t, resp)
+	require.Zero(t, factory.calls)
 }
 
-func (*testUrlRequest) GetFallbackRequest() (*http.Request, error) {
-	return nil, errors.ErrUnsupported
-}
+func TestWithRetries_withoutFallbackInterfacePreservesError(t *testing.T) {
+	for _, timeout := range []bool{false, true} {
+		t.Run(fmt.Sprintf("timeout=%t", timeout), func(t *testing.T) {
+			factory := NewErrorRequest(false, timeout)
+			require.NotImplements(t, (*requesthelper.RequestFactoryWithFallback)(nil), factory)
+			rm := requesthelper.GetRequestManager(factory, testRequestTimeout)
+			sr := new(sleepRecorder)
 
-func (*errorDownloader) GetFallbackRequest() (*http.Request, error) {
-	return nil, errors.ErrUnsupported
-}
+			resp, err := requesthelper.WithRetries(nopLog(), rm, sr.Sleep)
 
-func (*eofDownloader) GetFallbackRequest() (*http.Request, error) {
-	return nil, errors.ErrUnsupported
-}
-
-func (*unexpectedEOFDownloader) GetFallbackRequest() (*http.Request, error) {
-	return nil, errors.ErrUnsupported
-}
-
-func (*connResetDownloader) GetFallbackRequest() (*http.Request, error) {
-	return nil, errors.ErrUnsupported
-}
-
-func (*serverClosedIdleDownloader) GetFallbackRequest() (*http.Request, error) {
-	return nil, errors.ErrUnsupported
-}
-
-func (*readLoopPeekFailDownloader) GetFallbackRequest() (*http.Request, error) {
-	return nil, errors.ErrUnsupported
+			require.Equal(t, factory.err, err)
+			require.False(t, errors.Is(err, errors.ErrUnsupported))
+			require.Nil(t, resp)
+			if timeout {
+				require.Equal(t, 7, factory.calls)
+				require.Equal(t, sleepSchedule, []time.Duration(*sr))
+			} else {
+				require.Equal(t, 1, factory.calls)
+				require.Empty(t, *sr)
+			}
+		})
+	}
 }
 
 type fallbackTestFactory struct {
@@ -79,6 +84,7 @@ func TestWithRetries_fallback(t *testing.T) {
 
 	primaryErr := errors.New("primary request failed")
 	fallbackErr := errors.New("fallback request failed")
+	wrappedUnsupported := fmt.Errorf("fallback: %w", errors.ErrUnsupported)
 	for _, tt := range []struct {
 		name          string
 		primaryErr    error
@@ -86,8 +92,8 @@ func TestWithRetries_fallback(t *testing.T) {
 		wantErr       error
 		fallbackCalls int
 	}{
-		{"unsupported", primaryErr, errors.ErrUnsupported, primaryErr, 1},
-		{"wrapped unsupported", primaryErr, fmt.Errorf("fallback: %w", errors.ErrUnsupported), primaryErr, 1},
+		{"unsupported", primaryErr, errors.ErrUnsupported, errors.ErrUnsupported, 1},
+		{"wrapped unsupported", primaryErr, wrappedUnsupported, wrappedUnsupported, 1},
 		{"fallback succeeds", primaryErr, nil, nil, 1},
 		{"fallback fails", primaryErr, fallbackErr, fallbackErr, 1},
 		{"primary succeeds", nil, errors.ErrUnsupported, nil, 0},
@@ -116,7 +122,7 @@ func TestWithRetries_fallback(t *testing.T) {
 	}
 }
 
-func TestWithRetries_unsupportedFallbackPreservesErrorAfterRetries(t *testing.T) {
+func TestWithRetries_returnsFallbackErrorAfterPrimaryRetries(t *testing.T) {
 	for _, tt := range []struct {
 		name string
 		err  error
@@ -135,8 +141,8 @@ func TestWithRetries_unsupportedFallbackPreservesErrorAfterRetries(t *testing.T)
 
 			resp, err := requesthelper.WithRetries(nopLog(), rm, sr.Sleep)
 
-			require.Same(t, primaryErr, err)
-			require.False(t, errors.Is(err, errors.ErrUnsupported))
+			require.Same(t, tt.err, err)
+			require.ErrorIs(t, err, errors.ErrUnsupported)
 			require.Nil(t, resp)
 			require.Equal(t, 7, factory.primaryCalls)
 			require.Equal(t, 1, factory.fallbackCalls)
