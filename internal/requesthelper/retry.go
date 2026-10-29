@@ -1,4 +1,4 @@
-﻿// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
 package requesthelper
@@ -196,6 +196,7 @@ func WithRetries(el *logging.ExtensionLogger, rm *RequestManager, sf SleepFunc) 
 		// if fallback request is unsupported, return the original response and error
 		return response, err
 	}
+	el.Info("Fallback request was attempted after the primary request failed")
 	return fallbackResponse, fallbackErr
 }
 

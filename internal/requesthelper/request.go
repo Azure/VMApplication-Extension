@@ -15,7 +15,9 @@ type RequestFactory interface {
 	// GetRequest returns a new GET request for the resource.
 	GetRequest() (*http.Request, error)
 
-	// GetFallbackRequest returns a new GET request for the secondary resource.
+	// GetFallbackRequest returns a new GET request to use after the primary request fails
+	// or exhausts retries. Implementations without a fallback return an error wrapping
+	// errors.ErrUnsupported.
 	GetFallbackRequest() (*http.Request, error)
 }
 
