@@ -1,4 +1,4 @@
-﻿// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
 package hostgacommunicator
@@ -147,6 +147,37 @@ func TestGetVmAppInfo_ValidResponse(t *testing.T) {
 	require.Equal(t, expected.UpdateCommand, actual.UpdateCommand)
 	require.Equal(t, expected.RemoveCommand, actual.RemoveCommand)
 	require.Equal(t, expected.DirectDownloadOnly, fmt.Sprintf("%v", actual.DirectDownloadOnly))
+}
+
+func TestGetVmAppInfo_UnversionedRequestOmitsVersionQueryParameter(t *testing.T) {
+	expected := VMAppMetadataReceiver{
+		ApplicationName: myAppName,
+		Version:         myAppVersion,
+	}
+	body, err := json.Marshal(expected)
+	require.NoError(t, err)
+
+	var calls atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		assert.Equal(t, http.MethodGet, r.Method)
+		assert.Equal(t, fmt.Sprintf("/applications/%s/metadata", myAppName), r.URL.Path)
+		assert.False(t, r.URL.Query().Has(versionQueryParameterName), "unversioned request must omit the version query parameter")
+		w.Header().Set("Content-Type", "application/json")
+		_, err := w.Write(body)
+		assert.NoError(t, err)
+	}))
+	defer srv.Close()
+	t.Setenv(WireProtocolAddress, srv.URL)
+
+	hgc := &HostGaCommunicator{}
+	actual, err := hgc.GetVMAppInfo(nopLog(), myAppName, "")
+
+	require.NoError(t, err)
+	require.NotNil(t, actual)
+	require.EqualValues(t, 1, calls.Load())
+	require.Equal(t, expected.ApplicationName, actual.ApplicationName)
+	require.Equal(t, expected.Version, actual.Version)
 }
 
 func TestOperations_ImmediateCloseTransportError_RetriedByRequestHelper(t *testing.T) {

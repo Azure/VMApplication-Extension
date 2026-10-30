@@ -98,7 +98,7 @@ func getMetadataRequestManager(el *logging.ExtensionLogger, appName string, vers
 	isArc := isArcAgentPresent(el)
 	var factory requesthelper.RequestFactory
 	var err error
-	if isArc {
+	if isArc || version == "" {
 		factory, err = newMetadataRequestFactory(el, appName)
 	} else {
 		factory, err = newVersionedMetadataRequestFactory(el, appName, version)

@@ -127,6 +127,7 @@ type VMAppPackageIncoming struct {
 	IsDeleted                       bool               `json:"isDeleted"`
 	TreatFailureAsDeploymentFailure bool               `json:"treatFailureAsDeploymentFailure"`
 	RebootBehavior                  RebootBehaviorEnum `json:"rebootBehavior"`
+	UseStrictVersioning             bool               `json:"useStrictVersioning"`
 }
 
 type IPackageRegistry interface {

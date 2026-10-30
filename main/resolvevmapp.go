@@ -23,22 +23,42 @@ func getVMAppIncomingCollection(settings extdeserialization.VmAppProtectedSettin
 		}
 
 		var vmAppInfo *hostgacommunicator.VMAppMetadata
-		err := requesthelper.WithRetriesOnError(el, requesthelper.ActualSleep, func() error {
-			var err error
-			vmAppInfo, err = communicator.GetVMAppInfo(el, app.ApplicationName, app.Version)
+		if app.Version != "" {
+			err := requesthelper.WithRetriesOnError(el, requesthelper.ActualSleep, func() error {
+				var err error
+				vmAppInfo, err = communicator.GetVMAppInfo(el, app.ApplicationName, app.Version)
+				if err != nil {
+					return err
+				}
+				if vmAppInfo.Version == "" {
+					return errors.New("HostGA did not return a valid vmAppInfo")
+				}
+				if vmAppInfo.Version != app.Version {
+					return requesthelper.NewRetryableError(fmt.Errorf("HostGA returned version %q for application %q; expected %q", vmAppInfo.Version, app.ApplicationName, app.Version))
+				}
+				return nil
+			})
 			if err != nil {
-				return err
+				el.Info("Versioned metadata request for application %q failed: %v, retrying using unversioned metadata request", app.ApplicationName, err)
+				vmAppInfo, err = communicator.GetVMAppInfo(el, app.ApplicationName, "")
+				if err != nil {
+					el.Info("Unversioned metadata request for application %q failed: %v", app.ApplicationName, err)
+					return incomingCollection, err
+				}
+				if vmAppInfo.Version == "" {
+					return incomingCollection, errors.New("HostGA did not return a valid vmAppInfo")
+				}
+			}
+		} else {
+			var err error
+			vmAppInfo, err = communicator.GetVMAppInfo(el, app.ApplicationName, "")
+			if err != nil {
+				el.Info("Unversioned metadata request for application %q failed: %v", app.ApplicationName, err)
+				return incomingCollection, err
 			}
 			if vmAppInfo.Version == "" {
-				return errors.New("HostGA did not return a valid vmAppInfo")
+				return incomingCollection, errors.New("HostGA did not return a valid vmAppInfo")
 			}
-			if app.Version != "" && vmAppInfo.Version != app.Version {
-				return requesthelper.NewRetryableError(fmt.Errorf("HostGA returned version %q for application %q; expected %q", vmAppInfo.Version, app.ApplicationName, app.Version))
-			}
-			return nil
-		})
-		if err != nil {
-			return incomingCollection, err
 		}
 
 		var applicationRebootBehavior packageregistry.RebootBehaviorEnum
@@ -51,6 +71,9 @@ func getVMAppIncomingCollection(settings extdeserialization.VmAppProtectedSettin
 			applicationRebootBehavior = packageregistry.None
 		}
 
+		// Version is obtained from the HostGA metadata and used to populate the incoming package information
+		// even if the requested version was not available, a fallback to the version provided by HostGA is used.
+		// Only Metadata request to HostGA refreshes the cache, so the version obtained here is considered safe to be used as a filter for downloading the package and config file.
 		incomingPackage := packageregistry.VMAppPackageIncoming{
 			ApplicationName:                 app.ApplicationName,
 			Order:                           app.Order,
