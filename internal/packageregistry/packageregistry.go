@@ -105,6 +105,7 @@ type VMAppPackageCurrent struct {
 	Result                 string             `json:"result"`
 	RebootBehavior         RebootBehaviorEnum `json:"rebootBehavior"`
 	NumRebootsOccurred     int                `json:"numRebootsOccurred"`
+	UseStrictVersioning    bool               `json:"useStrictVersioning"`
 }
 
 func (vmAppPackageCurrent *VMAppPackageCurrent) GetWorkingDirectory(environment *handlerenv.HandlerEnvironment) string {
@@ -127,7 +128,9 @@ type VMAppPackageIncoming struct {
 	IsDeleted                       bool               `json:"isDeleted"`
 	TreatFailureAsDeploymentFailure bool               `json:"treatFailureAsDeploymentFailure"`
 	RebootBehavior                  RebootBehaviorEnum `json:"rebootBehavior"`
-	UseStrictVersioning             bool               `json:"useStrictVersioning"`
+	// Use version-filtered package and config downloads only when versioned metadata
+	// resolution succeeds. Unversioned metadata, including fallback, uses unversioned downloads.
+	UseStrictVersioning bool `json:"useStrictVersioning"`
 }
 
 type IPackageRegistry interface {

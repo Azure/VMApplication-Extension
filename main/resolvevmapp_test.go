@@ -56,6 +56,7 @@ func Test_getVMAppIncomingCollection_RetriesVersionMismatch(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 2, communicator.calls)
 	require.Equal(t, "2.0.0", incoming[0].Version)
+	require.True(t, incoming[0].UseStrictVersioning)
 }
 
 func Test_getVMAppIncomingCollection_AcceptsResolvedVersionWhenVersionUnspecified(t *testing.T) {
@@ -70,6 +71,7 @@ func Test_getVMAppIncomingCollection_AcceptsResolvedVersionWhenVersionUnspecifie
 	require.NoError(t, err)
 	require.Equal(t, 1, communicator.calls)
 	require.Equal(t, "2.0.0", incoming[0].Version)
+	require.False(t, incoming[0].UseStrictVersioning)
 }
 
 func Test_getVMAppIncomingCollection_Fallback(t *testing.T) {
@@ -167,6 +169,7 @@ func Test_getVMAppIncomingCollection_Fallback(t *testing.T) {
 			require.Equal(t, expectedMetadata.ConfigExists, incoming[0].ConfigExists)
 			require.Equal(t, expectedMetadata.PackageFileName, incoming[0].PackageFileName)
 			require.Equal(t, expectedMetadata.ConfigFileName, incoming[0].ConfigFileName)
+			require.Equal(t, !tt.wantFallback, incoming[0].UseStrictVersioning)
 		})
 	}
 }

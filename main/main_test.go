@@ -39,11 +39,11 @@ type NoopHostGaCommunicator struct {
 	ConfigFileNameUsed  string
 }
 
-func (communicator *NoopHostGaCommunicator) DownloadPackage(el *logging.ExtensionLogger, appName string, version string, dst string) error {
+func (communicator *NoopHostGaCommunicator) DownloadPackage(el *logging.ExtensionLogger, appName string, version string, dst string, useStrictVersioning bool) error {
 	communicator.PackageFileNameUsed = dst
 	return nil
 }
-func (communicator *NoopHostGaCommunicator) DownloadConfig(el *logging.ExtensionLogger, appName string, version string, dst string) error {
+func (communicator *NoopHostGaCommunicator) DownloadConfig(el *logging.ExtensionLogger, appName string, version string, dst string, useStrictVersioning bool) error {
 	communicator.ConfigFileNameUsed = dst
 	return nil
 }

@@ -1,4 +1,4 @@
-﻿// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
 package main
@@ -23,6 +23,7 @@ func getVMAppIncomingCollection(settings extdeserialization.VmAppProtectedSettin
 		}
 
 		var vmAppInfo *hostgacommunicator.VMAppMetadata
+		var useStrictVersioning bool = false
 		if app.Version != "" {
 			err := requesthelper.WithRetriesOnError(el, requesthelper.ActualSleep, func() error {
 				var err error
@@ -48,6 +49,9 @@ func getVMAppIncomingCollection(settings extdeserialization.VmAppProtectedSettin
 				if vmAppInfo.Version == "" {
 					return incomingCollection, errors.New("HostGA did not return a valid vmAppInfo")
 				}
+			} else {
+				// got VMApp info (metadata) using strict versioning
+				useStrictVersioning = true
 			}
 		} else {
 			var err error
@@ -71,9 +75,6 @@ func getVMAppIncomingCollection(settings extdeserialization.VmAppProtectedSettin
 			applicationRebootBehavior = packageregistry.None
 		}
 
-		// Version is obtained from the HostGA metadata and used to populate the incoming package information
-		// even if the requested version was not available, a fallback to the version provided by HostGA is used.
-		// Only Metadata request to HostGA refreshes the cache, so the version obtained here is considered safe to be used as a filter for downloading the package and config file.
 		incomingPackage := packageregistry.VMAppPackageIncoming{
 			ApplicationName:                 app.ApplicationName,
 			Order:                           app.Order,
@@ -87,6 +88,7 @@ func getVMAppIncomingCollection(settings extdeserialization.VmAppProtectedSettin
 			PackageFileName:                 vmAppInfo.PackageFileName,
 			TreatFailureAsDeploymentFailure: app.TreatFailureAsDeploymentFailure,
 			RebootBehavior:                  applicationRebootBehavior,
+			UseStrictVersioning:             useStrictVersioning,
 		}
 		incomingCollection = append(incomingCollection, &incomingPackage)
 	}
