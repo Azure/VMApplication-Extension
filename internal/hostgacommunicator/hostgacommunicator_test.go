@@ -1,4 +1,4 @@
-﻿// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
 package hostgacommunicator
@@ -191,7 +191,9 @@ func TestOperations_ImmediateCloseTransportError_RetriedByRequestHelper(t *testi
 	}
 
 	t.Run("metadata", func(t *testing.T) {
-		runWithImmediateClose(t, 7, func(hgc *HostGaCommunicator) error {
+		// retry happens 7*2 times once using the primary request and then the fallback request
+		// primary request has version query parameter, fallback request does not
+		runWithImmediateClose(t, 14, func(hgc *HostGaCommunicator) error {
 			_, opErr := hgc.GetVMAppInfo(nopLog(), myAppName, myAppVersion)
 			_, ok := opErr.(*HostGaCommunicatorGetVMAppInfoError)
 			require.True(t, ok)
@@ -268,7 +270,9 @@ func TestOperations_TruncatedTransportResponse_RetriedByRequestHelper(t *testing
 	}
 
 	t.Run("metadata", func(t *testing.T) {
-		runWithTruncatedResponse(t, 7, func(hgc *HostGaCommunicator) error {
+		// retry happens 7*2 times once using the primary request and then the fallback request
+		// primary request has version query parameter, fallback request does not
+		runWithTruncatedResponse(t, 14, func(hgc *HostGaCommunicator) error {
 			_, opErr := hgc.GetVMAppInfo(nopLog(), myAppName, myAppVersion)
 			_, ok := opErr.(*HostGaCommunicatorGetVMAppInfoError)
 			require.True(t, ok)

@@ -1,4 +1,4 @@
-﻿// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
 package requesthelper
@@ -170,13 +170,30 @@ func isTransientTransportError(err error) bool {
 // closed on failures). If the retries do not succeed, the last error is returned.
 //
 // It sleeps in exponentially increasing durations between retries.
+// If the primary request fails, it tries the fallback with the same retry policy.
+// When fallback is unsupported, it returns the original error.
 func WithRetries(el *logging.ExtensionLogger, rm *RequestManager, sf SleepFunc) (*http.Response, error) {
-	return retryRequest(
+	response, err := retryRequest(
 		el,
 		sf,
 		rm.MakeRequest,
 		"error: %v",
 		"",
+	)
+	if err == nil {
+		return response, nil
+	}
+	if _, ok := rm.requestFactory.(RequestFactoryWithFallback); !ok {
+		// Fallback is not supported, return the original error
+		return response, err
+	}
+	el.Info("WithRetries: primary request failed; attempting fallback request")
+	return retryRequest(
+		el,
+		sf,
+		rm.MakeFallbackRequest,
+		"Fallback request error: %v",
+		"Fallback request: ",
 	)
 }
 
