@@ -1,4 +1,4 @@
-﻿// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
 package main
@@ -23,22 +23,46 @@ func getVMAppIncomingCollection(settings extdeserialization.VmAppProtectedSettin
 		}
 
 		var vmAppInfo *hostgacommunicator.VMAppMetadata
-		err := requesthelper.WithRetriesOnError(el, requesthelper.ActualSleep, func() error {
-			var err error
-			vmAppInfo, err = communicator.GetVMAppInfo(el, app.ApplicationName, app.Version)
+		var useStrictVersioning bool = false
+		if app.Version != "" {
+			err := requesthelper.WithRetriesOnError(el, requesthelper.ActualSleep, func() error {
+				var err error
+				vmAppInfo, err = communicator.GetVMAppInfo(el, app.ApplicationName, app.Version)
+				if err != nil {
+					return err
+				}
+				if vmAppInfo.Version == "" {
+					return errors.New("HostGA did not return a valid vmAppInfo")
+				}
+				if vmAppInfo.Version != app.Version {
+					return requesthelper.NewRetryableError(fmt.Errorf("HostGA returned version %q for application %q; expected %q", vmAppInfo.Version, app.ApplicationName, app.Version))
+				}
+				return nil
+			})
 			if err != nil {
-				return err
+				el.Info("Versioned metadata request for application %q failed: %v, retrying using unversioned metadata request", app.ApplicationName, err)
+				vmAppInfo, err = communicator.GetVMAppInfo(el, app.ApplicationName, "")
+				if err != nil {
+					el.Info("Unversioned metadata request for application %q failed: %v", app.ApplicationName, err)
+					return incomingCollection, err
+				}
+				if vmAppInfo.Version == "" {
+					return incomingCollection, errors.New("HostGA did not return a valid vmAppInfo")
+				}
+			} else {
+				// got VMApp info (metadata) using strict versioning
+				useStrictVersioning = true
+			}
+		} else {
+			var err error
+			vmAppInfo, err = communicator.GetVMAppInfo(el, app.ApplicationName, "")
+			if err != nil {
+				el.Info("Unversioned metadata request for application %q failed: %v", app.ApplicationName, err)
+				return incomingCollection, err
 			}
 			if vmAppInfo.Version == "" {
-				return errors.New("HostGA did not return a valid vmAppInfo")
+				return incomingCollection, errors.New("HostGA did not return a valid vmAppInfo")
 			}
-			if app.Version != "" && vmAppInfo.Version != app.Version {
-				return requesthelper.NewRetryableError(fmt.Errorf("HostGA returned version %q for application %q; expected %q", vmAppInfo.Version, app.ApplicationName, app.Version))
-			}
-			return nil
-		})
-		if err != nil {
-			return incomingCollection, err
 		}
 
 		var applicationRebootBehavior packageregistry.RebootBehaviorEnum
@@ -64,6 +88,7 @@ func getVMAppIncomingCollection(settings extdeserialization.VmAppProtectedSettin
 			PackageFileName:                 vmAppInfo.PackageFileName,
 			TreatFailureAsDeploymentFailure: app.TreatFailureAsDeploymentFailure,
 			RebootBehavior:                  applicationRebootBehavior,
+			UseStrictVersioning:             useStrictVersioning,
 		}
 		incomingCollection = append(incomingCollection, &incomingPackage)
 	}

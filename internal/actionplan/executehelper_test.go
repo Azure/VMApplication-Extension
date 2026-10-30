@@ -1,4 +1,4 @@
-﻿// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
 package actionplan
@@ -24,23 +24,27 @@ var testdir = path.Join(".", "testdir")
 var uploadDir = path.Join(testdir, "upload")
 
 type mockHostGaCommunicator struct {
-	pkgFileSourcePath    string
-	configFileSourcePath string
-	DownloadPackageCount int
-	DownloadConfigCount  int
+	pkgFileSourcePath       string
+	configFileSourcePath    string
+	DownloadPackageCount    int
+	DownloadConfigCount     int
+	packageStrictVersioning []bool
+	configStrictVersioning  []bool
 }
 
 func (mockCommunicator *mockHostGaCommunicator) GetVMAppInfo(el *logging.ExtensionLogger, appName string, version string) (*hostgacommunicator.VMAppMetadata, error) {
 	return &hostgacommunicator.VMAppMetadata{}, nil
 }
 
-func (mockCommunicator *mockHostGaCommunicator) DownloadPackage(el *logging.ExtensionLogger, appName string, version string, dst string) error {
+func (mockCommunicator *mockHostGaCommunicator) DownloadPackage(el *logging.ExtensionLogger, appName string, version string, dst string, useStrictVersioning bool) error {
 	mockCommunicator.DownloadPackageCount++
+	mockCommunicator.packageStrictVersioning = append(mockCommunicator.packageStrictVersioning, useStrictVersioning)
 	return copyFile(mockCommunicator.pkgFileSourcePath, dst)
 }
 
-func (mockCommunicator *mockHostGaCommunicator) DownloadConfig(el *logging.ExtensionLogger, appName string, version string, dst string) error {
+func (mockCommunicator *mockHostGaCommunicator) DownloadConfig(el *logging.ExtensionLogger, appName string, version string, dst string, useStrictVersioning bool) error {
 	mockCommunicator.DownloadConfigCount++
+	mockCommunicator.configStrictVersioning = append(mockCommunicator.configStrictVersioning, useStrictVersioning)
 	return copyFile(mockCommunicator.configFileSourcePath, dst)
 }
 

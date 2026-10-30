@@ -149,6 +149,37 @@ func TestGetVmAppInfo_ValidResponse(t *testing.T) {
 	require.Equal(t, expected.DirectDownloadOnly, fmt.Sprintf("%v", actual.DirectDownloadOnly))
 }
 
+func TestGetVmAppInfo_UnversionedRequestOmitsVersionQueryParameter(t *testing.T) {
+	expected := VMAppMetadataReceiver{
+		ApplicationName: myAppName,
+		Version:         myAppVersion,
+	}
+	body, err := json.Marshal(expected)
+	require.NoError(t, err)
+
+	var calls atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		assert.Equal(t, http.MethodGet, r.Method)
+		assert.Equal(t, fmt.Sprintf("/applications/%s/metadata", myAppName), r.URL.Path)
+		assert.False(t, r.URL.Query().Has(versionQueryParameterName), "unversioned request must omit the version query parameter")
+		w.Header().Set("Content-Type", "application/json")
+		_, err := w.Write(body)
+		assert.NoError(t, err)
+	}))
+	defer srv.Close()
+	t.Setenv(WireProtocolAddress, srv.URL)
+
+	hgc := &HostGaCommunicator{}
+	actual, err := hgc.GetVMAppInfo(nopLog(), myAppName, "")
+
+	require.NoError(t, err)
+	require.NotNil(t, actual)
+	require.EqualValues(t, 1, calls.Load())
+	require.Equal(t, expected.ApplicationName, actual.ApplicationName)
+	require.Equal(t, expected.Version, actual.Version)
+}
+
 func TestOperations_ImmediateCloseTransportError_RetriedByRequestHelper(t *testing.T) {
 	createTestDir(t)
 	defer cleanupTestDir()
@@ -203,7 +234,7 @@ func TestOperations_ImmediateCloseTransportError_RetriedByRequestHelper(t *testi
 	t.Run("package", func(t *testing.T) {
 		runWithImmediateClose(t, 7, func(hgc *HostGaCommunicator) error {
 			dst := path.Join(testDirPath, "ImmediateClosePackage.bin")
-			opErr := hgc.DownloadPackage(nopLog(), myAppName, myAppVersion, dst)
+			opErr := hgc.DownloadPackage(nopLog(), myAppName, myAppVersion, dst, true)
 			_, ok := opErr.(*DownloadPackageError)
 			require.True(t, ok)
 			require.Contains(t, opErr.Error(), DownloadPackageFileError.ToString())
@@ -215,7 +246,7 @@ func TestOperations_ImmediateCloseTransportError_RetriedByRequestHelper(t *testi
 	t.Run("config", func(t *testing.T) {
 		runWithImmediateClose(t, 7, func(hgc *HostGaCommunicator) error {
 			dst := path.Join(testDirPath, "ImmediateCloseConfig.bin")
-			opErr := hgc.DownloadConfig(nopLog(), myAppName, myAppVersion, dst)
+			opErr := hgc.DownloadConfig(nopLog(), myAppName, myAppVersion, dst, true)
 			_, ok := opErr.(*DownloadConfigError)
 			require.True(t, ok)
 			require.Contains(t, opErr.Error(), DownloadConfigFileError.ToString())
@@ -286,7 +317,7 @@ func TestOperations_TruncatedTransportResponse_RetriedByRequestHelper(t *testing
 	t.Run("package", func(t *testing.T) {
 		runWithTruncatedResponse(t, 7, func(hgc *HostGaCommunicator) error {
 			dst := path.Join(testDirPath, "TruncatedPackage.bin")
-			opErr := hgc.DownloadPackage(nopLog(), myAppName, myAppVersion, dst)
+			opErr := hgc.DownloadPackage(nopLog(), myAppName, myAppVersion, dst, true)
 			_, ok := opErr.(*DownloadPackageError)
 			require.True(t, ok)
 			require.Contains(t, opErr.Error(), DownloadPackageFileError.ToString())
@@ -304,7 +335,7 @@ func TestOperations_TruncatedTransportResponse_RetriedByRequestHelper(t *testing
 	t.Run("config", func(t *testing.T) {
 		runWithTruncatedResponse(t, 7, func(hgc *HostGaCommunicator) error {
 			dst := path.Join(testDirPath, "TruncatedConfig.bin")
-			opErr := hgc.DownloadConfig(nopLog(), myAppName, myAppVersion, dst)
+			opErr := hgc.DownloadConfig(nopLog(), myAppName, myAppVersion, dst, true)
 			_, ok := opErr.(*DownloadConfigError)
 			require.True(t, ok)
 			require.Contains(t, opErr.Error(), DownloadConfigFileError.ToString())
@@ -318,6 +349,50 @@ func TestOperations_TruncatedTransportResponse_RetriedByRequestHelper(t *testing
 			return opErr
 		})
 	})
+}
+
+func TestDownloads_UseStrictVersioningQueryParameter(t *testing.T) {
+	hgc := &HostGaCommunicator{}
+	for _, operation := range []struct {
+		name     string
+		download func(*logging.ExtensionLogger, string, string, string, bool) error
+	}{
+		{packageOperation, hgc.DownloadPackage},
+		{configOperation, hgc.DownloadConfig},
+	} {
+		t.Run(operation.name, func(t *testing.T) {
+			for _, useStrictVersioning := range []bool{true, false} {
+				t.Run(fmt.Sprintf("useStrictVersioning=%t", useStrictVersioning), func(t *testing.T) {
+					const payload = "downloaded test content"
+					var calls atomic.Int32
+					srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						calls.Add(1)
+						assert.Equal(t, http.MethodGet, r.Method)
+						assert.Equal(t, fmt.Sprintf("/applications/%s/%s", myAppName, operation.name), r.URL.Path)
+						if useStrictVersioning {
+							assert.True(t, r.URL.Query().Has(versionQueryParameterName))
+							assert.Equal(t, myAppVersion, r.URL.Query().Get(versionQueryParameterName))
+						} else {
+							assert.False(t, r.URL.Query().Has(versionQueryParameterName), "unversioned download must omit the version query parameter")
+						}
+						_, err := w.Write([]byte(payload))
+						assert.NoError(t, err)
+					}))
+					defer srv.Close()
+					t.Setenv(WireProtocolAddress, srv.URL)
+					dst := path.Join(t.TempDir(), "download.bin")
+
+					err := operation.download(nopLog(), myAppName, myAppVersion, dst, useStrictVersioning)
+
+					require.NoError(t, err)
+					require.EqualValues(t, 1, calls.Load())
+					content, err := os.ReadFile(dst)
+					require.NoError(t, err)
+					require.Equal(t, payload, string(content))
+				})
+			}
+		})
+	}
 }
 
 func TestDownloadPackage_CannotRemoveExistingFile(t *testing.T) {
@@ -339,7 +414,7 @@ func TestDownloadPackage_CannotRemoveExistingFile(t *testing.T) {
 
 	os.Setenv(WireProtocolAddress, srv.URL)
 	hgc := &HostGaCommunicator{}
-	err = hgc.DownloadPackage(nopLog(), myAppName, myAppVersion, filePath)
+	err = hgc.DownloadPackage(nopLog(), myAppName, myAppVersion, filePath, true)
 	require.NotNil(t, err, "did not fail")
 	_, ok := err.(*DownloadPackageError)
 	require.True(t, ok, "expected error to be of type *DownloadPackageError")
@@ -350,7 +425,7 @@ func TestDownloadPackage_CannotRemoveExistingFile(t *testing.T) {
 func TestDownloadPackage_InvalidUri(t *testing.T) {
 	os.Setenv(WireProtocolAddress, "htt!p:notgoingtohappen!")
 	hgc := &HostGaCommunicator{}
-	err := hgc.DownloadPackage(nopLog(), myAppName, myAppVersion, "somepath")
+	err := hgc.DownloadPackage(nopLog(), myAppName, myAppVersion, "somepath", true)
 	require.NotNil(t, err, "did not fail")
 	_, ok := err.(*DownloadPackageError)
 	require.True(t, ok, "expected error to be of type *DownloadPackageError")
@@ -367,7 +442,7 @@ func TestDownloadPackage_InvalidPath(t *testing.T) {
 
 	os.Setenv(WireProtocolAddress, srv.URL)
 	hgc := &HostGaCommunicator{}
-	err := hgc.DownloadPackage(nopLog(), myAppName, myAppVersion, filePath)
+	err := hgc.DownloadPackage(nopLog(), myAppName, myAppVersion, filePath, true)
 	require.NotNil(t, err, "did not fail")
 	_, ok := err.(*DownloadPackageError)
 	require.True(t, ok, "expected error to be of type *DownloadPackageError")
@@ -390,7 +465,7 @@ func TestDownloadPackage_SingeCallDownload(t *testing.T) {
 
 	os.Setenv(WireProtocolAddress, srv.URL)
 	hgc := &HostGaCommunicator{}
-	err := hgc.DownloadPackage(nopLog(), myAppName, myAppVersion, filePath)
+	err := hgc.DownloadPackage(nopLog(), myAppName, myAppVersion, filePath, true)
 	require.Nil(t, err, "Download failed")
 	verifyFileContents(t, filePath, expected)
 }
@@ -420,7 +495,7 @@ func TestDownloadPackage_TooManyTries(t *testing.T) {
 
 	os.Setenv(WireProtocolAddress, srv.URL)
 	hgc := &HostGaCommunicator{}
-	err := hgc.DownloadPackage(nopLog(), myAppName, myAppVersion, filePath)
+	err := hgc.DownloadPackage(nopLog(), myAppName, myAppVersion, filePath, true)
 	require.NotNil(t, err, "did not fail")
 	_, ok := err.(*DownloadPackageError)
 	require.True(t, ok, "expected error to be of type *DownloadPackageError")
@@ -455,7 +530,7 @@ func TestDownloadPackage_IntermediateCallFails(t *testing.T) {
 
 	os.Setenv(WireProtocolAddress, srv.URL)
 	hgc := &HostGaCommunicator{}
-	err := hgc.DownloadPackage(nopLog(), myAppName, myAppVersion, filePath)
+	err := hgc.DownloadPackage(nopLog(), myAppName, myAppVersion, filePath, true)
 	require.NotNil(t, err, "did not fail")
 	_, ok := err.(*DownloadPackageError)
 	require.True(t, ok, "expected error to be of type *DownloadPackageError")
@@ -493,7 +568,7 @@ func TestDownloadPackage_MultipleCallDownload(t *testing.T) {
 
 	os.Setenv(WireProtocolAddress, srv.URL)
 	hgc := &HostGaCommunicator{}
-	err := hgc.DownloadPackage(nopLog(), myAppName, myAppVersion, filePath)
+	err := hgc.DownloadPackage(nopLog(), myAppName, myAppVersion, filePath, true)
 	require.Nil(t, err, "Download failed")
 	require.Equal(t, expectedCallCount, callCount)
 	verifyFileContents(t, filePath, expected)
@@ -548,7 +623,7 @@ func TestDownloadPackage_UnexpectedEOFIsRecoverable(t *testing.T) {
 
 	os.Setenv(WireProtocolAddress, srv.URL)
 	hgc := &HostGaCommunicator{}
-	err := hgc.DownloadPackage(nopLog(), myAppName, myAppVersion, filePath)
+	err := hgc.DownloadPackage(nopLog(), myAppName, myAppVersion, filePath, true)
 	require.NoError(t, err, "Download should recover from io.ErrUnexpectedEOF and succeed")
 	require.Equal(t, 2, callCount, "Expected one retry after interrupted download")
 	verifyFileContents(t, filePath, expected)
@@ -557,7 +632,7 @@ func TestDownloadPackage_UnexpectedEOFIsRecoverable(t *testing.T) {
 func TestDownloadConfig_InvalidUri(t *testing.T) {
 	os.Setenv(WireProtocolAddress, "htt!p:notgoingtohappen!")
 	hgc := &HostGaCommunicator{}
-	err := hgc.DownloadConfig(nopLog(), myAppName, myAppVersion, "somepath")
+	err := hgc.DownloadConfig(nopLog(), myAppName, myAppVersion, "somepath", true)
 	require.NotNil(t, err, "did not fail")
 	_, ok := err.(*DownloadConfigError)
 	require.True(t, ok, "expected error to be of type *DownloadConfigError")
@@ -574,7 +649,7 @@ func TestDownloadConfig_InvalidPath(t *testing.T) {
 
 	os.Setenv(WireProtocolAddress, srv.URL)
 	hgc := &HostGaCommunicator{}
-	err := hgc.DownloadConfig(nopLog(), myAppName, myAppVersion, filePath)
+	err := hgc.DownloadConfig(nopLog(), myAppName, myAppVersion, filePath, true)
 	require.NotNil(t, err, "did not fail")
 	_, ok := err.(*DownloadConfigError)
 	require.True(t, ok, "expected error to be of type *DownloadConfigError")
@@ -597,7 +672,7 @@ func TestDownloadConfig_SingeCallDownload(t *testing.T) {
 
 	os.Setenv(WireProtocolAddress, srv.URL)
 	hgc := &HostGaCommunicator{}
-	err := hgc.DownloadConfig(nopLog(), myAppName, myAppVersion, filePath)
+	err := hgc.DownloadConfig(nopLog(), myAppName, myAppVersion, filePath, true)
 	require.Nil(t, err, "Download failed")
 	verifyFileContents(t, filePath, expected)
 }

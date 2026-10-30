@@ -81,8 +81,8 @@ func (e *DownloadConfigError) Error() string {
 }
 
 type IHostGaCommunicator interface {
-	DownloadPackage(el *logging.ExtensionLogger, appName string, version string, dst string) error
-	DownloadConfig(el *logging.ExtensionLogger, appName string, version string, dst string) error
+	DownloadPackage(el *logging.ExtensionLogger, appName string, version string, dst string, useStrictVersioning bool) error
+	DownloadConfig(el *logging.ExtensionLogger, appName string, version string, dst string, useStrictVersioning bool) error
 	GetVMAppInfo(el *logging.ExtensionLogger, appName string, version string) (*VMAppMetadata, error)
 }
 
@@ -137,13 +137,17 @@ func (*HostGaCommunicator) GetVMAppInfo(el *logging.ExtensionLogger, appName str
 // DownloadPackage downloads the application package through HostGaPlugin to the specified
 // file. If the download fails, it automatically retrieves at the last received bytes
 // and rebuilds the file from downloaded parts
-func (*HostGaCommunicator) DownloadPackage(el *logging.ExtensionLogger, appName string, version string, dst string) error {
+func (*HostGaCommunicator) DownloadPackage(el *logging.ExtensionLogger, appName string, version string, dst string, useStrictVersioning bool) error {
 	var requestFactory *downloadRequestFactory
 	var err error
 	if isArcAgentPresent(el) {
 		requestFactory, err = newPackageDownloadRequestFactory(el, appName)
 	} else {
-		requestFactory, err = newVersionedPackageDownloadRequestFactory(el, appName, version)
+		if useStrictVersioning {
+			requestFactory, err = newVersionedPackageDownloadRequestFactory(el, appName, version)
+		} else {
+			requestFactory, err = newPackageDownloadRequestFactory(el, appName)
+		}
 	}
 	if err != nil {
 		return &DownloadPackageError{
@@ -165,13 +169,17 @@ func (*HostGaCommunicator) DownloadPackage(el *logging.ExtensionLogger, appName 
 // DownloadConfig downloads the application config through HostGaPlugin to the specified
 // file. If the download fails, it automatically retrieves at the last received bytes
 // and rebuilds the file from downloaded parts
-func (*HostGaCommunicator) DownloadConfig(el *logging.ExtensionLogger, appName string, version string, dst string) error {
+func (*HostGaCommunicator) DownloadConfig(el *logging.ExtensionLogger, appName string, version string, dst string, useStrictVersioning bool) error {
 	var requestFactory *downloadRequestFactory
 	var err error
 	if isArcAgentPresent(el) {
 		requestFactory, err = newConfigDownloadRequestFactory(el, appName)
 	} else {
-		requestFactory, err = newVersionedConfigDownloadRequestFactory(el, appName, version)
+		if useStrictVersioning {
+			requestFactory, err = newVersionedConfigDownloadRequestFactory(el, appName, version)
+		} else {
+			requestFactory, err = newConfigDownloadRequestFactory(el, appName)
+		}
 	}
 	if err != nil {
 		return &DownloadConfigError{
