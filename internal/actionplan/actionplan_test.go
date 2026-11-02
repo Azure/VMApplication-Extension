@@ -1,4 +1,4 @@
-﻿// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
 package actionplan
@@ -20,6 +20,7 @@ import (
 	"github.com/Azure/azure-extension-platform/pkg/logging"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const LaunchedFromAnotherProcessEnvVariable = "LAUNCHED_FROM_ANOTHER_PROCESS"
@@ -65,10 +66,10 @@ var mockCommandFailOnDemand CommandExecutor = func(command string, workingDir st
 // implements IHostGaCommunicator
 type NoopHostGaCommunicator struct{}
 
-func (downloader *NoopHostGaCommunicator) DownloadPackage(logger *logging.ExtensionLogger, appName string, version string, dst string) error {
+func (downloader *NoopHostGaCommunicator) DownloadPackage(logger *logging.ExtensionLogger, appName string, version string, dst string, useStrictVersioning bool) error {
 	return nil
 }
-func (downloader *NoopHostGaCommunicator) DownloadConfig(logger *logging.ExtensionLogger, appName string, version string, dst string) error {
+func (downloader *NoopHostGaCommunicator) DownloadConfig(logger *logging.ExtensionLogger, appName string, version string, dst string, useStrictVersioning bool) error {
 	return nil
 }
 func (downloader *NoopHostGaCommunicator) GetVMAppInfo(logger *logging.ExtensionLogger, appName string, version string) (*hostgacommunicator.VMAppMetadata, error) {
@@ -132,6 +133,58 @@ func TestSingleInstallWithOrder(t *testing.T) {
 	assert.True(t, ok)
 	assert.EqualValues(t, (*packageOperationResults)[0], PackageOperationResult{Result: Success, Operation: packageregistry.Install.ToString(), AppVersion: newApp.Version, PackageName: newApp.ApplicationName})
 	assert.NoError(t, executeError.GetErrorIfDeploymentFailed())
+}
+
+func TestSingleInstall_PassesUseStrictVersioningToDownloads(t *testing.T) {
+	for _, useStrictVersioning := range []bool{true, false} {
+		t.Run(fmt.Sprintf("useStrictVersioning=%t", useStrictVersioning), func(t *testing.T) {
+			env := &handlerenv.HandlerEnvironment{
+				ConfigFolder: t.TempDir(),
+				DataFolder:   t.TempDir(),
+				LogFolder:    t.TempDir(),
+				StatusFolder: t.TempDir(),
+				EventsFolder: t.TempDir(),
+			}
+			sourceDir := t.TempDir()
+			communicator := &mockHostGaCommunicator{
+				pkgFileSourcePath:    path.Join(sourceDir, "package"),
+				configFileSourcePath: path.Join(sourceDir, "config"),
+			}
+			require.NoError(t, os.WriteFile(communicator.pkgFileSourcePath, []byte("package content"), constants.FilePermissions_UserOnly_ReadWriteExecute))
+			require.NoError(t, os.WriteFile(communicator.configFileSourcePath, []byte("config content"), constants.FilePermissions_UserOnly_ReadWriteExecute))
+
+			incoming := &packageregistry.VMAppPackageIncoming{
+				ApplicationName:     "strict-versioning-app",
+				Version:             "1.0",
+				InstallCommand:      "install app",
+				ConfigExists:        true,
+				PackageFileName:     "package",
+				ConfigFileName:      "config",
+				UseStrictVersioning: useStrictVersioning,
+			}
+			currentReg := packageregistry.CurrentPackageRegistry{}
+			registry, err := packageregistry.New(el, env, time.Second)
+			require.NoError(t, err)
+			defer registry.Close()
+			require.NoError(t, registry.WriteToDisk(currentReg))
+			plan := New(currentReg, packageregistry.VMAppPackageIncomingCollection{incoming}, env, communicator, el)
+			cmdHandler := NewCommandHandlerMock(mockCommandExecutorNoError)
+			eem := extensionevents.New(el, env)
+
+			executeError, _ := plan.Execute(registry, eem, cmdHandler)
+
+			require.NoError(t, executeError.GetCombinedExecuteError())
+			require.Equal(t, []bool{useStrictVersioning}, communicator.packageStrictVersioning)
+			require.Equal(t, []bool{useStrictVersioning}, communicator.configStrictVersioning)
+			require.Len(t, cmdHandler.Result, 1)
+			require.Equal(t, incoming.InstallCommand, cmdHandler.Result[0].command)
+			savedReg, err := registry.GetExistingPackages()
+			require.NoError(t, err)
+			require.Contains(t, savedReg, incoming.ApplicationName)
+			require.Equal(t, useStrictVersioning, savedReg[incoming.ApplicationName].UseStrictVersioning)
+			assertAllActionsSucceeded(t, savedReg)
+		})
+	}
 }
 
 func TestSingleInstallWithoutOrder(t *testing.T) {
