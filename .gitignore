@@ -16,3 +16,5 @@ licenses
 main.exe
 internal/hostgacommunicator/TestArtifacts/
 debug.test*
+/vm-application-manager.exe
+/vm-application-manager-arm64.exe
