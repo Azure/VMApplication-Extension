@@ -47,7 +47,7 @@ func main() {
 
 func getExtensionAndRun(arguments []string) error {
 	// simple way to test value of ExtensionVersion set at compile time
-	// just run "vm-application-mamager(.exe) version"
+	// just run "vm-application-manager(.exe) version"
 	if len(arguments) == 2 && strings.EqualFold(arguments[1], argVersion) {
 		fmt.Println("Extension version is", ExtensionVersion)
 		return nil
@@ -118,7 +118,7 @@ func getExtensionAndRun(arguments []string) error {
 			switch enableError.(type) {
 			case *lockedfile.FileLockTimeoutError:
 				// don't save status
-				warningMessage := fmt.Sprintf("Mutliple vm-application-manager processes detected, terminating PID: %d. Status file will not be written.", pid)
+				warningMessage := fmt.Sprintf("Multiple vm-application-manager processes detected, terminating PID: %d. Status file will not be written.", pid)
 				ext.ExtensionLogger.Warn(warningMessage)
 				ext.ExtensionEvents.LogWarningEvent("Concurrency", warningMessage)
 			case *utils.StatusSaveError:
@@ -316,7 +316,7 @@ func computeStatus(
 			statusUpdated = true
 		} else if strings.EqualFold(string(statusObj.Status), string(status.StatusTransitioning)) {
 			// If status is Transitioning and there's no VM App operations,
-			// then record a succes status.
+			// then record a success status.
 			statusMessage = getStatusMessage(currentPackageRegistry.GetPackageCollection(), executeError, customActionResult)
 			statusResult = status.StatusSuccess
 			statusUpdated = true
