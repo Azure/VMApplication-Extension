@@ -1,0 +1,23 @@
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    groups:
+      github-actions:
+        patterns: ["*"]
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+  - package-ecosystem: "gomod"
+    directory: "/"
+    groups:
+      go-dependencies:
+        patterns: ["*"]
+    ignore:
+      # Update manually because new versions can introduce breaking changes.
+      - dependency-name: "github.com/Azure/azure-extension-platform"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7

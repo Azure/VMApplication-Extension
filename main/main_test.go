@@ -1,4 +1,4 @@
-﻿// Copyright (c) Microsoft Corporation.
+// Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
 package main
@@ -39,15 +39,15 @@ type NoopHostGaCommunicator struct {
 	ConfigFileNameUsed  string
 }
 
-func (communicator *NoopHostGaCommunicator) DownloadPackage(el *logging.ExtensionLogger, appName string, dst string) error {
+func (communicator *NoopHostGaCommunicator) DownloadPackage(el *logging.ExtensionLogger, appName string, version string, dst string, useStrictVersioning bool) error {
 	communicator.PackageFileNameUsed = dst
 	return nil
 }
-func (communicator *NoopHostGaCommunicator) DownloadConfig(el *logging.ExtensionLogger, appName string, dst string) error {
+func (communicator *NoopHostGaCommunicator) DownloadConfig(el *logging.ExtensionLogger, appName string, version string, dst string, useStrictVersioning bool) error {
 	communicator.ConfigFileNameUsed = dst
 	return nil
 }
-func (communicator *NoopHostGaCommunicator) GetVMAppInfo(el *logging.ExtensionLogger, appName string) (*hostgacommunicator.VMAppMetadata, error) {
+func (communicator *NoopHostGaCommunicator) GetVMAppInfo(el *logging.ExtensionLogger, appName string, version string) (*hostgacommunicator.VMAppMetadata, error) {
 	return communicator.MetadataToReturn, nil
 }
 
