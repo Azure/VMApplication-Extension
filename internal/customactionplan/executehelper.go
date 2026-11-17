@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"path"
+	"strings"
 	"syscall"
 
 	"github.com/Azure/VMApplication-Extension/internal/actionplan"
@@ -124,6 +125,82 @@ func (actionPlan *ActionPlan) executeHelper(
 	}
 	currAction.Status = actionplan.Failed
 	return markCommandFailed(commandName, appName, version, errorMessageToReturn, act, eem)
+}
+
+// RetryActionName is the reserved custom action name that reinstalls an application instead of running a script.
+// Only this exact name (ignoring case) is reserved, so author-defined actions such as "retry" still run as scripts.
+const RetryActionName = "Microsoft.Retry"
+
+func isRetryAction(act *action) bool {
+	return strings.EqualFold(act.Action.ActionName, RetryActionName)
+}
+
+// executeRetry reinstalls the application through the main action plan. The tick count is written before the
+// reinstall starts so that a reboot during the reinstall does not cause the retry to run again.
+// The remove and install results are appended to result. The returned ExecuteError is nil when the reinstall did
+// not start; otherwise it carries the reinstall's errors, including deployment failures, for the caller to merge.
+func (actionPlan *ActionPlan) executeRetry(
+	commandHandler commandhandler.ICommandHandlerWithEnvVariables, registry ActionPackageRegistry,
+	act *action, eem *extensionevents.ExtensionEventManager,
+	result *actionplan.PackageOperationResults) (*actionplan.ExecuteError, error) {
+
+	appName := act.vmAppPackage.ApplicationName
+	version := act.vmAppPackage.Version
+	commandName := act.Action.ActionName
+
+	currAction := CustomActionPackage{
+		ApplicationName: appName,
+		Version:         version,
+		ActionName:      commandName,
+		Timestamp:       act.Action.Timestamp,
+		Parameters:      act.Action.Parameters,
+		Status:          "In Progress",
+	}
+	registry[appName] = append(registry[appName], &currAction)
+	eem.LogInformationalEvent(
+		"CustomActionStarted",
+		fmt.Sprintf("Starting custom action cmd=%v, application=%v, version=%v", commandName, appName, version))
+
+	fail := func(err error) (*actionplan.ExecuteError, error) {
+		currAction.Status = actionplan.Failed
+		return nil, markCommandFailed(commandName, appName, version, err, act, eem)
+	}
+
+	if actionPlan.mainActionPlan == nil || actionPlan.packageRegistryHandler == nil {
+		return fail(errors.Errorf("Custom action '%v' cannot reinstall application %v because the reinstall dependencies were not provided", commandName, appName))
+	}
+	reinstallCommandHandler, ok := commandHandler.(commandhandler.ICommandHandler)
+	if !ok {
+		return fail(errors.Errorf("Custom action '%v' cannot reinstall application %v because the command handler cannot run install commands", commandName, appName))
+	}
+
+	if err := actionPlan.writeTickCount(act.Action.TickCount); err != nil {
+		return fail(err)
+	}
+
+	reinstallError, reinstallResults := actionPlan.mainActionPlan.Reinstall(
+		appName, actionPlan.incomingPackageCollection, actionPlan.packageRegistryHandler, eem, reinstallCommandHandler)
+	*result = append(*result, *reinstallResults...)
+
+	if err := reinstallError.GetCombinedExecuteError(); err != nil {
+		currAction.Status = actionplan.Failed
+		return reinstallError, markCommandFailed(commandName, appName, version, err, act, eem)
+	}
+
+	currAction.Status = actionplan.Success
+	eem.LogInformationalEvent(
+		"CustomActionCompleted",
+		fmt.Sprintf("Completed custom action cmd=%v, application=%v, version=%v, result=SUCCESS", commandName, appName, version))
+	return reinstallError, nil
+}
+
+func (actionPlan *ActionPlan) writeTickCount(tickCount uint64) error {
+	bytes, err := json.Marshal(tickCount)
+	if err != nil {
+		return err
+	}
+	tickCountFilePath := path.Join(actionPlan.environment.ConfigFolder, tickCountFile)
+	return ioutil.WriteFile(tickCountFilePath, bytes, constants.FilePermissions_UserOnly_ReadWrite)
 }
 
 func markCommandFailed(commandToExecute string, appName string, version string, err error, act *action, eem *extensionevents.ExtensionEventManager) error {

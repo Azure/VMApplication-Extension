@@ -715,6 +715,177 @@ func executeActionPlan(t *testing.T,
 	return currentReg, actionPlan, statusMessage, executeError
 }
 
+func reinstallApplication(t *testing.T,
+	appName string,
+	currentPackages packageregistry.VMAppPackageCurrentCollection,
+	incomingPackages packageregistry.VMAppPackageIncomingCollection,
+	cmdHandler commandhandler.ICommandHandler) (packageregistry.CurrentPackageRegistry, *PackageOperationResults, *ExecuteError) {
+
+	currentReg := packageregistry.CurrentPackageRegistry{}
+	currentReg.Populate(currentPackages)
+
+	packageReg, err := packageregistry.New(el, environment, time.Second)
+	assert.NoError(t, err)
+	if err == nil {
+		defer packageReg.Close()
+	}
+	err = packageReg.WriteToDisk(currentReg)
+	assert.NoError(t, err)
+
+	actionPlan := New(currentReg, incomingPackages, environment, new(NoopHostGaCommunicator), el)
+	eem := extensionevents.New(logging.New(nil), getHandlerEnvironment())
+
+	executeError, results := actionPlan.Reinstall(appName, incomingPackages, packageReg, eem, cmdHandler)
+	newReg, err := packageReg.GetExistingPackages()
+	assert.NoError(t, err)
+	return newReg, results, executeError
+}
+
+func TestReinstallRunsRemoveThenInstall(t *testing.T) {
+	initializeTest(t)
+	defer cleanupTest()
+	existingApp := getVmAppPackageCurrent("app1", "1.0")
+	existingApp.OngoingOperation = packageregistry.Failed
+	existingApp.Result = "Install FAILED"
+	incomingApp := packageregistry.VMAppPackageIncoming{
+		ApplicationName: "app1",
+		Version:         "1.0",
+		InstallCommand:  existingApp.InstallCommand,
+		RemoveCommand:   existingApp.RemoveCommand,
+		UpdateCommand:   existingApp.UpdateCommand,
+	}
+	incomingApps := packageregistry.VMAppPackageIncomingCollection{&incomingApp}
+	cmdHandler := NewCommandHandlerMock(mockCommandExecutorNoError)
+
+	newReg, results, executeError := reinstallApplication(t, "app1", packageregistry.VMAppPackageCurrentCollection{&existingApp}, incomingApps, cmdHandler)
+
+	assert.Equal(t, 2, len(cmdHandler.Result))
+	assert.EqualValues(t, existingApp.RemoveCommand, cmdHandler.Result[0].command, "remove command must run first")
+	assert.EqualValues(t, incomingApp.InstallCommand, cmdHandler.Result[1].command, "install command must run second")
+	assertPackageRegistryHasBeenUpdatedProperly(t, newReg, incomingApps)
+	assertAllActionsSucceeded(t, newReg)
+	assert.Equal(t, 2, len(*results))
+	assert.EqualValues(t, packageregistry.RemoveForUpdate.ToString(), (*results)[0].Operation)
+	assert.EqualValues(t, Success, (*results)[0].Result)
+	assert.EqualValues(t, packageregistry.Install.ToString(), (*results)[1].Operation)
+	assert.EqualValues(t, Success, (*results)[1].Result)
+	assert.NoError(t, executeError.GetCombinedExecuteError())
+}
+
+func TestReinstallSkipsInstallWhenRemoveFails(t *testing.T) {
+	initializeTest(t)
+	defer cleanupTest()
+	existingApp := getVmAppPackageCurrent("app1", "1.0")
+	existingApp.RemoveCommand = "fail remove app1"
+	incomingApp := packageregistry.VMAppPackageIncoming{
+		ApplicationName: "app1",
+		Version:         "1.0",
+		InstallCommand:  existingApp.InstallCommand,
+		RemoveCommand:   existingApp.RemoveCommand,
+	}
+	incomingApps := packageregistry.VMAppPackageIncomingCollection{&incomingApp}
+	cmdHandler := NewCommandHandlerMock(mockCommandFailOnDemand)
+
+	newReg, results, executeError := reinstallApplication(t, "app1", packageregistry.VMAppPackageCurrentCollection{&existingApp}, incomingApps, cmdHandler)
+
+	assert.Equal(t, 1, len(cmdHandler.Result), "install must not run after a failed remove")
+	assert.EqualValues(t, existingApp.RemoveCommand, cmdHandler.Result[0].command)
+	assert.Equal(t, 1, len(*results))
+	assert.EqualValues(t, packageregistry.RemoveForUpdate.ToString(), (*results)[0].Operation)
+	assert.Contains(t, (*results)[0].Result, errorString)
+	assert.Equal(t, packageregistry.Failed, newReg["app1"].OngoingOperation)
+	assert.Error(t, executeError.GetCombinedExecuteError())
+}
+
+func TestReinstallIsNoOpWhenApplicationNotInRegistry(t *testing.T) {
+	initializeTest(t)
+	defer cleanupTest()
+	incomingApp := packageregistry.VMAppPackageIncoming{
+		ApplicationName: "app1",
+		Version:         "1.0",
+		InstallCommand:  "install app1",
+		RemoveCommand:   "remove app1",
+	}
+	incomingApps := packageregistry.VMAppPackageIncomingCollection{&incomingApp}
+	cmdHandler := NewCommandHandlerMock(mockCommandExecutorNoError)
+
+	newReg, results, executeError := reinstallApplication(t, "app1", packageregistry.VMAppPackageCurrentCollection{}, incomingApps, cmdHandler)
+
+	assert.Equal(t, 0, len(cmdHandler.Result))
+	assert.Equal(t, 0, len(*results))
+	assert.Equal(t, 0, len(newReg))
+	assert.NoError(t, executeError.GetCombinedExecuteError())
+}
+
+func TestMergeAddsDeploymentFailureFromOtherExecuteError(t *testing.T) {
+	mainError := &ExecuteError{}
+	reinstallError := &ExecuteError{
+		failedDeploymentErr:   &failedDeploymentError{appsWithTreatFailureAsDeploymentFailure: []string{"app1"}},
+		combinedExecuteErrors: errors.New("install failed"),
+	}
+
+	mainError.Merge(reinstallError)
+
+	deploymentErr := mainError.GetErrorIfDeploymentFailed()
+	assert.Error(t, deploymentErr)
+	assert.Contains(t, deploymentErr.Error(), "app1")
+	assert.Contains(t, deploymentErr.Error(), "install failed")
+}
+
+func TestMergeCombinesWithExistingDeploymentFailure(t *testing.T) {
+	mainError := &ExecuteError{
+		failedDeploymentErr:   &failedDeploymentError{appsWithTreatFailureAsDeploymentFailure: []string{"app1"}},
+		combinedExecuteErrors: errors.New("app1 failed"),
+	}
+	otherError := &ExecuteError{
+		failedDeploymentErr:   &failedDeploymentError{appsWithTreatFailureAsDeploymentFailure: []string{"app2"}},
+		combinedExecuteErrors: errors.New("app2 failed"),
+	}
+
+	mainError.Merge(otherError)
+
+	assert.EqualValues(t, []string{"app1", "app2"}, mainError.failedDeploymentErr.appsWithTreatFailureAsDeploymentFailure)
+	assert.Contains(t, mainError.GetCombinedExecuteError().Error(), "app1 failed")
+	assert.Contains(t, mainError.GetCombinedExecuteError().Error(), "app2 failed")
+}
+
+func TestMergeOfNonDeploymentFailureDoesNotFailDeployment(t *testing.T) {
+	mainError := &ExecuteError{}
+
+	mainError.Merge(&ExecuteError{combinedExecuteErrors: errors.New("custom action failed")})
+	mainError.Merge(nil)
+
+	assert.NoError(t, mainError.GetErrorIfDeploymentFailed())
+	assert.Error(t, mainError.GetCombinedExecuteError())
+}
+
+func TestRebootDuringReinstallRemoveRunsRemoveThenInstall(t *testing.T) {
+	initializeTest(t)
+	defer cleanupTest()
+	existingApp := getVmAppPackageCurrent("app1", "1.0")
+	existingApp.OngoingOperation = packageregistry.RemoveForUpdate
+	existingApp.NumRebootsOccurred = 1
+	existingApp.RebootBehavior = packageregistry.Rerun
+	incomingApp := packageregistry.VMAppPackageIncoming{
+		ApplicationName: "app1",
+		Version:         "1.0",
+		InstallCommand:  existingApp.InstallCommand,
+		RemoveCommand:   existingApp.RemoveCommand,
+		UpdateCommand:   existingApp.UpdateCommand,
+		RebootBehavior:  packageregistry.Rerun,
+	}
+	incomingApps := packageregistry.VMAppPackageIncomingCollection{&incomingApp}
+	cmdHandler := NewCommandHandlerMock(mockCommandExecutorNoError)
+
+	newReg, _, _, executeError := executeActionPlan(t, packageregistry.VMAppPackageCurrentCollection{&existingApp}, incomingApps, cmdHandler)
+
+	assert.Equal(t, 2, len(cmdHandler.Result))
+	assert.EqualValues(t, existingApp.RemoveCommand, cmdHandler.Result[0].command, "interrupted remove must be rerun")
+	assert.EqualValues(t, incomingApp.InstallCommand, cmdHandler.Result[1].command, "install must follow the rerun remove")
+	assertAllActionsSucceeded(t, newReg)
+	assert.NoError(t, executeError.GetCombinedExecuteError())
+}
+
 func getHandlerEnvironment() *handlerenv.HandlerEnvironment {
 	return &handlerenv.HandlerEnvironment{
 		HeartbeatFile: "",

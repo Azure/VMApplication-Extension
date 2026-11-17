@@ -141,6 +141,23 @@ func (exeucuteError *ExecuteError) update(act *action, singleExecutionError erro
 	exeucuteError.combinedExecuteErrors = extensionerrors.CombineErrors(exeucuteError.combinedExecuteErrors, singleExecutionError)
 }
 
+// Merge folds other into executeError so that operations run outside the main action plan, such as a reinstall
+// triggered by a custom action, contribute to the same deployment status.
+func (executeError *ExecuteError) Merge(other *ExecuteError) {
+	if other == nil {
+		return
+	}
+	if other.failedDeploymentErr != nil {
+		if executeError.failedDeploymentErr == nil {
+			executeError.failedDeploymentErr = &failedDeploymentError{appsWithTreatFailureAsDeploymentFailure: []string{}}
+		}
+		executeError.failedDeploymentErr.appsWithTreatFailureAsDeploymentFailure = append(
+			executeError.failedDeploymentErr.appsWithTreatFailureAsDeploymentFailure,
+			other.failedDeploymentErr.appsWithTreatFailureAsDeploymentFailure...)
+	}
+	executeError.combinedExecuteErrors = extensionerrors.CombineErrors(executeError.combinedExecuteErrors, other.combinedExecuteErrors)
+}
+
 func (exeucuteError *ExecuteError) GetErrorIfDeploymentFailed() error {
 	if exeucuteError.failedDeploymentErr == nil {
 		return nil
@@ -206,7 +223,13 @@ func New(currentPackageRegistry packageregistry.CurrentPackageRegistry, desiredV
 					vmAppCurrent.ApplicationName, vmAppCurrent.Version, vmAppCurrent.OngoingOperation.ToString())
 				// Pass in vmAppCurrent instead of vmAppIncoming since exact version already exists in registry and contains the number of reboots occurred so far
 				actionAfterReboot := &action{*vmAppCurrent, vmAppIncoming.TreatFailureAsDeploymentFailure, vmAppCurrent.OngoingOperation}
-				actionPlan.insertOperation(vmAppIncoming.Order, actionAfterReboot)
+				if vmAppCurrent.OngoingOperation == packageregistry.RemoveForUpdate {
+					// a remove for the same version only happens during a reinstall, so the install must follow it
+					installAction := &action{*packageregistry.VMAppPackageIncomingToVmAppPackageCurrent(vmAppIncoming), vmAppIncoming.TreatFailureAsDeploymentFailure, packageregistry.Install}
+					actionPlan.insertOperation(vmAppIncoming.Order, actionAfterReboot, installAction)
+				} else {
+					actionPlan.insertOperation(vmAppIncoming.Order, actionAfterReboot)
+				}
 			}
 		} else {
 			// installs
@@ -303,6 +326,61 @@ func (actionPlan *ActionPlan) Execute(registryHandler packageregistry.IPackageRe
 				actionPlan.logger.Warn("Application %v failed. Skipping the remaining applications", act.vmAppPackage.ApplicationName)
 				break // will skip the remaining dependant actions
 			}
+		}
+	}
+
+	eem.SetPrefix("")
+
+	return executeError, &executionResult
+}
+
+// Reinstall runs the remove path for the application currently in the package registry, then the install path
+// for the matching incoming package. The install is skipped if the remove fails. If the application is not in
+// the package registry, nothing is done.
+func (actionPlan *ActionPlan) Reinstall(
+	appName string,
+	incomingCollection packageregistry.VMAppPackageIncomingCollection,
+	registryHandler packageregistry.IPackageRegistry,
+	eem *extensionevents.ExtensionEventManager,
+	commandHandler commandhandler.ICommandHandler) (*ExecuteError, *PackageOperationResults) {
+
+	executeError := &ExecuteError{failedDeploymentErr: nil, combinedExecuteErrors: nil}
+	executionResult := make(PackageOperationResults, 0)
+
+	registry, err := registryHandler.GetExistingPackages()
+	if err != nil {
+		executeError.combinedExecuteErrors = err
+		return executeError, &executionResult
+	}
+
+	vmAppCurrent, exists := registry[appName]
+	if !exists {
+		actionPlan.logger.Info("Application %v is not in the package registry. Nothing to reinstall.", appName)
+		return executeError, &executionResult
+	}
+
+	var vmAppIncoming *packageregistry.VMAppPackageIncoming
+	for _, incoming := range incomingCollection {
+		if incoming.ApplicationName == appName {
+			vmAppIncoming = incoming
+			break
+		}
+	}
+	if vmAppIncoming == nil {
+		executeError.combinedExecuteErrors = fmt.Errorf("Application %v is not in the incoming package collection and cannot be reinstalled", appName)
+		return executeError, &executionResult
+	}
+
+	removeAction := &action{*vmAppCurrent, false, packageregistry.RemoveForUpdate}
+	installAction := &action{*packageregistry.VMAppPackageIncomingToVmAppPackageCurrent(vmAppIncoming), vmAppIncoming.TreatFailureAsDeploymentFailure, packageregistry.Install}
+
+	for _, act := range []*action{removeAction, installAction} {
+		newError := actionPlan.executeHelper(registryHandler, commandHandler, registry, act, eem)
+		executeError.update(act, newError)
+		appendExecutionResult(&executionResult, act, newError)
+		if newError != nil {
+			actionPlan.logger.Warn("Reinstall of application %v failed during %v", appName, act.actionToPerform.ToString())
+			break
 		}
 	}
 

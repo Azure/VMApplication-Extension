@@ -224,31 +224,33 @@ func customEnable(ext *vmextensionhelper.VMExtension, hostgaCommunicator hostgac
 	actionPlan := actionplan.New(currentPackageRegistry, vmAppIncomingCollection, ext.HandlerEnv, hostgaCommunicator, ext.ExtensionLogger)
 	executeError, actionplanResult := actionPlan.Execute(packageRegistry, ext.ExtensionEvents, &commandHandler)
 
-	if executeError.GetErrorIfDeploymentFailed() != nil {
-		ext.ExtensionEvents.LogErrorEvent(
-			"Completed",
-			fmt.Sprintf("VmApplications extension finished. Result=Failure;Reason=%v", executeError.GetErrorIfDeploymentFailed().Error()))
-	} else {
-		ext.ExtensionEvents.LogInformationalEvent("Completed", "VmApplications extension finished. Result=Success")
-	}
-
 	vmAppResults, _ := actionplanResult.(*actionplan.PackageOperationResults)
 	currentPackageRegistry, err = packageRegistry.GetExistingPackages()
 	if err != nil {
 		return errors.Wrap(err, "Could not read current package registry")
 	}
 
-	customActionPlan, err := customactionplan.New(protSettings, currentPackageRegistry, ext.HandlerEnv, ext.ExtensionLogger)
+	customActionPlan, err := customactionplan.New(protSettings, currentPackageRegistry, ext.HandlerEnv, ext.ExtensionLogger, actionPlan, packageRegistry, vmAppIncomingCollection)
 	if err != nil {
 		return err
 	}
-	_, result := customActionPlan.Execute(ext.ExtensionEvents, &commandHandler, vmAppResults)
+	customActionExecuteError, result := customActionPlan.Execute(ext.ExtensionEvents, &commandHandler, vmAppResults)
+	// custom actions can reinstall applications, so their failures must count towards the deployment status
+	executeError.Merge(customActionExecuteError)
 	_, ok := result.(*actionplan.PackageOperationResults)
 
 	if !ok {
 		ext.ExtensionEvents.LogInformationalEvent(
 			"Completed",
 			fmt.Sprintf("VmApplications extension custom actions finished. Result=Success; Details: %v", result.ToJsonString()))
+	}
+
+	if executeError.GetErrorIfDeploymentFailed() != nil {
+		ext.ExtensionEvents.LogErrorEvent(
+			"Completed",
+			fmt.Sprintf("VmApplications extension finished. Result=Failure;Reason=%v", executeError.GetErrorIfDeploymentFailed().Error()))
+	} else {
+		ext.ExtensionEvents.LogInformationalEvent("Completed", "VmApplications extension finished. Result=Success")
 	}
 
 	currentPackageRegistry, err = packageRegistry.GetExistingPackages()

@@ -54,6 +54,11 @@ func (commandHandlerMock *CommandHandlerMock) ExecuteWithEnvVariables(command st
 	return
 }
 
+// Execute lets the mock also run the install and remove commands used by the retry action
+func (commandHandlerMock *CommandHandlerMock) Execute(command string, workingDir, logDir string, waitForCompletion bool, el logging.ILogger) (returnCode int, err error) {
+	return commandHandlerMock.ExecuteWithEnvVariables(command, workingDir, logDir, waitForCompletion, el, nil)
+}
+
 var mockCommandExecutorNoError CommandExecutor = func(string, string) (int, error) {
 	return 0, nil
 }
@@ -281,6 +286,33 @@ func TestDoubleCustomAction(t *testing.T) {
 	assert.EqualValues(t, (*packageOperationResults)[1], actionplan.PackageOperationResult{Result: actionplan.Success, Operation: "action2", AppVersion: "1.0", PackageName: action[1].ApplicationName, Timestamp: "20210604T155300Z"})
 }
 
+func TestFailedCustomActionIsReportedAndStopsRemainingActions(t *testing.T) {
+	action := actionSetup(t, 2, false)
+	newRegistry := packageregistry.CurrentPackageRegistry{
+		"app1": &packageregistry.VMAppPackageCurrent{ApplicationName: "app1", Version: "1.0"},
+		"app2": &packageregistry.VMAppPackageCurrent{ApplicationName: "app2", Version: "1.0"},
+	}
+
+	packageReg, err := packageregistry.New(extLogger, environment, time.Second)
+	assert.NoError(t, err)
+	if err == nil {
+		defer packageReg.Close()
+	}
+	err = packageReg.WriteToDisk(newRegistry)
+	assert.NoError(t, err)
+	cmdHandler := NewCommandHandlerMock(func(string, string) (int, error) { return 1, nil })
+	appPackage, err := packageReg.GetExistingPackages()
+	assert.NoError(t, err)
+	_, statusMessage := executeActionPlan(t, action, appPackage, cmdHandler)
+
+	packageOperationResults, ok := statusMessage.(*actionplan.PackageOperationResults)
+	assert.True(t, ok)
+	assert.Len(t, *packageOperationResults, 1, "the failed action must be reported and the remaining action must not run")
+	assert.EqualValues(t, "action1", (*packageOperationResults)[0].Operation)
+	assert.EqualValues(t, "app1", (*packageOperationResults)[0].PackageName)
+	assert.Contains(t, (*packageOperationResults)[0].Result, "exited with non-zero error code")
+}
+
 func TestDoubleCustomActionNonexistentApp(t *testing.T) {
 	action := actionSetup(t, 2, false)
 	newApp := packageregistry.VMAppPackageCurrent{
@@ -394,7 +426,7 @@ func executeActionPlan(t *testing.T,
 	appPackage packageregistry.CurrentPackageRegistry,
 	cmdHandler commandhandler.ICommandHandlerWithEnvVariables) (*ActionPlan, actionplan.IResult) {
 
-	actionPlan, err := New(settings, appPackage, environment, extLogger)
+	actionPlan, err := New(settings, appPackage, environment, extLogger, nil, nil, nil)
 	assert.NoError(t, err)
 
 	extLogger := logging.New(nil)

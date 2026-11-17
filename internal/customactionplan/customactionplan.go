@@ -50,6 +50,10 @@ type ActionPlan struct {
 	environment *handlerenv.HandlerEnvironment
 	sortedOrder ActionCollection
 	logger      *logging.ExtensionLogger
+	// used by the reserved Microsoft.Retry action to reinstall an application
+	mainActionPlan            *actionplan.ActionPlan
+	packageRegistryHandler    packageregistry.IPackageRegistry
+	incomingPackageCollection packageregistry.VMAppPackageIncomingCollection
 }
 
 type StatusErrorMessage string
@@ -78,12 +82,22 @@ func appendExecutionResult(executionResult *actionplan.PackageOperationResults, 
 	}
 }
 
-func New(settings []*extdeserialization.VmAppSetting, appPackage packageregistry.CurrentPackageRegistry, environment *handlerenv.HandlerEnvironment, logger *logging.ExtensionLogger) (*ActionPlan, error) {
+func New(
+	settings []*extdeserialization.VmAppSetting,
+	appPackage packageregistry.CurrentPackageRegistry,
+	environment *handlerenv.HandlerEnvironment,
+	logger *logging.ExtensionLogger,
+	mainActionPlan *actionplan.ActionPlan,
+	packageRegistryHandler packageregistry.IPackageRegistry,
+	incomingPackageCollection packageregistry.VMAppPackageIncomingCollection) (*ActionPlan, error) {
 
 	actionPlan := ActionPlan{
-		environment: environment,
-		sortedOrder: make([]*action, 0),
-		logger:      logger,
+		environment:               environment,
+		sortedOrder:               make([]*action, 0),
+		logger:                    logger,
+		mainActionPlan:            mainActionPlan,
+		packageRegistryHandler:    packageRegistryHandler,
+		incomingPackageCollection: incomingPackageCollection,
 	}
 
 	tc := uint64(0)
@@ -129,26 +143,37 @@ func New(settings []*extdeserialization.VmAppSetting, appPackage packageregistry
 }
 
 func (actionPlan *ActionPlan) Execute(extEventManager *extensionevents.ExtensionEventManager, commandHandler commandhandler.ICommandHandlerWithEnvVariables, result *actionplan.PackageOperationResults) (*actionplan.ExecuteError, actionplan.IResult) {
-	var combinedErrors error = nil
 	var executeError *actionplan.ExecuteError = &actionplan.ExecuteError{}
 	executeError.SetFailedDeploymentErr(nil)
 	executeError.SetCombinedExecuteErrors(nil)
 	actionRegistry := GetCurrentCustomActions(actionPlan)
 
 	for _, act := range actionPlan.sortedOrder {
-		newError := actionPlan.executeHelper(commandHandler, *actionRegistry, act, extEventManager)
-		combinedErrors = extensionerrors.CombineErrors(combinedErrors, newError)
+		var newError error
+		if isRetryAction(act) {
+			var reinstallError *actionplan.ExecuteError
+			reinstallError, newError = actionPlan.executeRetry(commandHandler, *actionRegistry, act, extEventManager, result)
+			if reinstallError != nil {
+				// carries the reinstall's errors, including deployment failures, so newError is not added again
+				executeError.Merge(reinstallError)
+			} else {
+				executeError.SetCombinedExecuteErrors(extensionerrors.CombineErrors(executeError.GetCombinedExecuteError(), newError))
+			}
+		} else {
+			newError = actionPlan.executeHelper(commandHandler, *actionRegistry, act, extEventManager)
+			executeError.SetCombinedExecuteErrors(extensionerrors.CombineErrors(executeError.GetCombinedExecuteError(), newError))
+		}
+		// record the result before stopping so a failed custom action is visible in the status
+		appendExecutionResult(result, act, newError)
 		if newError != nil { //errors w/ tickcountfile or CA exits non-zero
 			extEventManager.LogWarningEvent("CustomActionExecution", fmt.Sprintf("Custom Action %s failed, remaining actions will not be executed", act.Action.ActionName))
 			break
 		}
-		appendExecutionResult(result, act, newError)
 	}
 
-	if combinedErrors != nil {
+	if combinedErrors := executeError.GetCombinedExecuteError(); combinedErrors != nil {
 		extEventManager.LogWarningEvent("CustomActionExecution", combinedErrors.Error())
 	}
-	executeError.SetCombinedExecuteErrors(combinedErrors)
 
 	return executeError, result
 }
