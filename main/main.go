@@ -47,7 +47,7 @@ func main() {
 
 func getExtensionAndRun(arguments []string) error {
 	// simple way to test value of ExtensionVersion set at compile time
-	// just run "vm-application-mamager(.exe) version"
+	// just run "vm-application-manager(.exe) version"
 	if len(arguments) == 2 && strings.EqualFold(arguments[1], argVersion) {
 		fmt.Println("Extension version is", ExtensionVersion)
 		return nil
@@ -118,7 +118,7 @@ func getExtensionAndRun(arguments []string) error {
 			switch enableError.(type) {
 			case *lockedfile.FileLockTimeoutError:
 				// don't save status
-				warningMessage := fmt.Sprintf("Mutliple vm-application-manager processes detected, terminating PID: %d. Status file will not be written.", pid)
+				warningMessage := fmt.Sprintf("Multiple vm-application-manager processes detected, terminating PID: %d. Status file will not be written.", pid)
 				ext.ExtensionLogger.Warn(warningMessage)
 				ext.ExtensionEvents.LogWarningEvent("Concurrency", warningMessage)
 			case *utils.StatusSaveError:
@@ -224,31 +224,33 @@ func customEnable(ext *vmextensionhelper.VMExtension, hostgaCommunicator hostgac
 	actionPlan := actionplan.New(currentPackageRegistry, vmAppIncomingCollection, ext.HandlerEnv, hostgaCommunicator, ext.ExtensionLogger)
 	executeError, actionplanResult := actionPlan.Execute(packageRegistry, ext.ExtensionEvents, &commandHandler)
 
-	if executeError.GetErrorIfDeploymentFailed() != nil {
-		ext.ExtensionEvents.LogErrorEvent(
-			"Completed",
-			fmt.Sprintf("VmApplications extension finished. Result=Failure;Reason=%v", executeError.GetErrorIfDeploymentFailed().Error()))
-	} else {
-		ext.ExtensionEvents.LogInformationalEvent("Completed", "VmApplications extension finished. Result=Success")
-	}
-
 	vmAppResults, _ := actionplanResult.(*actionplan.PackageOperationResults)
 	currentPackageRegistry, err = packageRegistry.GetExistingPackages()
 	if err != nil {
 		return errors.Wrap(err, "Could not read current package registry")
 	}
 
-	customActionPlan, err := customactionplan.New(protSettings, currentPackageRegistry, ext.HandlerEnv, ext.ExtensionLogger)
+	customActionPlan, err := customactionplan.New(protSettings, currentPackageRegistry, ext.HandlerEnv, ext.ExtensionLogger, actionPlan, packageRegistry, vmAppIncomingCollection)
 	if err != nil {
 		return err
 	}
-	_, result := customActionPlan.Execute(ext.ExtensionEvents, &commandHandler, vmAppResults)
+	customActionExecuteError, result := customActionPlan.Execute(ext.ExtensionEvents, &commandHandler, vmAppResults)
+	// custom actions can reinstall applications, so their failures must count towards the deployment status
+	executeError.Merge(customActionExecuteError)
 	_, ok := result.(*actionplan.PackageOperationResults)
 
 	if !ok {
 		ext.ExtensionEvents.LogInformationalEvent(
 			"Completed",
 			fmt.Sprintf("VmApplications extension custom actions finished. Result=Success; Details: %v", result.ToJsonString()))
+	}
+
+	if executeError.GetErrorIfDeploymentFailed() != nil {
+		ext.ExtensionEvents.LogErrorEvent(
+			"Completed",
+			fmt.Sprintf("VmApplications extension finished. Result=Failure;Reason=%v", executeError.GetErrorIfDeploymentFailed().Error()))
+	} else {
+		ext.ExtensionEvents.LogInformationalEvent("Completed", "VmApplications extension finished. Result=Success")
 	}
 
 	currentPackageRegistry, err = packageRegistry.GetExistingPackages()
@@ -314,7 +316,7 @@ func computeStatus(
 			statusUpdated = true
 		} else if strings.EqualFold(string(statusObj.Status), string(status.StatusTransitioning)) {
 			// If status is Transitioning and there's no VM App operations,
-			// then record a succes status.
+			// then record a success status.
 			statusMessage = getStatusMessage(currentPackageRegistry.GetPackageCollection(), executeError, customActionResult)
 			statusResult = status.StatusSuccess
 			statusUpdated = true
