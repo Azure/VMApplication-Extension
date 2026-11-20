@@ -668,6 +668,110 @@ func Test_computeStatus_NoVMAppResults_NoStatusFile(t *testing.T) {
 	assert.Equal(t, status.StatusSuccess, statusType)
 }
 
+func Test_customEnable_HistoricalFailurePreservesNoOpRecovery(t *testing.T) {
+	for _, tt := range []struct {
+		name          string
+		status        status.StatusType
+		operation     string
+		corrupt       bool
+		hostGA        bool
+		stable        status.StatusType
+		want          status.StatusType
+		retainMessage bool
+	}{
+		{name: "missing", want: status.StatusSuccess},
+		{name: "corrupted", corrupt: true, want: status.StatusSuccess},
+		{name: "transitioning", status: status.StatusTransitioning, operation: "Enable", want: status.StatusSuccess},
+		{name: "disabled", status: status.StatusError, operation: "Disable", want: status.StatusSuccess},
+		{name: "stable success", status: status.StatusSuccess, operation: "Enable", want: status.StatusSuccess, retainMessage: true},
+		{name: "stable error", status: status.StatusError, operation: "Enable", want: status.StatusError, retainMessage: true},
+		{name: "metadata error without backup", status: status.StatusError, operation: "Enable", hostGA: true, want: status.StatusSuccess},
+		{name: "metadata error with success backup", status: status.StatusError, operation: "Enable", hostGA: true, stable: status.StatusSuccess, want: status.StatusSuccess, retainMessage: true},
+		{name: "metadata error with error backup", status: status.StatusError, operation: "Enable", hostGA: true, stable: status.StatusError, want: status.StatusError, retainMessage: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			setupTest(t)
+			settings := []extdeserialization.VmAppSetting{{
+				ApplicationName:                 "app1",
+				Version:                         "2.0.0",
+				TreatFailureAsDeploymentFailure: true,
+			}}
+			ext := createTestVMExtension(t, settings)
+			require.NoError(t, utils.ReportStatus(ext.HandlerEnv, 1, status.StatusError, "Enable", "previous sequence failed"))
+			if tt.stable != "" {
+				require.NoError(t, utils.ReportStatus(ext.HandlerEnv, 2, tt.stable, "Enable", "stored status"))
+				require.NoError(t, utils.BackupStatusFile(ext.HandlerEnv.StatusFolder, 2))
+			}
+			if tt.corrupt {
+				require.NoError(t, os.WriteFile(path.Join(ext.HandlerEnv.StatusFolder, "2.status"), []byte("{"), 0600))
+			} else if tt.status != "" {
+				message := "stored status"
+				if tt.hostGA {
+					message = hostgacommunicator.HostGaMetadataErrorPrefix + " transient"
+				}
+				require.NoError(t, utils.ReportStatus(ext.HandlerEnv, 2, tt.status, tt.operation, message))
+			}
+			current := &packageregistry.VMAppPackageCurrent{
+				ApplicationName:  "app1",
+				Version:          "2.0.0",
+				OngoingOperation: packageregistry.Failed,
+				Result:           "Update FAILED forced failure",
+			}
+			registry := packageregistry.CurrentPackageRegistry{"app1": current}
+			handler, err := packageregistry.New(ext.ExtensionLogger, ext.HandlerEnv, time.Second)
+			require.NoError(t, err)
+			writeErr := handler.WriteToDisk(registry)
+			closeErr := handler.Close()
+			require.NoError(t, writeErr)
+			require.NoError(t, closeErr)
+
+			communicator := &NoopHostGaCommunicator{}
+			communicator.SetupVMAppInfo("app1", "2.0.0", "")
+			require.NoError(t, customEnable(ext, communicator, 2))
+
+			saved, err := utils.GetStatus(ext.HandlerEnv, 2)
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, saved.Status)
+			if tt.retainMessage {
+				assert.Contains(t, saved.FormattedMessage.Message, "stored status")
+			}
+			assert.Empty(t, communicator.PackageFileNameUsed, "historical failure must not trigger a new operation")
+		})
+	}
+}
+
+func Test_computeStatus_CurrentDeploymentFailure(t *testing.T) {
+	for _, failDeployment := range []bool{false, true} {
+		t.Run(fmt.Sprintf("failure policy %t", failDeployment), func(t *testing.T) {
+			setupTest(t)
+			ext := createTestVMExtension(t, nil)
+			require.NoError(t, utils.ReportStatus(ext.HandlerEnv, 2, status.StatusTransitioning, "Enable", "pending"))
+			incoming := packageregistry.VMAppPackageIncomingCollection{{
+				ApplicationName:                 "app1",
+				Version:                         "2.0.0",
+				InstallCommand:                  "fail-cmd",
+				TreatFailureAsDeploymentFailure: failDeployment,
+			}}
+			plan := actionplan.New(packageregistry.CurrentPackageRegistry{}, incoming, ext.HandlerEnv, noopHostGaCommunicator, ext.ExtensionLogger)
+			registry := &mockInMemoryPackageRegistry{registry: packageregistry.CurrentPackageRegistry{}}
+			executeError, result := plan.Execute(registry, ext.ExtensionEvents, &failingCommandHandler{})
+			operations, ok := result.(*actionplan.PackageOperationResults)
+			require.True(t, ok)
+			require.Len(t, *operations, 1)
+
+			updated, statusType, message := computeStatus(ext, 2, &registry.registry, executeError, operations, operations)
+
+			assert.True(t, updated)
+			expected := status.StatusSuccess
+			if failDeployment {
+				expected = status.StatusError
+			}
+			assert.Equal(t, expected, statusType)
+			assert.Contains(t, message, "forced command failure")
+		})
+	}
+}
+
 // Test computeStatus when no vmAppResults and current status has HostGA error prefix but no last stable
 func Test_computeStatus_NoVMAppResults_HostGAError_NoLastStable(t *testing.T) {
 	setupTest(t)
