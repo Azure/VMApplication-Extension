@@ -38,3 +38,89 @@ Trademarks This project may contain trademarks or logos for projects, products, 
 
 -  Please do not check-in vendor files
 
+### Azure functional validation (Linux and Windows)
+
+From PowerShell 7.3 or later, run:
+
+```powershell
+.\TestScripts\Test-VmApplications.ps1
+```
+
+The harness creates **two billable amd64 VMs**, one Ubuntu 22.04 and one Windows
+Server 2022, and runs them simultaneously in separate thread jobs and resource
+groups. It requires Go, Azure CLI (`az login`), and GitHub CLI (`gh`).
+No local Python installation or LISA checkout is required; the Ubuntu guest uses
+its built-in Python 3 to execute the application fixture.
+The active Azure CLI subscription is used. Permissions must include resource
+creation/deletion and assigning Storage Blob Data Contributor.
+
+The publishing flow and 12 enabled tests per OS are translated into PowerShell
+from
+[microsoft/lisa#4891](https://github.com/microsoft/lisa/pull/4891), pinned to
+`d36ca9e0802637c526fcbf1bea4ac2954d8141a6`. Only the two guest application
+fixtures are downloaded unchanged from that revision. This exercises real PIR/CAPS
+publishing, lifecycle/configuration, ordering, recovery, failure policy, removal,
+child-resource APIs, and reboot behavior. The four custom-action cases disabled
+in that PR remain disabled; the harness does not silently turn off other tests.
+
+Each VM first installs a real gallery application using the published extension.
+Only then does CustomScript discover the installed production or EDP handler version, replace both
+the manager and launcher with locally cross-compiled binaries, and verify SHA256
+hashes. The build uses the installed extension name/version, and CustomScript
+rechecks the hashes around every test, including reboot tests.
+A separate anchor application remains installed throughout the suite because
+CRP uninstalls the handler when the application profile becomes empty. The anchor
+has its own installation sentinel, does not emit fixture audit events, and is
+checked separately in instance view. Removing all **test** applications therefore
+does not discard the local binaries.
+
+No-operation status recovery preserves the existing missing/corrupted,
+transitioning, disable-to-enable, and last-stable HostGA recovery behavior.
+Historical registry failures are not promoted into new deployment failures.
+The cross-sequence HostGA race is deferred until failures can be attributed to
+the relevant request; failure-policy validation may still expose that race.
+Failed implicit removal during replacement retains the outgoing
+package/configuration for the next attempt.
+Linux reboot handling also checks systemd's shutdown state when a command is
+terminated before the handler receives its shutdown signal. Ordinary command
+failures and signals outside shutdown remain failures.
+Signal notifications stop before normal command-result cleanup and registry
+writes; reboot handling retains them while persisting reboot state.
+
+Resources use private blob containers, user-delegation SAS, disabled storage
+shared keys, and no open inbound NSG ports. A Standard public IP supplies explicit
+outbound connectivity; SSH, RDP, and WinRM are not used. Resources are deleted on
+completion, including failures, unless `-KeepResources` is specified.
+
+```powershell
+# Keep the VMs, gallery, and storage while investigating failures.
+.\TestScripts\Test-VmApplications.ps1 -Region EastUS2 -KeepResources
+
+# Use the results directory printed by the first invocation.
+# Temporarily skip passes only when their source fingerprint still matches.
+.\TestScripts\Test-VmApplications.ps1 -ResumeFrom <results-directory> -SkipPassed -KeepResources
+
+# Focus on one failing scenario on both operating systems.
+.\TestScripts\Test-VmApplications.ps1 -ResumeFrom <results-directory> -TestName verify_failure_policy -KeepResources
+
+# Re-enable every test for final validation, then delete the resources.
+.\TestScripts\Test-VmApplications.ps1 -ResumeFrom <results-directory>
+```
+
+Results, logs, build hashes, and per-OS resource ownership state are saved under
+`bundle\functional-validation`. Failed cases trigger CustomScript diagnostic
+archive collection. Resume validates resource-group ownership and never deletes
+unrelated groups. Changing source, including cached guest fixtures, invalidates
+previously passed results.
+`-Region` defaults to `EastUS2`, `-VmSize` to `Standard_D2s_v5`, and
+`-TimeoutHours` to 24. Other regions, including EUAP regions, can be selected
+explicitly; their CRP/HostGA rollout must support the tested API behavior.
+An interrupted or deadline-terminated run can leave resources behind: resume the
+run to clean up, or explicitly delete the resource groups recorded in each
+`state.json`. **Retained resources continue to incur charges.**
+
+Offline harness checks (no Azure resources):
+
+```powershell
+.\TestScripts\Test-VmApplications.Offline.Tests.ps1
+```

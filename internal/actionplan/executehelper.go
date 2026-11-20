@@ -5,12 +5,16 @@ package actionplan
 
 import (
 	"bytes"
+	"context"
 	"crypto/md5"
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path"
+	"runtime"
+	"strings"
 	"syscall"
 	"time"
 
@@ -24,6 +28,32 @@ import (
 )
 
 const MaxReboots = 3
+
+var systemShutdownInProgress = func() (bool, error) {
+	if runtime.GOOS != "linux" {
+		return false, nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	output, err := exec.CommandContext(ctx, "systemctl", "is-system-running").Output()
+	if ctx.Err() != nil {
+		return false, errors.Wrap(ctx.Err(), "checking system shutdown state")
+	}
+	if err != nil {
+		var exitErr *exec.ExitError
+		if !errors.As(err, &exitErr) || exitErr.ExitCode() != 1 {
+			return false, errors.Wrap(err, "checking system shutdown state")
+		}
+	}
+	switch state := strings.TrimSpace(string(output)); state {
+	case "stopping":
+		return true, nil
+	case "initializing", "starting", "running", "degraded", "maintenance", "offline":
+		return false, nil
+	default:
+		return false, errors.Errorf("unrecognized system shutdown state %q", state)
+	}
+}
 
 func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPackageRegistry,
 	commandHandler commandhandler.ICommandHandler, registry packageregistry.CurrentPackageRegistry,
@@ -164,6 +194,7 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 		completionSignal := make(chan ExecutionResult, 1)
 		interruptSignal := make(chan os.Signal, 1)
 		signal.Notify(interruptSignal, syscall.SIGTERM, syscall.SIGINT)
+		defer signal.Stop(interruptSignal)
 
 		go func() {
 			start := time.Now().UnixNano() / int64(time.Millisecond)
@@ -182,8 +213,34 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 			close(completionSignal)
 		}()
 
+		var compSignal ExecutionResult
+		rebootDetected := false
 		select {
-		case compSignal := <-completionSignal:
+		case compSignal = <-completionSignal:
+			if compSignal.retCode < 0 {
+				// Shutdown can terminate the child before SIGTERM reaches this process.
+				select {
+				case <-interruptSignal:
+					rebootDetected = true
+				default:
+					var shutdownErr error
+					rebootDetected, shutdownErr = systemShutdownInProgress()
+					if shutdownErr != nil {
+						actionPlan.logger.Error("Could not check shutdown after command termination: %v", shutdownErr)
+					}
+				}
+				if !rebootDetected {
+					select {
+					case <-interruptSignal:
+						rebootDetected = true
+					default:
+					}
+				}
+			}
+		case <-interruptSignal:
+			rebootDetected = true
+		}
+		if !rebootDetected {
 			if compSignal.err != nil {
 				errorMessageToReturn = extensionerrors.CombineErrors(errorMessageToReturn, errors.Wrapf(compSignal.err, "Error executing command '%v'", commandToExecute))
 			} else if compSignal.retCode != 0 {
@@ -191,13 +248,14 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 			}
 			// Reset count if command successfully completed
 			vmAppPackageCurrent.NumRebootsOccurred = 0
-		case <-interruptSignal:
+			signal.Stop(interruptSignal)
+		} else {
 			// the command that we executed resulted in system reboot handle system reboot
 			eem.LogInformationalEvent("System reboot detected",
 				fmt.Sprintf("cmd=%v, application=%v, version=%v, result=Success",
 					commandToExecute, appName, version))
 
-			actionPlan.logger.Info("Received terminate signal, system reboot detected.")
+			actionPlan.logger.Info("Command interrupted by system shutdown or terminate signal, system reboot detected.")
 			if vmAppPackageCurrent.RebootBehavior == packageregistry.Rerun {
 				// vmPackageCurrent.OngoingOperation should remain the same (Install, Update, RemoveForUpdate, or Remove)
 				// Increment reboot count
@@ -218,17 +276,19 @@ func (actionPlan *ActionPlan) executeHelper(registryHandler packageregistry.IPac
 				actionPlan.logger.Info("Will not rerun operation '%v'. No further action will be taken.", vmAppPackageCurrent.OngoingOperation.ToString())
 			}
 
-			registryHandler.WriteToDisk(registry)
+			if err := registryHandler.WriteToDisk(registry); err != nil {
+				return markCommandFailed(act.actionToPerform, commandToExecute, appName, version, err, eem)
+			}
 			exithelper.Exiter.Exit(0)
+			return nil
 		}
-		signal.Stop(interruptSignal)
 	}
 
 	if shouldRemoveFromRegistry {
 		delete(registry, appName)
 	}
 
-	if isRemoveOperation {
+	if isRemoveOperation && (act.actionToPerform != packageregistry.RemoveForUpdate || errorMessageToReturn == nil) {
 		deleteErr := os.RemoveAll(vmAppPackageCurrent.DownloadDir)
 		errorMessageToReturn = extensionerrors.CombineErrors(errorMessageToReturn, deleteErr)
 	}

@@ -5,6 +5,7 @@ package actionplan
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"os"
 	"path"
@@ -14,6 +15,7 @@ import (
 	"github.com/Azure/VMApplication-Extension/internal/hostgacommunicator"
 	"github.com/Azure/VMApplication-Extension/internal/packageregistry"
 	"github.com/Azure/azure-extension-platform/pkg/constants"
+	"github.com/Azure/azure-extension-platform/pkg/exithelper"
 	"github.com/Azure/azure-extension-platform/pkg/extensionevents"
 	"github.com/Azure/azure-extension-platform/pkg/handlerenv"
 	"github.com/Azure/azure-extension-platform/pkg/logging"
@@ -116,6 +118,79 @@ var vmAppPackageDeleted = packageregistry.VMAppPackageCurrent{
 	IsDeleted:       true,
 }
 
+type recordingExitHelper struct {
+	called bool
+	code   int
+}
+
+func (helper *recordingExitHelper) Exit(code int) {
+	helper.called = true
+	helper.code = code
+}
+
+func TestCommandTerminationBeforeRebootSignal(t *testing.T) {
+	for _, test := range []struct {
+		name        string
+		retCode     int
+		stopping    bool
+		shutdownErr error
+		rerun       bool
+		wantReboot  bool
+	}{
+		{name: "shutdown without rerun", retCode: -1, stopping: true, wantReboot: true},
+		{name: "shutdown with rerun", retCode: -1, stopping: true, rerun: true, wantReboot: true},
+		{name: "ordinary signal failure", retCode: -1},
+		{name: "unavailable shutdown state", retCode: -1, shutdownErr: errors.New("systemctl unavailable")},
+		{name: "ordinary command failure during shutdown", retCode: 1, stopping: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			initTest(t)
+			defer cleanTest()
+			previousCheck, previousExiter := systemShutdownInProgress, exithelper.Exiter
+			defer func() {
+				systemShutdownInProgress, exithelper.Exiter = previousCheck, previousExiter
+			}()
+			checked := false
+			systemShutdownInProgress = func() (bool, error) {
+				checked = true
+				return test.stopping, test.shutdownErr
+			}
+			exiter := &recordingExitHelper{}
+			exithelper.Exiter = exiter
+			pkg := vmAppPackageCurrent
+			if test.rerun {
+				pkg.RebootBehavior = packageregistry.Rerun
+			}
+			registry := make(packageregistry.CurrentPackageRegistry)
+			cmd := NewCommandHandlerMock(func(string, string) (int, error) {
+				return test.retCode, errors.New("command terminated")
+			})
+			err := actionPlan.executeHelper(packageRegistry, cmd, registry,
+				&action{vmAppPackage: pkg, actionToPerform: packageregistry.Install}, extensionEventManager)
+			assert.Equal(t, test.retCode < 0, checked)
+			assert.Equal(t, test.wantReboot, exiter.called)
+			persisted, readErr := packageRegistry.GetExistingPackages()
+			assert.NoError(t, readErr)
+			current := persisted[pkg.ApplicationName]
+			if test.wantReboot {
+				assert.NoError(t, err)
+				assert.Equal(t, 0, exiter.code)
+				assert.Contains(t, current.Result, "Reboot detected during 'Install' operation")
+				if test.rerun {
+					assert.Equal(t, packageregistry.Install, current.OngoingOperation)
+					assert.Equal(t, 1, current.NumRebootsOccurred)
+				} else {
+					assert.Equal(t, packageregistry.NoAction, current.OngoingOperation)
+					assert.Equal(t, 0, current.NumRebootsOccurred)
+				}
+			} else {
+				assert.Error(t, err)
+				assert.Equal(t, packageregistry.Failed, current.OngoingOperation)
+			}
+		})
+	}
+}
+
 var packageRegistry packageregistry.IPackageRegistry
 
 var mhgCommunicator *mockHostGaCommunicator
@@ -171,6 +246,38 @@ func TestExecuteHelper(t *testing.T) {
 	assert.Equal(t, 2, len(commandHandler.Result), "only 2 commands should be executed")
 	_, err = os.Stat(downloadDir)
 	assert.True(t, os.IsNotExist(err), "downloadDir should be deleted")
+}
+
+func TestExecuteHelper_FailedRemoveForUpdatePreservesOutgoingPackage(t *testing.T) {
+	initTest(t)
+	defer cleanTest()
+
+	outgoing := vmAppPackageCurrent
+	outgoing.DownloadDir = outgoing.GetWorkingDirectory(&handlerEnvironment)
+	assert.NoError(t, os.MkdirAll(outgoing.DownloadDir, constants.FilePermissions_UserOnly_ReadWriteExecute))
+	packagePath := path.Join(outgoing.DownloadDir, outgoing.PackageFileName)
+	configPath := path.Join(outgoing.DownloadDir, outgoing.ConfigFileName)
+	assert.NoError(t, os.WriteFile(packagePath, []byte("cached package"), constants.FilePermissions_UserOnly_ReadWriteExecute))
+	assert.NoError(t, os.WriteFile(configPath, []byte("cached config"), constants.FilePermissions_UserOnly_ReadWriteExecute))
+	command := NewCommandHandlerMock(func(string, string) (int, error) { return 1, nil })
+	registry := packageregistry.CurrentPackageRegistry{}
+	act := action{outgoing, false, packageregistry.RemoveForUpdate}
+
+	for attempt := 0; attempt < 2; attempt++ {
+		err := actionPlan.executeHelper(packageRegistry, command, registry, &act, extensionEventManager)
+		assert.Error(t, err)
+		packageBytes, packageErr := os.ReadFile(packagePath)
+		assert.NoError(t, packageErr)
+		assert.Equal(t, "cached package", string(packageBytes))
+		configBytes, configErr := os.ReadFile(configPath)
+		assert.NoError(t, configErr)
+		assert.Equal(t, "cached config", string(configBytes))
+		assert.Equal(t, packageregistry.Failed, registry[outgoing.ApplicationName].OngoingOperation)
+		assert.Equal(t, outgoing.Version, registry[outgoing.ApplicationName].Version)
+	}
+	assert.Len(t, command.Result, 2)
+	assert.Zero(t, mhgCommunicator.DownloadPackageCount)
+	assert.Zero(t, mhgCommunicator.DownloadConfigCount)
 }
 
 func TestExecuteHelper_RemoveForUpdateDoesNotDownloadOutgoingPackage(t *testing.T) {
